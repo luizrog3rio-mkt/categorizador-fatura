@@ -1,9 +1,10 @@
 -- ============================================================================
 -- Fase 1b — Modelo de equipe (team access)
 -- ============================================================================
--- ATENÇÃO (convenção do projeto): o version deste arquivo é placeholder.
--- O `apply_migration` gera o version no momento do apply; renomear o arquivo
--- depois pra casar com o registrado (mesmo rito da Fase 1a).
+-- APLICADO em 2026-06-10 via MCP `apply_migration` — version vivo 20260610115934
+-- (arquivo renomeado do placeholder 20260610120000 pra casar, rito da Fase 1a).
+-- Todas as 5 guardas passaram; advisors pós-apply: 6 WARN rls_policy_always_true
+-- (lint 0024) nas policies de equipe — é o design da 1b, aceito.
 --
 -- O que faz (numa única transação; qualquer guarda falhando aborta tudo):
 --   1. Consolida os seeds duplicados: deleta as 9 categories e os 62

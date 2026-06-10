@@ -1,4 +1,4 @@
-# Migrations — runbook (Fase 1a ✅ aplicada · Fase 1b 🟡 aguardando aprovação)
+# Migrations — runbook (Fase 1a ✅ aplicada · Fase 1b ✅ aplicada)
 
 > **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz em 2026-06-09).**
 > Histórico vivo: `20260609120000 baseline` (registrado sem execução) → `20260610010051 phase1a_hardening`
@@ -118,9 +118,17 @@ compatibilidade com o App.jsx, e este runbook) — 0 blockers em 2026-06-09.
 
 # Fase 1b — modelo de equipe
 
-> **Status: SQL redigido em 2026-06-10, aguardando revisão e aprovação do Luiz.**
-> Arquivo: `migrations/20260610120000_phase1b_team_model.sql` (version placeholder —
-> renomear após o apply, mesmo rito da 1a).
+> **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz no mesmo dia).**
+> Arquivo: `migrations/20260610115934_phase1b_team_model.sql` (renomeado do placeholder
+> `20260610120000` pro version real registrado pelo apply). Todas as 5 guardas passaram.
+> Verificação pós-apply: counts 12/62/8 e dados da Lívia intactos (3/519/9); 9 policies
+> (7 team + 2 own de profiles); 6 FKs user_id em RESTRICT, profiles em CASCADE; anon
+> segue 401/42501. Advisors security: **6 WARN `rls_policy_always_true` (lint 0024)
+> nas 6 policies de equipe — é exatamente o design da 1b, aceitos por decisão** (a
+> previsão "security zerado" do rascunho estava errada; o lint 0024 flagra using(true)
+> em ALL). Pré-requisitos confirmados por probe na janela do apply: `signup_disabled`,
+> `anonymous_provider_disabled`, auth.users = só as 2 contas, backup diário de
+> 2026-06-10 07:58 UTC presente.
 
 ## O que muda
 
@@ -170,16 +178,16 @@ auditoria sem revalidar server-side).
 Pós-1b o gate inteiro vira "ter um JWT authenticated" — então TODAS as portas
 de emissão precisam estar fechadas, não só o signup por e-mail:
 
-- [ ] **Fechar o signup público** (dashboard → Authentication → Sign In / Providers
+- [x] **Fechar o signup público** (dashboard → Authentication → Sign In / Providers
       → desativar "Allow new users to sign up"). Com `using (true)` e signup
       aberto (e-mail já auto-confirma), qualquer pessoa criaria conta e veria
       todos os dados da empresa. Contas de equipe passam a nascer no dashboard
       (Authentication → Users → Add user → e-mail auto-confirmado).
-- [ ] **"Allow anonymous sign-ins" = OFF** (toggle SEPARADO do signup — JWT
+- [x] **"Allow anonymous sign-ins" = OFF** (toggle SEPARADO do signup — JWT
       anônimo também é role `authenticated` e passaria nas policies).
-- [ ] **Nenhum provider além de Email** habilitado (OAuth/phone emitiriam JWT
+- [x] **Nenhum provider além de Email** habilitado (OAuth/phone emitiriam JWT
       por fora do toggle de signup).
-- [ ] **Auditar `auth.users`**: `select id, email, created_at from auth.users`
+- [x] **Auditar `auth.users`**: `select id, email, created_at from auth.users`
       deve devolver SÓ as 2 contas conhecidas. Se houver conta estranha:
       deletar E **aguardar a expiração do access token dela** (JWT é stateless
       — vale até o `exp` mesmo com a conta deletada; ver JWT expiry em
@@ -189,8 +197,10 @@ de emissão precisam estar fechadas, não só o signup por e-mail:
 Probes de verificação (nunca criam usuário), re-rodar IMEDIATAMENTE antes do
 apply — probe velho não vale:
 `POST /auth/v1/signup` com senha de 1 caractere → fechado responde
-`signup_disabled`; aberto responde `weak_password`. **Probe em 2026-06-10:
-ainda ABERTO.** Anonymous: `POST /auth/v1/signup` com body `{}` → deve dar erro.
+`signup_disabled`; aberto responde `weak_password`. Anonymous:
+`POST /auth/v1/signup` com body `{}` → deve dar erro. **Probes finais na
+janela do apply (2026-06-10): `signup_disabled` ✓ e
+`anonymous_provider_disabled` ✓.**
 
 ## Ordem de aplicação
 
@@ -209,8 +219,9 @@ ainda ABERTO.** Anonymous: `POST /auth/v1/signup` com body `{}` → deve dar err
 5. `list_migrations` → anotar o version real, renomear o arquivo local E
    atualizar as referências cruzadas (linha "Arquivo:" desta seção, header do
    SQL, status do runbook → aplicada).
-6. Re-rodar advisors (security deve seguir zerado; performance pode reclamar
-   `unused_index` — INFO inofensivo) e o smoke test do modelo de equipe
+6. Re-rodar advisors (security mostra **6 WARN `rls_policy_always_true`/lint
+   0024 nas policies de equipe — é o design da 1b, aceitos**; performance pode
+   reclamar `unused_index` — INFO inofensivo) e o smoke test do modelo de equipe
    (usuário descartável criado pelo admin no dashboard): login → vê as 3
    faturas e 519 transações da Lívia → **importa um OFX descartável e confere
    que o modal de pendentes lista os itens da Lívia** (exercita o fix do
