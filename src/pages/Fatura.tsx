@@ -22,7 +22,7 @@ type Aba = 'lancamentos' | 'dashboard' | 'compras'
 
 export default function Fatura() {
   const { id } = useParams<{ id: string }>()
-  const { session } = useApp()
+  const { session, recarregarPendentes } = useApp()
   const { categorias, purchaseCategorias, regras, erro: erroWorld, addCategoria, addPurchaseCategoria } = useFaturaWorld()
   const navigate = useNavigate()
   const location = useLocation()
@@ -133,6 +133,7 @@ export default function Fatura() {
     else if (data) {
       setPurchaseItems((prev) => [...prev, ...data])
       setActiveTab('compras')
+      recarregarPendentes()
     }
     setPendentes(null)
   }

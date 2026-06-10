@@ -27,7 +27,7 @@ const itens = [
 ]
 
 export default function Layout() {
-  const { perfil, empresas, empresaAtiva, setEmpresaAtiva } = useApp()
+  const { perfil, empresas, empresaAtiva, setEmpresaAtiva, pendingCount } = useApp()
 
   return (
     <div className="min-h-screen flex">
@@ -70,7 +70,12 @@ export default function Layout() {
               }
             >
               <Icone size={17} />
-              {rotulo}
+              <span className="flex-1">{rotulo}</span>
+              {to === '/compras' && pendingCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-bold">
+                  {pendingCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

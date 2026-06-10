@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { Company, Profile } from '../lib/types'
@@ -12,6 +12,8 @@ interface AppCtx {
   empresaAtiva: Company | null // null = consolidado (todas)
   setEmpresaAtiva: (e: Company | null) => void
   recarregarEmpresas: () => Promise<void>
+  pendingCount: number
+  recarregarPendentes: () => Promise<void>
 }
 
 const Ctx = createContext<AppCtx>(null as unknown as AppCtx)
@@ -22,6 +24,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [perfil, setPerfil] = useState<Profile | null>(null)
   const [empresas, setEmpresas] = useState<Company[]>([])
   const [empresaAtiva, setEmpresaAtiva] = useState<Company | null>(null)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -38,9 +41,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEmpresas(data ?? [])
   }
 
+  const recarregarPendentes = useCallback(async () => {
+    const { count, error } = await supabase
+      .from('purchase_items')
+      .select('*', { count: 'exact', head: true })
+      .is('invoice_id', null)
+    if (error) console.error('Erro contando pendentes:', error.message)
+    setPendingCount(count ?? 0)
+  }, [])
+
   useEffect(() => {
-    if (!session) return
+    if (!session) {
+      setPendingCount(0)
+      return
+    }
     recarregarEmpresas()
+    recarregarPendentes()
     supabase
       .from('profiles')
       .select('*')
@@ -50,11 +66,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (error) console.error('Erro carregando profile:', error.message)
         setPerfil(data)
       })
-  }, [session])
+  }, [session, recarregarPendentes])
 
   return (
     <Ctx.Provider
-      value={{ session, carregando, perfil, empresas, empresaAtiva, setEmpresaAtiva, recarregarEmpresas }}
+      value={{ session, carregando, perfil, empresas, empresaAtiva, setEmpresaAtiva, recarregarEmpresas, pendingCount, recarregarPendentes }}
     >
       {children}
     </Ctx.Provider>
