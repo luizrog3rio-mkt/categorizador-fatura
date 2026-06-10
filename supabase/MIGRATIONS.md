@@ -3,9 +3,10 @@
 > **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz em 2026-06-09).**
 > Histórico vivo: `20260609120000 baseline` (registrado sem execução) → `20260610010051 phase1a_hardening`
 > (executado via MCP `apply_migration`). Advisors pós-apply: **os 13 achados SQL-fixáveis zeraram**
-> (0011, 0028, 0029, 0001, 0003×9); security mostra só `auth_leaked_password_protection` (HIBP,
-> aguardando Pro Plan) e performance só um INFO `unused_index` no índice recém-criado (esperado —
-> acabou de nascer, some com o uso). Pendente: smoke test (passo 5) e os 2 passos manuais.
+> (0011, 0028, 0029, 0001, 0003×9); performance só um INFO `unused_index` no índice recém-criado
+> (esperado — acabou de nascer, some com o uso). Smoke test ✅ PASSOU em 2026-06-10. HIBP ✅
+> habilitado em 2026-06-10 (projeto transferido pra org Pro) — **advisors security: zero achados**.
+> Pendência restante: migrar a service key exposta (passo manual 2).
 >
 > Regra do projeto (segue valendo): nenhuma migration encosta no banco sem o Luiz revisar o SQL e aprovar.
 
@@ -87,15 +88,14 @@ compatibilidade com o App.jsx, e este runbook) — 0 blockers em 2026-06-09.
 
 ## Passos manuais no dashboard (sem SQL equivalente)
 
-- [ ] **Habilitar proteção contra senhas vazadas (HIBP)** — advisor
-      `auth_leaked_password_protection`. **Aguardando: Luiz assina o Pro Plan em
-      2026-06-10; habilitar depois disso.** **Pré-requisito: Pro Plan ou superior**
-      ([doc oficial](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)) —
-      se a org RB7 estiver no Free, registrar como pendência conhecida ou fazer upgrade.
-      Dashboard: [Authentication → Providers → Email](https://supabase.com/dashboard/project/qdnqghefwjpeiidjlzjy/auth/providers)
-      (seção de password). Alternativa via Management API (é mutação em nuvem — também
-      exige aprovação prévia): `PATCH /v1/projects/qdnqghefwjpeiidjlzjy/config/auth`
-      com `{"password_hibp_enabled": true}` (`GET` no mesmo path verifica o estado).
+- [x] **Habilitar proteção contra senhas vazadas (HIBP)** — advisor
+      `auth_leaked_password_protection`. ✅ **FEITO em 2026-06-10**: Luiz transferiu o
+      projeto pra uma organização Pro (pré-requisito: Pro Plan ou superior,
+      [doc oficial](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection))
+      e ativou o toggle no dashboard ([Authentication → Providers → Email](https://supabase.com/dashboard/project/qdnqghefwjpeiidjlzjy/auth/providers)).
+      Verificado via `get_advisors`: security zerou. ⚠️ Nota da transferência de org: ref,
+      URL, JWT secret e chaves não mudam (app/Vercel intactos), mas o **OAuth do MCP
+      supabase precisou ser reautenticado** (`/mcp`) — o grant era da org antiga.
 - [ ] **Rotacionar a service key** — foi exposta em chat na sessão do rb7-financeiro.
       ⚠️ **Cuidado**: o projeto usa chaves JWT **legadas** — service_role e anon são
       assinadas pelo **mesmo JWT secret**. Rotacionar o JWT secret invalida a anon key
