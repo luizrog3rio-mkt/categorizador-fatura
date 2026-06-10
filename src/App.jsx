@@ -585,7 +585,7 @@ export default function App() {
         color: TAG_COLORS[c.color_index % TAG_COLORS.length],
         colorIndex: c.color_index,
       })));
-    } else {
+    } else if (dbCats) {
       // Seed defaults
       const toInsert = DEFAULT_CATEGORIES.map(c => ({
         user_id: user.id,
@@ -613,7 +613,7 @@ export default function App() {
 
     if (dbRules && dbRules.length > 0) {
       setAutoRules(dbRules.map(r => ({ keywords: r.keywords, category: r.category })));
-    } else {
+    } else if (dbRules) {
       // Seed defaults
       const toInsert = DEFAULT_RULES.map(r => ({
         user_id: user.id,
@@ -637,7 +637,7 @@ export default function App() {
         color: TAG_COLORS[c.color_index % TAG_COLORS.length],
         colorIndex: c.color_index,
       })));
-    } else {
+    } else if (dbPurCats) {
       const toInsert = DEFAULT_PURCHASE_CATEGORIES.map(c => ({
         user_id: user.id,
         name: c.name,
@@ -785,7 +785,6 @@ export default function App() {
       .from("purchase_items")
       .select("*")
       .is("invoice_id", null)
-      .eq("user_id", user.id)
       .order("month", { ascending: false })
       .order("created_at");
 
@@ -850,6 +849,8 @@ export default function App() {
 
   // ── Delete invoice ─────────────────────────────────────────────────────────
   const deleteInvoice = async (invoiceId) => {
+    const inv = invoices.find(i => i.id === invoiceId);
+    if (!window.confirm(`Excluir a fatura "${inv?.name ?? ""}" e todas as suas transações? Essa ação não tem desfazer.`)) return;
     await supabase.from("invoices").delete().eq("id", invoiceId);
     setInvoices(prev => prev.filter(i => i.id !== invoiceId));
     if (currentInvoice?.id === invoiceId) {
