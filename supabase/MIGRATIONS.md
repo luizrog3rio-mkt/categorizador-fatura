@@ -298,7 +298,13 @@ full-project do backup.
 > pós-redução de seeds (APROVADO). Pós-apply verificado: 5 tabelas + 3 enums criados,
 > seed exato (RB7 Digital / Cartão Sicoob RB7, byte-perfeito), backfill 3/3 faturas,
 > 9 FKs RESTRICT, anon sem grant (REST → 401/42501), advisors = exatamente os 11
-> WARNs 0024 previstos. Pendente: smoke authenticated (round-trip em entries + OFX).
+> WARNs 0024 previstos. **Smoke authenticated ✅ PASSOU em 2026-06-10** — executado
+> por impersonação de role no SQL (`set local role authenticated` + claims JWT, a
+> mesma técnica do SQL Editor; signup fechado dispensou usuário descartável):
+> INSERT/UPDATE/DELETE em entries como authenticated (policy + grants + trigger
+> `updated_at` avançou), INSERT de invoices no formato exato do App.jsx pós-ALTER
+> (account_id nasce NULL como documentado) + delete. Banco voltou ao estado pós-1c
+> exato (3/519/0, 1 company, 1 account). **Fase 1c 100% fechada.**
 
 ## O que cria
 
