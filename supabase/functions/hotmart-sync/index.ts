@@ -13,9 +13,10 @@
 //    (pública, a mesma do bundle) como apikey.
 //
 // Modos:
-//  - POST {company_id, months?}            → sincroniza (upsert por transaction_code)
-//  - POST {company_id, debug:true}         → devolve a 1ª venda CRUA, NÃO grava
-//                                            (pra validar o mapeamento)
+//  - POST {company_id, months?}            → usuário (JWT): upsert respeitando RLS
+//  - POST {company_id, debug:true}         → 1ª venda crua+mapeada, NÃO grava
+//  - header x-service-auth == HOTMART_SYNC_SERVICE_KEY → modo-serviço (cron
+//    diário): escreve com a service key, sem usuário. verify_jwt=false no deploy.
 // ============================================================================
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
@@ -86,7 +87,15 @@ Deno.serve(async (req) => {
 
   try {
     const auth = req.headers.get('Authorization')
-    if (!auth) return json({ error: 'sem Authorization (faça login)' }, 401)
+    // modo-serviço (cron diário): x-service-auth bate com a service key da
+    // function → escreve sem usuário (bypassa RLS só neste caminho, gated pela
+    // chave). verify_jwt está OFF no deploy pra o cron passar; por isso exigimos
+    // aqui ou serviço autenticado, ou um Bearer de usuário (RLS protege a escrita).
+    const serviceKey = Deno.env.get('HOTMART_SYNC_SERVICE_KEY')
+    const isService = !!serviceKey && req.headers.get('x-service-auth') === serviceKey
+    // não-serviço: exige um Bearer com cara de JWT (barra lixo antes de gastar
+    // quota da Hotmart); a escrita real ainda é protegida pelo RLS de equipe
+    if (!isService && !/^Bearer\s+eyJ/.test(auth ?? '')) return json({ error: 'sem autorização' }, 401)
 
     const { company_id, debug, months } = await req.json().catch(() => ({}))
     if (!company_id) return json({ error: 'company_id obrigatório' }, 400)
@@ -141,10 +150,12 @@ Deno.serve(async (req) => {
 
     if (linhas.length === 0) return json({ ok: true, encontradas: items.length, gravadas: 0, msg: 'Nenhuma venda no período.' })
 
-    // 5) upsert respeitando RLS (JWT do usuário), em lotes de 500
-    const sb = createClient(Deno.env.get('SUPABASE_URL')!, PUBLISHABLE_KEY, {
-      global: { headers: { Authorization: auth } },
-    })
+    // 5) upsert em lotes de 500
+    //  - serviço: escreve com a service key (bypassa RLS, gated por x-service-auth)
+    //  - usuário: escreve com o JWT dele (respeita o RLS de equipe)
+    const sb = isService
+      ? createClient(Deno.env.get('SUPABASE_URL')!, serviceKey!)
+      : createClient(Deno.env.get('SUPABASE_URL')!, PUBLISHABLE_KEY, { global: { headers: { Authorization: auth! } } })
     let gravadas = 0
     for (let i = 0; i < linhas.length; i += 500) {
       const lote = linhas.slice(i, i + 500)
