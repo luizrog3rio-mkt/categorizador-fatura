@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     // quota da Hotmart); a escrita real ainda é protegida pelo RLS de equipe
     if (!isService && !/^Bearer\s+eyJ/.test(auth ?? '')) return json({ error: 'sem autorização' }, 401)
 
-    const { company_id, debug, months } = await req.json().catch(() => ({}))
+    const { company_id, debug, months, start: startArg, end: endArg } = await req.json().catch(() => ({}))
     if (!company_id) return json({ error: 'company_id obrigatório' }, 400)
 
     const clientId = Deno.env.get('HOTMART_CLIENT_ID')
@@ -113,10 +113,11 @@ Deno.serve(async (req) => {
     const accessToken = tokenJson.access_token
     if (!accessToken) return json({ error: 'token Hotmart sem access_token', body: tokenJson }, 502)
 
-    // 2) janela móvel (default 2 meses — produto de alto volume)
-    const end = Date.now()
+    // 2) janela: explícita (start/end epoch ms, pra backfill em pedaços) ou
+    //    móvel (default 2 meses — produto de alto volume)
+    const end = Number(endArg) || Date.now()
     const janela = Math.max(1, Math.min(36, Number(months) || 2))
-    const start = end - janela * 30 * 24 * 60 * 60 * 1000
+    const start = startArg ? Number(startArg) : end - janela * 30 * 24 * 60 * 60 * 1000
 
     // 3) paginação
     const items: any[] = []
@@ -141,7 +142,7 @@ Deno.serve(async (req) => {
       items.push(...((data?.items as any[]) ?? []))
       pageToken = data?.page_info?.next_page_token ?? ''
       paginas++
-    } while (pageToken && paginas < 50)
+    } while (pageToken && paginas < 150)
 
     // 4) mapear + dedupe no lote (última ocorrência vence)
     const mapeadas = items.map((it) => mapSale(it, company_id)).filter(Boolean) as any[]
