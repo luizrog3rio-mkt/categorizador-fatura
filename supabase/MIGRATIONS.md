@@ -96,15 +96,15 @@ compatibilidade com o App.jsx, e este runbook) — 0 blockers em 2026-06-09.
       Verificado via `get_advisors`: security zerou. ⚠️ Nota da transferência de org: ref,
       URL, JWT secret e chaves não mudam (app/Vercel intactos), mas o **OAuth do MCP
       supabase precisou ser reautenticado** (`/mcp`) — o grant era da org antiga.
-- [ ] **Rotacionar a service key** — foi exposta em chat na sessão do rb7-financeiro.
-      ⚠️ **Cuidado**: o projeto usa chaves JWT **legadas** — service_role e anon são
-      assinadas pelo **mesmo JWT secret**. Rotacionar o JWT secret invalida a anon key
-      embutida no build da Vercel e **derruba o app** até atualizar
-      `VITE_SUPABASE_PUBLISHABLE_KEY` (Vercel + `.env` local) e redeployar.
-      **Caminho preferido**: migrar para as API keys novas (`sb_publishable_*` /
-      `sb_secret_*`) no dashboard (Settings → API), que permite revogar a secret sem
-      invalidar a publishable. Se rotacionar o secret mesmo assim, fazer env update +
-      redeploy na mesma janela.
+- [x] **Service key exposta REVOGADA** ✅ (2026-06-10): migração pras API keys novas
+      concluída sem downtime — app (Vercel env + `.env` local) trocado pra
+      `sb_publishable_CYnY2cJ5mgmKJ4ZhV5IFcA_7mHEQhdo`, redeploy verificado (bundle
+      servindo a chave nova), e **legacy API keys desabilitadas** no dashboard às
+      14:25 UTC (probe: legada → "Legacy API keys are disabled"; nova → viva; app →
+      200). O JWT secret NÃO foi tocado — sessões de login seguem válidas. Daqui pra
+      frente: front usa só a `sb_publishable_`; se algum backend/webhook precisar de
+      acesso admin (Fase 1c+), criar uma `sb_secret_` na hora (Settings → API Keys)
+      — revogável individualmente.
 
 ## O que o hardening NÃO faz (de propósito)
 
