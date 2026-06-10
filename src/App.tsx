@@ -6,6 +6,7 @@ import Contas from './pages/Contas'
 import Faturas from './pages/Faturas'
 import Fatura from './pages/Fatura'
 import Compras from './pages/Compras'
+import Lancamentos from './pages/Lancamentos'
 import EmConstrucao from './pages/EmConstrucao'
 
 function Rotas() {
@@ -28,8 +29,8 @@ function Rotas() {
         <Route path="/faturas" element={<Faturas />} />
         <Route path="/faturas/:id" element={<Fatura />} />
         <Route path="/compras" element={<Compras />} />
-        <Route path="/pagar" element={<EmConstrucao titulo="Contas a Pagar" etapa="etapa 4" />} />
-        <Route path="/receber" element={<EmConstrucao titulo="Contas a Receber" etapa="etapa 4" />} />
+        <Route path="/pagar" element={<Lancamentos key="payable" tipo="payable" />} />
+        <Route path="/receber" element={<Lancamentos key="receivable" tipo="receivable" />} />
         <Route path="/extrato" element={<EmConstrucao titulo="Extratos (OFX)" etapa="etapa 5" />} />
         <Route path="/hotmart" element={<EmConstrucao titulo="Hotmart" etapa="etapa 6" />} />
         <Route path="/contas" element={<Contas />} />
