@@ -841,10 +841,10 @@ export default function App() {
     }
 
     setCurrentInvoice(inv);
-    await loadPurchaseItems(inv.id);
     setFilter("all");
     setSearch("");
     setActiveTab("lancamentos");
+    await loadPurchaseItems(inv.id);
   };
 
   // ── Delete invoice ─────────────────────────────────────────────────────────
