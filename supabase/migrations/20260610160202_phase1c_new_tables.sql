@@ -1,7 +1,9 @@
 -- ============================================================================
 -- Fase 1c — Tabelas novas em inglês (portagem do schema do rb7-financeiro)
 -- ============================================================================
--- ATENÇÃO (convenção do projeto): version placeholder — renomear pós-apply.
+-- APLICADO em 2026-06-10 via MCP `apply_migration` — version vivo 20260610160202
+-- (renomeado do placeholder 20260610200000, rito padrão). Guardas passaram;
+-- advisors pós-apply: exatamente os 11 WARNs 0024 previstos (6 da 1b + 5 daqui).
 --
 -- O que faz (numa única transação):
 --   1. Cria os 3 enums e as 5 tabelas novas em EN, traduzindo o schema PT-BR

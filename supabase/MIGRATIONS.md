@@ -1,4 +1,4 @@
-# Migrations — runbook (Fase 1a ✅ · Fase 1b ✅ · Fase 1c 🟡 aguardando aprovação)
+# Migrations — runbook (Fase 1a ✅ · Fase 1b ✅ · Fase 1c ✅ — todas aplicadas)
 
 > **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz em 2026-06-09).**
 > Histórico vivo: `20260609120000 baseline` (registrado sem execução) → `20260610010051 phase1a_hardening`
@@ -288,13 +288,17 @@ full-project do backup.
 
 # Fase 1c — tabelas novas em inglês
 
-> **Status: SQL redigido em 2026-06-10, aguardando revisão e aprovação do Luiz.**
-> Arquivo: `migrations/20260610200000_phase1c_new_tables.sql` (placeholder — renomear
-> pós-apply, rito padrão). Fonte: as 3 migrations do rb7-financeiro + mapa da auditoria
+> **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz no mesmo dia,
+> com correção dele: seeds fictícios do rb7 — Berta, contas Sicredi/C6 — descartados).**
+> Arquivo: `migrations/20260610160202_phase1c_new_tables.sql` (renomeado do placeholder
+> `20260610200000`). Fonte: as 3 migrations do rb7-financeiro + mapa da auditoria
 > cruzada, recuperados do transcript/Lixeira em 2026-06-10 e **versionados em
 > `supabase/audit/rb7-recovery/`** (insumo também das Fases 3 e 4).
-> Verificação adversarial: 6 agentes, 39 achados, **0 blockers**; warnings
-> incorporados abaixo.
+> Verificação adversarial: 6 agentes, 39 achados, **0 blockers** + re-check focado
+> pós-redução de seeds (APROVADO). Pós-apply verificado: 5 tabelas + 3 enums criados,
+> seed exato (RB7 Digital / Cartão Sicoob RB7, byte-perfeito), backfill 3/3 faturas,
+> 9 FKs RESTRICT, anon sem grant (REST → 401/42501), advisors = exatamente os 11
+> WARNs 0024 previstos. Pendente: smoke authenticated (round-trip em entries + OFX).
 
 ## O que cria
 
