@@ -1,61 +1,54 @@
-# 💳 Categorizador de Fatura
+# RB7 Financeiro
 
-Ferramenta para importar, categorizar e analisar faturas de cartão de crédito em formato `.OFX`.
+App financeiro interno da RB7 Digital — controle de faturas de cartão, contas
+a pagar/receber, extratos bancários e conciliação Hotmart, num app só.
 
-## Funcionalidades
+> Repo: `categorizador-fatura` (nome histórico — o app nasceu como um
+> categorizador de faturas .OFX e foi unificado com o financeiro da empresa
+> em 2026-06-10).
 
-- **Importação OFX** — arraste ou selecione o arquivo `.ofx` exportado pelo seu banco
-- **Auto-categorização** — lançamentos conhecidos são categorizados automaticamente com base em regras aprendidas de faturas anteriores
-- **Tags coloridas** — categorize manualmente com um clique; crie novas categorias on-the-fly
-- **Filtros e busca** — filtre por categoria ou busque por descrição em tempo real
-- **Dashboard** — visualize gastos por categoria em ranking e gráfico de rosca, com totais e percentuais
-- **Exportação** — exporte para Excel (`.xlsx`) ou CSV com todas as categorias preenchidas
+## Features
 
-## Como usar
+- **Faturas de Cartão** — importa `.OFX` do cartão, auto-categoriza por
+  regras (62 regras de keywords), filtros/busca, dashboard por fatura com
+  drill-down, export CSV/XLSX (formato pt-BR).
+- **Compras** — anotações de compras pendentes agrupadas por mês; ao importar
+  uma fatura, o app oferece atrelá-las.
+- **Contas a Pagar/Receber** — lançamentos com emissão → vencimento →
+  pagamento, status automático, totais.
+- **Extratos (OFX)** — conciliação de conta corrente com dedupe por FITID
+  (com id sintético pra transações sem FITID) e relatório de duplicatas.
+- **Hotmart** — sincronização direta pela API (botão manual + cron diário
+  às 06:00 BRT) com bruto/taxas/comissões/líquido; CSV como fallback.
+- **Dashboard** — visão híbrida: gasto de cartão (categorias e faturas) +
+  fluxo financeiro (a pagar/receber, Hotmart).
+- **Contas & Cartões** e **Categorias** (gestão com renomear-em-cascata).
 
-### Desenvolvimento local
+## Stack
+
+React 19 · TypeScript (strict) · Tailwind CSS 4 · react-router 7 · Vite
+(rolldown) · Supabase (Postgres + Auth + Edge Functions + pg_cron) · recharts
+· SheetJS.
+
+## Rodando local
 
 ```bash
+cp .env.example .env   # preencha a VITE_SUPABASE_PUBLISHABLE_KEY
 npm install
-npm run dev
+npm run dev            # localhost:5173
 ```
 
-Acesse `http://localhost:5173` no navegador.
+⚠️ **Não há staging**: o app local aponta pro banco de produção (dados reais).
+Login com conta de equipe (criadas pelo admin no painel do Supabase — signup
+público desabilitado).
 
-### Build para produção
+## Deploy
 
-```bash
-npm run build
-```
+Vercel, automático no push pra `master`. SPA rewrites em `vercel.json`.
 
-Os arquivos gerados ficam em `/dist` — prontos para hospedar em qualquer servidor estático (GitHub Pages, Vercel, Netlify, etc.).
+## Banco e migrations
 
-## Deploy no GitHub Pages
-
-1. Instale o plugin de deploy:
-   ```bash
-   npm install --save-dev gh-pages
-   ```
-
-2. Adicione ao `package.json`:
-   ```json
-   "homepage": "https://<seu-usuario>.github.io/categorizador-fatura",
-   "scripts": {
-     "deploy": "npm run build && gh-pages -d dist"
-   }
-   ```
-
-3. Faça o deploy:
-   ```bash
-   npm run deploy
-   ```
-
-## Tecnologias
-
-- [React 18](https://react.dev/) + [Vite](https://vitejs.dev/)
-- [SheetJS](https://sheetjs.com/) para exportação Excel
-- Sem banco de dados — tudo roda no navegador, nenhum dado é enviado a servidores
-
-## Privacidade
-
-Todos os dados da fatura são processados **localmente no seu navegador**. Nenhuma informação é enviada para servidores externos.
+Schema versionado em `supabase/migrations/` (baseline + migrations aplicadas);
+runbook e decisões em `supabase/MIGRATIONS.md`. Regra do projeto: **nenhuma
+migration é aplicada sem revisão e aprovação do dono.** Convenções de
+arquitetura e invariantes: `CLAUDE.md`.

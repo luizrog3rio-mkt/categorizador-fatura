@@ -1,5 +1,10 @@
 # Roteiro de teste — preview da Fase 2 (antes do cutover)
 
+> **📜 HISTÓRICO — roteiro CUMPRIDO em 2026-06-10.** O cutover foi feito (o
+> app TS é o de produção), a branch `fase-2-ts` foi deletada, a Fase 3 foi
+> aplicada e a Fase 4 foi descartada por design. Este arquivo fica como
+> registro do processo — as instruções abaixo não se aplicam mais.
+
 > Objetivo: validar o app novo (branch `fase-2-ts`) com os dados reais **antes**
 > de mergear na master (= virar o app de produção que a Lívia usa).
 

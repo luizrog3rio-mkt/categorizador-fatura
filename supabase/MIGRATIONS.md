@@ -1,4 +1,9 @@
-# Migrations — runbook (Fase 1a ✅ · Fase 1b ✅ · Fase 1c ✅ — todas aplicadas)
+# Migrations — runbook (Fases 1a/1b/1c ✅ · Fase 2 cutover ✅ · Fase 3 ✅ · Fase 4 ❌ descartada por design)
+
+> Histórico vivo completo (9 migrations): baseline → phase1a_hardening →
+> phase1b_team_model → phase1c_new_tables → hotmart_totals_rpc →
+> enable_cron_net → hotmart_cron_daily → phase3_data_fixes →
+> move_pgnet_to_extensions. Seções das operacionais pós-1c no fim do arquivo.
 
 > **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz em 2026-06-09).**
 > Histórico vivo: `20260609120000 baseline` (registrado sem execução) → `20260610010051 phase1a_hardening`
@@ -6,7 +11,7 @@
 > (0011, 0028, 0029, 0001, 0003×9); performance só um INFO `unused_index` no índice recém-criado
 > (esperado — acabou de nascer, some com o uso). Smoke test ✅ PASSOU em 2026-06-10. HIBP ✅
 > habilitado em 2026-06-10 (projeto transferido pra org Pro) — **advisors security: zero achados**.
-> Pendência restante: migrar a service key exposta (passo manual 2).
+> (A pendência da service key foi resolvida no mesmo dia — ver passo manual 2, marcado [x].)
 >
 > Regra do projeto (segue valendo): nenhuma migration encosta no banco sem o Luiz revisar o SQL e aprovar.
 
@@ -269,20 +274,18 @@ vazia pra ele. Os fixes do App.jsx são no-op nos dois modelos — não precisam
 reverter. PERDA DE DADOS (vs. policies) só se recupera por restore
 full-project do backup.
 
-## Follow-ups pós-1b (não bloqueiam o apply)
+## Follow-ups pós-1b — status final (2026-06-10)
 
-- **Service key exposta**: as garantias de confidencialidade da 1b são VOID
-  enquanto a chave viver (service_role ignora RLS). Migrar pras keys
-  `sb_publishable_`/`sb_secret_` é prioridade ≥ 1b — tratar logo após.
-- **`unique(name)` team-wide** em categories/purchase_item_categories (hoje é
-  `unique(user_id, name)` — dois membros podem criar o mesmo nome). ⚠️ Se
-  adotar, atualizar o Rollback acima: o re-seed do Luiz colidiria (23505
-  engolido pelo app) — dropar a unique nova antes de restaurar own-rows.
-- **Ocultar a aba "Criar conta"** no Auth.jsx — com signup fechado vira UI
-  morta que devolve erro cru do GoTrue.
-- **Updates otimistas sem leitura de `error`** (setCategory,
-  updatePurchaseItem, attachSelectedPending): com 2+ membros simultâneos a UI
-  pode "mentir" até o próximo reload. Sem corrupção — melhoria de UX.
+- ~~**Service key exposta**~~ ✅ RESOLVIDA: app migrado pra `sb_publishable_`,
+  legacy API keys desabilitadas (ver passo manual 2).
+- **`unique(name)` team-wide** em categories/purchase_item_categories —
+  DECISÃO: **adiado indefinidamente** (o app TS valida duplicata por nome na
+  UI; sem caso real de colisão). ⚠️ Se um dia adotar, lembrar da interação com
+  o rollback (re-seed colidiria).
+- ~~**Ocultar a aba "Criar conta"**~~ ✅ RESOLVIDA pela Fase 2: o Login.tsx do
+  app TS é login-only (Auth.jsx não existe mais).
+- ~~**Updates otimistas sem leitura de `error`**~~ ✅ RESOLVIDA no port TS:
+  setCategory/updateItem/etc. checam `error` e mostram banner.
 
 ---
 
@@ -380,13 +383,38 @@ where version = '<version real do apply>'` (ou `supabase migration repair
 é fonte de fatos do projeto e não pode listar migration cujos objetos não
 existem.
 
-## Follow-ups pra Fase 2/4 (registrados pela verificação)
+## Follow-ups pra Fase 2/4 — status final (2026-06-10)
 
-- **Import deve REPORTAR duplicatas puladas** (não `ignoreDuplicates` silencioso
-  como no rb7): as chaves únicas de import (`bank_transactions(account_id,
-  fit_id)`, `hotmart_sales.transaction_code`) são "envenenáveis" por qualquer
-  authenticated — colisão precisa ficar visível.
-- **FITID vazio**: `bank_transactions.fit_id` é NOT NULL — o import OFX da Fase
-  2 e a carga da Fase 4 precisam de fitid sintético pra transações sem FITID.
-- **Upsert Hotmart em reimport** pode trocar `company_id` de venda existente —
-  decidir semântica na Fase 2.
+- ~~**Import deve REPORTAR duplicatas puladas**~~ ✅ IMPLEMENTADO
+  (src/lib/importarExtrato.ts: relatório "N no arquivo · X novas · Y
+  duplicadas · Z sem FITID").
+- ~~**FITID vazio → sintético**~~ ✅ IMPLEMENTADO (src/lib/ofxExtrato.ts +
+  importarExtrato.ts: `syn:data:valor:memo` determinístico, com #n pra
+  colisão intra-arquivo).
+- ~~**Upsert Hotmart em reimport**~~ — superado: o fluxo primário virou o sync
+  via API (Edge Function), single-company na prática; merge por
+  transaction_code mantido de propósito (atualiza status de reembolso).
+- **Fase 4 (migrar transactions→bank_transactions): ❌ DESCARTADA por design**
+  (decisão do Luiz, 2026-06-10) — violaria `UNIQUE(account_id, fit_id)` pelos
+  parcelamentos Sicoob (FITID repete; R$ 22.475,33 legítimos) e misturaria
+  conceitos distintos. Cartão (invoices/transactions) e extrato
+  (bank_transactions) são fluxos separados permanentes.
+
+---
+
+# Migrations operacionais pós-1c (Fase 2/3 — todas APLICADAS)
+
+| Version | Nome | O que faz |
+|---|---|---|
+| `20260610194751` | hotmart_totals_rpc | RPC de agregação dos KPIs Hotmart (PostgREST limita resposta a 1000 linhas — somas vão pro banco). SECURITY INVOKER, search_path='', GRANT explícito a authenticated. |
+| `20260610202455` | enable_cron_net | Habilita pg_cron + pg_net pro auto-sync diário da Hotmart. |
+| `20260610203722` | hotmart_cron_daily | Job `hotmart-sync-diario` (09:00 UTC): chama a Edge Function `hotmart-sync` via `net.http_post` em modo-serviço, lendo o segredo do **Vault** (`hotmart_service_key`); janela 1 mês, timeout 60s, idempotente. |
+| `20260611002326` | phase3_data_fixes | Fase 3 — 2 fixes pontuais (valor 1.16398→1163.98; regra captions.ai Viagem→Ferramenta). Diagnóstico atestou dados íntegros; categoria continua TEXTO por design. |
+| `20260611021420` | move_pgnet_to_extensions | Move pg_net do public pro schema extensions (advisor 0014). API `net.*` inalterada; cron re-testado vivo. |
+
+Infra fora do SQL (vive no projeto Supabase, não no repo): Edge Function
+**`hotmart-sync`** (verify_jwt=false; modos usuário/serviço/debug; secrets
+`HOTMART_CLIENT_ID`/`HOTMART_CLIENT_SECRET`/`HOTMART_SYNC_SERVICE_KEY` no env
+da function) e o segredo `hotmart_service_key` no **Vault** (consumido pelo
+cron). hotmart_sales carrega ~13k vendas reais (backfill 12 meses,
+2026-06-10).
