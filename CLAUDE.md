@@ -108,7 +108,9 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `src/hooks/useColumnPrefs.ts` (cacheia em localStorage, persiste em
   `user_table_prefs` por usuário, debounce 600ms). A página só descreve
   `DataColumn<T>[]` (id/header/cell/size/align). Em uso: Hotmart, Contas a
-  Pagar/Receber (`lancamentos:${tipo}`), Extratos, Usuários. **Faturas (mundo
-  fatura) ficaram de fora do drag/resize** por causa dos contratos visuais —
-  Fase 2 dará só o "esconder coluna" lá. Handlers usados em `cell` precisam de
-  `useCallback` (senão a memo das colunas recria toda render → warn exhaustive-deps).
+  Pagar/Receber (`lancamentos:${tipo}`), Extratos, Usuários. Handlers usados em
+  `cell` precisam de `useCallback` (senão a memo das colunas recria toda render →
+  warn exhaustive-deps). **Faturas (mundo fatura: Fatura + PurchaseItemsTab) têm
+  SÓ o menu "esconder coluna"** (`src/components/ColumnVisibilityMenu.tsx`, inline,
+  reusa o `columnVisibility` do `useColumnPrefs`) — sem drag/resize, preservando
+  os contratos visuais 1:1.

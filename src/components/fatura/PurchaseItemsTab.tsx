@@ -3,6 +3,17 @@ import TagSelector from './TagSelector'
 import { S } from './estilos'
 import { currentMonth, formatMonth, type CatUI } from '../../lib/fatura'
 import type { PurchaseItem } from '../../lib/types'
+import ColumnVisibilityMenu, { type ColMeta } from '../ColumnVisibilityMenu'
+import { useColumnPrefs } from '../../hooks/useColumnPrefs'
+
+// colunas ocultáveis (só esconder — mundo fatura é travado, sem drag/resize)
+const PI_COLS: ColMeta[] = [
+  { id: 'date', label: 'Data' },
+  { id: 'description', label: 'Descrição' },
+  { id: 'payment', label: 'Pagamento' },
+  { id: 'amount', label: 'Valor' },
+  { id: 'category', label: 'Categoria' },
+]
 
 // Port 1:1 da PurchaseItemsTab do App.jsx — anotações de compra (contrato #8:
 // não entram em totais; valor opcional; edição inline por blur; exclusão de
@@ -42,6 +53,11 @@ export default function PurchaseItemsTab({
   const [month, setMonth] = useState(currentMonth())
   const [purchaseDate, setPurchaseDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
+
+  // visibilidade de coluna (só esconder/mostrar), persistida por usuário
+  const colPrefs = useColumnPrefs('purchase-items')
+  const colVisivel = (id: string) => colPrefs.columnVisibility[id] !== false
+  const alternarCol = (id: string) => colPrefs.onColumnVisibilityChange({ ...colPrefs.columnVisibility, [id]: !colVisivel(id) })
 
   const handleAdd = () => {
     const desc = description.trim()
@@ -124,6 +140,12 @@ export default function PurchaseItemsTab({
         </p>
       </div>}
 
+      {items.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <ColumnVisibilityMenu columns={PI_COLS} isVisible={colVisivel} onToggle={alternarCol} onReset={colPrefs.reset} />
+        </div>
+      )}
+
       {groupKeys.map((gk) => {
         const groupItems = grouped[gk]
         return (
@@ -140,11 +162,11 @@ export default function PurchaseItemsTab({
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ ...S.th, width: 130 }}>Data</th>
-                  <th style={{ ...S.th }}>Descrição</th>
-                  <th style={{ ...S.th, width: 150 }}>Pagamento</th>
-                  <th style={{ ...S.th, textAlign: 'right', width: 120 }}>Valor</th>
-                  <th style={{ ...S.th, width: 200 }}>Categoria</th>
+                  {colVisivel('date') && <th style={{ ...S.th, width: 130 }}>Data</th>}
+                  {colVisivel('description') && <th style={{ ...S.th }}>Descrição</th>}
+                  {colVisivel('payment') && <th style={{ ...S.th, width: 150 }}>Pagamento</th>}
+                  {colVisivel('amount') && <th style={{ ...S.th, textAlign: 'right', width: 120 }}>Valor</th>}
+                  {colVisivel('category') && <th style={{ ...S.th, width: 200 }}>Categoria</th>}
                   <th style={{ ...S.th, width: 50 }}></th>
                 </tr>
               </thead>
@@ -156,6 +178,7 @@ export default function PurchaseItemsTab({
                     onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
                   >
+                    {colVisivel('date') && (
                     <td style={S.td}>
                       <input
                         type="date" defaultValue={it.purchase_date ?? ''}
@@ -164,6 +187,8 @@ export default function PurchaseItemsTab({
                         onFocus={(e) => (e.target.style.borderColor = '#e2e8f0')}
                       />
                     </td>
+                    )}
+                    {colVisivel('description') && (
                     <td style={S.td}>
                       <input
                         defaultValue={it.description}
@@ -171,6 +196,8 @@ export default function PurchaseItemsTab({
                         style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, color: '#1e293b', fontWeight: 500, outline: 'none' }}
                       />
                     </td>
+                    )}
+                    {colVisivel('payment') && (
                     <td style={S.td}>
                       <input
                         defaultValue={it.payment_method ?? ''}
@@ -180,6 +207,8 @@ export default function PurchaseItemsTab({
                         onFocus={(e) => (e.target.style.borderColor = '#e2e8f0')}
                       />
                     </td>
+                    )}
+                    {colVisivel('amount') && (
                     <td style={{ ...S.td, textAlign: 'right' }}>
                       <input
                         type="number" step="0.01"
@@ -194,6 +223,8 @@ export default function PurchaseItemsTab({
                         onFocus={(e) => (e.target.style.borderColor = '#e2e8f0')}
                       />
                     </td>
+                    )}
+                    {colVisivel('category') && (
                     <td style={S.td}>
                       <TagSelector
                         value={it.category}
@@ -202,6 +233,7 @@ export default function PurchaseItemsTab({
                         onAddCategory={onAddCategory}
                       />
                     </td>
+                    )}
                     {!readOnly && (
                     <td style={S.td}>
                       <button

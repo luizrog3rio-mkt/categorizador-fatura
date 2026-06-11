@@ -12,7 +12,17 @@ import FaturaDashboard from '../components/fatura/FaturaDashboard'
 import PurchaseItemsTab, { type NovoItem } from '../components/fatura/PurchaseItemsTab'
 import PendingImportModal from '../components/fatura/PendingImportModal'
 import { ErroBanner } from '../components/ui'
+import ColumnVisibilityMenu, { type ColMeta } from '../components/ColumnVisibilityMenu'
+import { useColumnPrefs } from '../hooks/useColumnPrefs'
 import type { Invoice, PurchaseItem } from '../lib/types'
+
+// colunas da tabela de lançamentos da fatura (só esconder — mundo fatura é travado)
+const LANC_COLS: ColMeta[] = [
+  { id: 'date', label: 'Data' },
+  { id: 'memo', label: 'Descrição' },
+  { id: 'amount', label: 'Valor' },
+  { id: 'category', label: 'Categoria' },
+]
 
 // Página da fatura — port da "invoice view" do App.jsx com as 3 abas
 // (Lançamentos / Dashboard / Compras), busca, pílulas de filtro por categoria
@@ -164,6 +174,12 @@ export default function Fatura() {
     setActiveTab('lancamentos')
   }
 
+  // visibilidade de coluna (só esconder/mostrar) da tabela de lançamentos
+  const colPrefs = useColumnPrefs('fatura-lancamentos')
+  const colVisivel = (id: string) => colPrefs.columnVisibility[id] !== false
+  const alternarCol = (id: string) => colPrefs.onColumnVisibilityChange({ ...colPrefs.columnVisibility, [id]: !colVisivel(id) })
+  const colsVisiveis = LANC_COLS.filter((c) => colVisivel(c.id)).length
+
   return (
     <div style={{ margin: '-1.5rem -1.5rem 0', minHeight: 'calc(100vh - 0px)', background: '#f8fafc' }}>
       {/* Header da fatura */}
@@ -247,14 +263,17 @@ export default function Fatura() {
             </div>
           </div>
 
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 20px 8px' }}>
+            <ColumnVisibilityMenu columns={LANC_COLS} isVisible={colVisivel} onToggle={alternarCol} onReset={colPrefs.reset} />
+          </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={S.table}>
               <thead>
                 <tr>
-                  <th style={{ ...S.th, width: 88 }}>Data</th>
-                  <th style={S.th}>Descrição</th>
-                  <th style={{ ...S.th, textAlign: 'right', width: 120 }}>Valor</th>
-                  <th style={{ ...S.th, width: 250 }}>Categoria</th>
+                  {colVisivel('date') && <th style={{ ...S.th, width: 88 }}>Data</th>}
+                  {colVisivel('memo') && <th style={S.th}>Descrição</th>}
+                  {colVisivel('amount') && <th style={{ ...S.th, textAlign: 'right', width: 120 }}>Valor</th>}
+                  {colVisivel('category') && <th style={{ ...S.th, width: 250 }}>Categoria</th>}
                 </tr>
               </thead>
               <tbody>
@@ -265,21 +284,23 @@ export default function Fatura() {
                     onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
                   >
-                    <td style={{ ...S.td, color: '#94a3b8', fontSize: 12 }}>{t.date}</td>
-                    <td style={S.td}><span style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{t.memo}</span></td>
-                    <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{fmt(t.amount)}</td>
-                    <td style={S.td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <TagSelector value={t.category} categories={categorias} onChange={(cat) => setCategory(t.id, cat)} onAddCategory={addCategoria} readOnly={!isAdmin} />
-                        {t.auto && t.category && (
-                          <span title="Categorizado automaticamente" style={{ fontSize: 10, color: '#6366f1', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 10, padding: '2px 7px', fontWeight: 700, whiteSpace: 'nowrap' }}>✦ auto</span>
-                        )}
-                      </div>
-                    </td>
+                    {colVisivel('date') && <td style={{ ...S.td, color: '#94a3b8', fontSize: 12 }}>{t.date}</td>}
+                    {colVisivel('memo') && <td style={S.td}><span style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{t.memo}</span></td>}
+                    {colVisivel('amount') && <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{fmt(t.amount)}</td>}
+                    {colVisivel('category') && (
+                      <td style={S.td}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <TagSelector value={t.category} categories={categorias} onChange={(cat) => setCategory(t.id, cat)} onAddCategory={addCategoria} readOnly={!isAdmin} />
+                          {t.auto && t.category && (
+                            <span title="Categorizado automaticamente" style={{ fontSize: 10, color: '#6366f1', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 10, padding: '2px 7px', fontWeight: 700, whiteSpace: 'nowrap' }}>✦ auto</span>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '48px 0', color: '#94a3b8' }}>Nenhum lançamento encontrado.</td></tr>
+                  <tr><td colSpan={colsVisiveis} style={{ textAlign: 'center', padding: '48px 0', color: '#94a3b8' }}>Nenhum lançamento encontrado.</td></tr>
                 )}
               </tbody>
             </table>
