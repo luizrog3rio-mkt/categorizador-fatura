@@ -80,7 +80,9 @@ export interface HotmartSale {
   product: string
   sale_date: string
   release_date: string | null
-  gross_amount: number
+  currency: string       // moeda da venda (price.currency_code — ex.: 'BRL', 'USD')
+  total_amount: number   // total pago pelo comprador (price.value — inclui juros de parcelamento)
+  gross_amount: number   // bruto: preço base do produto (hotmart_fee.base — sem juros de parcelamento)
   hotmart_fee: number
   affiliate_commission: number
   coproduction_commission: number
@@ -88,7 +90,7 @@ export interface HotmartSale {
   affiliate: string | null
   coproducer: string | null
   payment_method: string | null
-  status: string // valores PT dos relatórios Hotmart ('aprovada', ...)
+  status: string
   buyer: string | null
   imported_at: string
 }

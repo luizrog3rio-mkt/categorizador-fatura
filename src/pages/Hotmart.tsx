@@ -11,8 +11,37 @@ import { Card, PageHeader, Vazio, ErroBanner, inputCls, btnPrimario, btnSecundar
 // Feature 100% exclusiva do rb7 (não existia no app antigo). Upsert por
 // transaction_code com MERGE (reimport atualiza status: reembolso/chargeback
 // refletem). status mantém valores PT dos relatórios Hotmart.
+// Status vem da API em inglês maiúsculo (COMPLETE/APPROVED/REFUNDED/...) e do
+// CSV em PT — bucketiza por regex cobrindo os dois idiomas. Rótulo PT amigável.
+function classeStatus(s: string): string {
+  if (/complet|approv|aprovad|conclu/i.test(s)) return 'bg-green-100 text-green-700'
+  if (/refund|reembols|estorn/i.test(s)) return 'bg-amber-100 text-amber-700'
+  if (/chargeback/i.test(s)) return 'bg-red-100 text-red-700'
+  if (/cancel/i.test(s)) return 'bg-red-100 text-red-700'
+  if (/expir|atras|overdue|waiting|billet|printed|pending/i.test(s)) return 'bg-orange-100 text-orange-700'
+  return 'bg-slate-100 text-slate-600'
+}
+
+function rotuloStatus(s: string): string {
+  if (/complet|conclu/i.test(s)) return 'Concluída'
+  if (/approv|aprovad/i.test(s)) return 'Aprovada'
+  if (/refund|reembols|estorn/i.test(s)) return 'Reembolsada'
+  if (/chargeback/i.test(s)) return 'Chargeback'
+  if (/cancel/i.test(s)) return 'Cancelada'
+  if (/expir/i.test(s)) return 'Expirada'
+  return s
+}
+
+function StatusHotmart({ status }: { status: string }) {
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${classeStatus(status)}`}>
+      {rotuloStatus(status)}
+    </span>
+  )
+}
+
 export default function Hotmart() {
-  const { empresas, empresaAtiva } = useApp()
+  const { empresas, empresaAtiva, isAdmin } = useApp()
   const [vendas, setVendas] = useState<HotmartSale[]>([])
   const [empresaDestino, setEmpresaDestino] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
@@ -20,7 +49,7 @@ export default function Hotmart() {
   const [importando, setImportando] = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
   const [mesFiltro, setMesFiltro] = useState('') // YYYY-MM
-  const [totais, setTotais] = useState({ qtd: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0 })
+  const [totais, setTotais] = useState({ qtd: 0, total: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0, foraMoeda: 0 })
 
   useEffect(() => {
     if (empresas.length && !empresaDestino) setEmpresaDestino(empresaAtiva?.id ?? empresas[0].id)
@@ -53,8 +82,8 @@ export default function Hotmart() {
     if (e2) { setErro('Erro nos totais: ' + e2.message); return }
     const t = tot?.[0]
     setTotais(t
-      ? { qtd: Number(t.qtd), bruto: Number(t.bruto), taxas: Number(t.taxas), afiliados: Number(t.afiliados), liquido: Number(t.liquido) }
-      : { qtd: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0 })
+      ? { qtd: Number(t.qtd), total: Number(t.total), bruto: Number(t.bruto), taxas: Number(t.taxas), afiliados: Number(t.afiliados), liquido: Number(t.liquido), foraMoeda: Number(t.fora_moeda) }
+      : { qtd: 0, total: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0, foraMoeda: 0 })
   }, [empresaAtiva, mesFiltro])
 
   useEffect(() => { carregar() }, [carregar])
@@ -125,11 +154,11 @@ export default function Hotmart() {
               </select>
             </div>
           )}
-          <button onClick={sincronizar} disabled={sincronizando} className={btnPrimario}>
+          <button onClick={sincronizar} disabled={sincronizando || !isAdmin} className={btnPrimario}>
             <RefreshCw size={16} className={sincronizando ? 'animate-spin' : ''} />
             {sincronizando ? 'Sincronizando…' : 'Sincronizar com a Hotmart'}
           </button>
-          <label className={btnSecundario + ' cursor-pointer'} title="Importar um CSV exportado da Hotmart (alternativa à sincronização)">
+          <label className={btnSecundario + (!isAdmin ? ' opacity-50 pointer-events-none' : ' cursor-pointer')} title="Importar um CSV exportado da Hotmart (alternativa à sincronização)">
             <Upload size={16} />
             {importando ? 'Importando…' : 'CSV'}
             <input
@@ -148,10 +177,14 @@ export default function Hotmart() {
         {msg && <p className="text-sm text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2 mt-4">{msg}</p>}
       </Card>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-2">
         <Card className="p-4">
           <p className="text-xs text-slate-500 uppercase">Vendas</p>
           <p className="text-xl font-bold mt-1">{totais.qtd}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-slate-500 uppercase">Valor Total</p>
+          <p className="text-xl font-bold text-slate-700 mt-1">{fmtBRL(totais.total)}</p>
         </Card>
         <Card className="p-4">
           <p className="text-xs text-slate-500 uppercase">Bruto</p>
@@ -170,6 +203,12 @@ export default function Hotmart() {
           <p className="text-xl font-bold text-green-600 mt-1">{fmtBRL(totais.liquido)}</p>
         </Card>
       </div>
+      <p className="text-xs text-slate-400 mb-6">
+        Valor Total = pago pelos compradores (com juros de parcelamento) · Bruto = preço dos produtos (sem juros) · Líquido = bruto − taxas.
+        {totais.foraMoeda > 0 && (
+          <span className="text-amber-600"> · {totais.foraMoeda} venda{totais.foraMoeda !== 1 ? 's' : ''} em outra moeda não {totais.foraMoeda !== 1 ? 'incluídas' : 'incluída'} nos totais (R$).</span>
+        )}
+      </p>
 
       <Card>
         {vendas.length === 0 ? (
@@ -182,11 +221,13 @@ export default function Hotmart() {
                   <th className="px-4 py-3">Data</th>
                   <th className="px-4 py-3">Produto</th>
                   <th className="px-4 py-3">Transação</th>
+                  <th className="px-4 py-3 text-right">Valor Total</th>
                   <th className="px-4 py-3 text-right">Bruto</th>
                   <th className="px-4 py-3 text-right">Taxa</th>
                   <th className="px-4 py-3 text-right">Afil./Coprod.</th>
                   <th className="px-4 py-3 text-right">Líquido</th>
                   <th className="px-4 py-3">Liberação</th>
+                  <th className="px-4 py-3">Pagamento</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
@@ -194,8 +235,14 @@ export default function Hotmart() {
                 {vendas.slice(0, 300).map((v) => (
                   <tr key={v.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">{fmtData(v.sale_date)}</td>
-                    <td className="px-4 py-2.5 text-slate-800">{v.product}</td>
+                    <td className="px-4 py-2.5 text-slate-800">
+                      {v.product}
+                      {v.currency && v.currency !== 'BRL' && (
+                        <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 align-middle">{v.currency}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{v.transaction_code}</td>
+                    <td className="px-4 py-2.5 text-right">{fmtBRL(Number(v.total_amount))}</td>
                     <td className="px-4 py-2.5 text-right">{fmtBRL(Number(v.gross_amount))}</td>
                     <td className="px-4 py-2.5 text-right text-red-600">{fmtBRL(Number(v.hotmart_fee))}</td>
                     <td className="px-4 py-2.5 text-right text-orange-600">
@@ -203,7 +250,10 @@ export default function Hotmart() {
                     </td>
                     <td className="px-4 py-2.5 text-right font-semibold text-green-700">{fmtBRL(Number(v.net_amount))}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">{fmtData(v.release_date)}</td>
-                    <td className="px-4 py-2.5 text-xs">{v.status}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap">{v.payment_method ?? '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <StatusHotmart status={v.status} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -62,14 +62,27 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
 - Edge Function **`hotmart-sync`** (verify_jwt=false): modo-usuário (JWT +
   RLS, botão na tela) e modo-serviço (header `x-service-auth` == secret
   `HOTMART_SYNC_SERVICE_KEY` → escreve com a service key). Secrets
-  `HOTMART_CLIENT_ID`/`HOTMART_CLIENT_SECRET` no env da function. Tem modo
-  `{debug:true}` que devolve a 1ª venda crua+mapeada sem gravar.
-- **Cron `hotmart-sync-diario`** (pg_cron, 09:00 UTC / 06:00 BRT, janela de 1
-  mês): chama a function via `net.http_post` lendo o segredo do **Vault**
-  (`hotmart_service_key`).
-- Mapeamento validado contra dados reais: bruto=`purchase.price.value`,
-  taxa=`purchase.hotmart_fee.total`; afiliado/coprodução vem do array
-  `commissions` (ainda NÃO validado com venda de afiliado real).
+  `HOTMART_CLIENT_ID`/`HOTMART_CLIENT_SECRET` no env da function. Modos:
+  `{debug:true}` (1ª venda crua+mapeada sem gravar) e `{refresh_status:N}`
+  (só serviço: re-checa N vendas por `?transaction=<id>` p/ capturar estorno).
+- **Crons** (pg_cron, lendo o segredo do **Vault** `hotmart_service_key` via
+  `net.http_post`, timeout 120s): `hotmart-sync-diario` (09:00 UTC, descoberta
+  de vendas novas, janela 1 mês) e `hotmart-refresh-status-diario` (09:30 UTC,
+  refresh de estorno, rodízio por `status_checked_at`, ~200/dia).
+- **Mapeamento de valores validado contra dados reais (2026-06-11), ver
+  [[hotmart-mapeamento-campos]]**: `total_amount`=`purchase.price.value`
+  (VALOR TOTAL pago, **inclui juros de parcelamento**); `gross_amount`=
+  **`purchase.hotmart_fee.base`** (BRUTO, preço do produto sem juros —
+  `price.base` NÃO existe); taxa=`purchase.hotmart_fee.total`; líquido=bruto−taxa
+  (`/sales/history` NÃO traz `commissions[]` → afiliado/coprodução ficam 0, net
+  exato só p/ `commission_as=PRODUCER`). ~37,5% das vendas são parceladas.
+- **Moeda**: coluna `currency` (`price.currency_code`); a base tem vendas USD/
+  EUR/PYG/etc. A RPC `hotmart_totals` filtra `currency='BRL'` (default) e
+  devolve `fora_moeda` (nº excluído) — **nunca somar moedas diferentes** (5
+  vendas PYG já chegaram a inflar o "Bruto" em ~R$8,7M antes do filtro).
+- **`status` cru em inglês** (COMPLETE/APPROVED/REFUNDED...); a busca por janela
+  de data OMITE estornos (por isso o cron de refresh por transação). A allowlist
+  de receita (regex PT+EN) vive em `hotmart_totals` e em `lib/hotmart.ts`.
 - Upsert MERGE por `transaction_code` (reimport/sync atualiza status —
   reembolso/chargeback refletem).
 
@@ -79,7 +92,7 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `sb_publishable_`/`sb_secret_`; as JWT legadas estão **desabilitadas** — não
   reativar). `.env.example` na raiz.
 - `npm run dev` → localhost:5173 · `npm run build` (tsc strict + vite) ·
-  `npm run lint` (0 errors; os 12 warnings de fetch-on-mount são conscientes,
+  `npm run lint` (0 errors; os 13 warnings de fetch-on-mount são conscientes,
   ver eslint.config.js).
 - `xlsx` vem do tarball oficial do SheetJS (cdn.sheetjs.com) — o pacote do npm
   está abandonado com CVE; não trocar de volta.

@@ -9,6 +9,7 @@ export interface HotmartSaleImport {
   product: string
   sale_date: string
   release_date: string | null
+  total_amount: number
   gross_amount: number
   hotmart_fee: number
   affiliate_commission: number
@@ -92,6 +93,7 @@ export function parseHotmartCSV(text: string): { vendas: HotmartSaleImport[]; er
   const iCodigo = idxPor(h, 'transa') // transação / transaction
   const iProduto = idxPor(h, 'produto') >= 0 ? idxPor(h, 'produto') : idxPor(h, 'product')
   const iData = idxPor(h, 'data') >= 0 ? idxPor(h, 'data') : idxPor(h, 'date')
+  const iTotal = idxPor(h, 'total')
   const iBruto = idxPor(h, 'bruto') >= 0 ? idxPor(h, 'bruto') : idxPor(h, 'gross')
   const iTaxa = idxPor(h, 'taxa')
   const iAfiliadoVal = idxPor(h, 'comiss', 'afili')
@@ -115,6 +117,7 @@ export function parseHotmartCSV(text: string): { vendas: HotmartSaleImport[]; er
     const data = parseData(row[iData])
     if (!codigo || !data) { erros.push(`Linha ${r + 1}: código ou data inválidos — ignorada.`); continue }
     const bruto = parseValor(row[iBruto])
+    const total = iTotal >= 0 ? parseValor(row[iTotal]) : bruto
     const taxa = iTaxa >= 0 ? parseValor(row[iTaxa]) : 0
     const comAf = iAfiliadoVal >= 0 ? parseValor(row[iAfiliadoVal]) : 0
     const comCo = iCoprodVal >= 0 ? parseValor(row[iCoprodVal]) : 0
@@ -124,6 +127,7 @@ export function parseHotmartCSV(text: string): { vendas: HotmartSaleImport[]; er
       product: iProduto >= 0 ? row[iProduto]?.trim() || 'Produto' : 'Produto',
       sale_date: data,
       release_date: iLiberacao >= 0 ? parseData(row[iLiberacao]) : null,
+      total_amount: total,
       gross_amount: bruto,
       hotmart_fee: taxa,
       affiliate_commission: comAf,

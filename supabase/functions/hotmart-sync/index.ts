@@ -15,6 +15,8 @@
 // Modos:
 //  - POST {company_id, months?}            → usuário (JWT): upsert respeitando RLS
 //  - POST {company_id, debug:true}         → 1ª venda crua+mapeada, NÃO grava
+//  - POST {company_id, refresh_status:N}   → SÓ serviço: re-checa N vendas por
+//    ?transaction=<id> e atualiza estornos (a busca por data não traz reembolso)
 //  - header x-service-auth == HOTMART_SYNC_SERVICE_KEY → modo-serviço (cron
 //    diário): escreve com a service key, sem usuário. verify_jwt=false no deploy.
 // ============================================================================
@@ -38,12 +40,15 @@ const json = (body: unknown, status = 200) =>
 const isoDate = (ms: number | null | undefined) =>
   ms ? new Date(Number(ms)).toISOString().slice(0, 10) : null
 
-// Mapeia uma venda da API pro shape de hotmart_sales.
-// Estrutura confirmada via debug contra dados reais (2026-06-10):
-//  - bruto: purchase.price.value
-//  - taxa Hotmart: purchase.hotmart_fee.total (NÃO é um array de comissões)
-//  - afiliado/coprodução: array `commissions` (quando há split; extraído de
-//    forma defensiva — validar quando aparecer uma venda com afiliado)
+// Mapeia uma venda da API (/sales/history) pro shape de hotmart_sales.
+// Verdade de campo confirmada contra 1600 vendas reais (2026-06-11):
+//  - total pago pelo comprador: purchase.price.value (INCLUI juros de parcelamento)
+//  - bruto (preço do produto, SEM juros): purchase.hotmart_fee.base (base da taxa)
+//    ⚠️ purchase.price.base NÃO EXISTE — price só tem { currency_code, value }
+//  - taxa Hotmart: purchase.hotmart_fee.total (~5% da base + fixo)
+//  - líquido do produtor: bruto - taxa (validado: base 297 → 281,15, bate com painel)
+//  - /sales/history NÃO traz array commissions[] (afiliado/coprodução), só
+//    purchase.commission_as. Logo aff/coprod ficam 0 — net exato só p/ PRODUCER.
 //  - status em inglês maiúsculo (COMPLETE/APPROVED/...): a allowlist pega
 function mapSale(it: any, companyId: string) {
   const p = it?.purchase ?? {}
@@ -52,7 +57,8 @@ function mapSale(it: any, companyId: string) {
   const sale_date = isoDate(p.order_date ?? p.approved_date)
   if (!sale_date) return null
 
-  const gross = Number(p.price?.value ?? 0)
+  const total = Number(p.price?.value ?? 0)                          // valor total pago (com juros de parcelamento)
+  const gross = Number(p.hotmart_fee?.base ?? p.price?.value ?? 0)   // bruto: preço base do produto (sem juros)
   const fee = Number(p.hotmart_fee?.total ?? 0)
 
   const commissions: any[] = Array.isArray(it?.commissions) ? it.commissions : []
@@ -67,6 +73,8 @@ function mapSale(it: any, companyId: string) {
     product: it?.product?.name ?? 'Produto',
     sale_date,
     release_date: null, // sales/history não traz data de liberação/saque
+    currency: p.price?.currency_code ?? 'BRL', // moeda da venda (USD existe)
+    total_amount: total,
     gross_amount: gross,
     hotmart_fee: fee,
     affiliate_commission: affiliate,
@@ -97,7 +105,7 @@ Deno.serve(async (req) => {
     // quota da Hotmart); a escrita real ainda é protegida pelo RLS de equipe
     if (!isService && !/^Bearer\s+eyJ/.test(auth ?? '')) return json({ error: 'sem autorização' }, 401)
 
-    const { company_id, debug, months, start: startArg, end: endArg } = await req.json().catch(() => ({}))
+    const { company_id, debug, refresh_status, months, start: startArg, end: endArg } = await req.json().catch(() => ({}))
     if (!company_id) return json({ error: 'company_id obrigatório' }, 400)
 
     const clientId = Deno.env.get('HOTMART_CLIENT_ID')
@@ -112,6 +120,45 @@ Deno.serve(async (req) => {
     const tokenJson = await tokenRes.json()
     const accessToken = tokenJson.access_token
     if (!accessToken) return json({ error: 'token Hotmart sem access_token', body: tokenJson }, 502)
+
+    // 1b) modo refresh_status (SÓ serviço): re-checa vendas existentes por
+    //     ?transaction=<id> (sempre retorna, independente de status) pra capturar
+    //     reembolso/chargeback que a busca por data omite. Rodízio por
+    //     status_checked_at (NULLS FIRST). Patch NÃO-destrutivo: só status +
+    //     status_checked_at. Guarda de tempo (~100s) pra não estourar.
+    if (refresh_status) {
+      if (!isService) return json({ error: 'refresh_status é só modo-serviço' }, 403)
+      const N = Math.max(1, Math.min(500, Number(refresh_status) || 200))
+      const sbsvc = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey!)
+      const desde = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      const { data: cands, error: eSel } = await sbsvc
+        .from('hotmart_sales')
+        .select('transaction_code, status')
+        .eq('company_id', company_id)
+        .gte('sale_date', desde)
+        .in('status', ['COMPLETE', 'COMPLETED', 'APPROVED'])
+        .order('status_checked_at', { ascending: true, nullsFirst: true })
+        .limit(N)
+      if (eSel) return json({ error: 'falha ao selecionar candidatos', detalhe: eSel.message }, 500)
+      const t0 = Date.now()
+      const agora = new Date().toISOString()
+      let verificados = 0
+      let mudaram = 0
+      for (const c of (cands ?? [])) {
+        if (Date.now() - t0 > 100000) break // guarda de tempo
+        const u = new URL(HOTMART_SALES_URL)
+        u.searchParams.set('transaction', c.transaction_code)
+        const r = await fetch(u.toString(), { headers: { Authorization: `Bearer ${accessToken}` } })
+        if (!r.ok) continue
+        const it = (await r.json())?.items?.[0]
+        const novo = it?.purchase?.status ? String(it.purchase.status) : null
+        const patch: Record<string, unknown> = { status_checked_at: agora }
+        if (novo && novo !== c.status) { patch.status = novo; mudaram++ }
+        await sbsvc.from('hotmart_sales').update(patch).eq('transaction_code', c.transaction_code)
+        verificados++
+      }
+      return json({ ok: true, refresh: true, candidatos: cands?.length ?? 0, verificados, mudaram })
+    }
 
     // 2) janela: explícita (start/end epoch ms, pra backfill em pedaços) ou
     //    móvel (default 2 meses — produto de alto volume)
