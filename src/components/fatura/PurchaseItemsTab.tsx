@@ -25,6 +25,7 @@ export default function PurchaseItemsTab({
   onDelete,
   onAddCategory,
   isPending,
+  readOnly = false,
 }: {
   items: PurchaseItem[]
   categories: CatUI[]
@@ -33,6 +34,7 @@ export default function PurchaseItemsTab({
   onDelete: (id: string) => void
   onAddCategory: (name: string) => void
   isPending: boolean
+  readOnly?: boolean
 }) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
@@ -67,7 +69,7 @@ export default function PurchaseItemsTab({
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+      {!readOnly && <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', marginBottom: 10 }}>
           Adicionar item de compra
         </div>
@@ -120,7 +122,7 @@ export default function PurchaseItemsTab({
           💡 Itens aqui são anotações — não entram em totais nem no dashboard.
           {isPending && ' Ao importar uma fatura, você poderá selecionar quais itens incluir.'}
         </p>
-      </div>
+      </div>}
 
       {groupKeys.map((gk) => {
         const groupItems = grouped[gk]
@@ -200,6 +202,7 @@ export default function PurchaseItemsTab({
                         onAddCategory={onAddCategory}
                       />
                     </td>
+                    {!readOnly && (
                     <td style={S.td}>
                       <button
                         onClick={() => onDelete(it.id)}
@@ -209,6 +212,7 @@ export default function PurchaseItemsTab({
                         title="Excluir"
                       >✕</button>
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

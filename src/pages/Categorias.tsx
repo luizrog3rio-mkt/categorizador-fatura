@@ -22,7 +22,7 @@ const TEXT_REFS: Record<Vocab, { tabela: string; col: string }[]> = {
 const TABELA_USO: Record<Vocab, string> = { transacao: 'transactions', compra: 'purchase_items' }
 
 export default function Categorias() {
-  const { session } = useApp()
+  const { session, isAdmin } = useApp()
   const [vocab, setVocab] = useState<Vocab>('transacao')
   const [cats, setCats] = useState<CatRow[]>([])
   const [uso, setUso] = useState<Record<string, number>>({})
@@ -99,7 +99,7 @@ export default function Categorias() {
       <PageHeader
         titulo="Categorias"
         subtitulo="Gerencie as categorias de transações e de compras"
-        acao={<button onClick={abrirNovo} className={btnPrimario}><Plus size={16} /> Nova categoria</button>}
+        acao={<button onClick={abrirNovo} disabled={!isAdmin} className={btnPrimario}><Plus size={16} /> Nova categoria</button>}
       />
 
       <ErroBanner mensagem={erro} />
@@ -135,10 +135,12 @@ export default function Categorias() {
                     </span>
                     <span className="text-xs text-slate-400 whitespace-nowrap">{n > 0 ? `${n} uso${n !== 1 ? 's' : ''}` : 'sem uso'}</span>
                   </div>
+                  {isAdmin && (
                   <div className="flex items-center gap-1 shrink-0">
                     <button title="Editar" onClick={() => abrirEdicao(c)} className="text-slate-400 hover:text-indigo-600 p-1"><Pencil size={15} /></button>
                     <button title="Excluir" onClick={() => excluir(c)} className="text-slate-400 hover:text-red-600 p-1"><Trash2 size={15} /></button>
                   </div>
+                  )}
                 </div>
               )
             })}

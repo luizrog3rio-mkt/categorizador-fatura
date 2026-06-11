@@ -9,6 +9,7 @@ import {
   FileDown,
   ShoppingCart,
   Tags,
+  Users,
   LogOut,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -27,7 +28,7 @@ const itens = [
 ]
 
 export default function Layout() {
-  const { perfil, empresas, empresaAtiva, setEmpresaAtiva, pendingCount } = useApp()
+  const { perfil, isAdmin, empresas, empresaAtiva, setEmpresaAtiva, pendingCount } = useApp()
 
   return (
     <div className="min-h-screen flex">
@@ -79,6 +80,19 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+        {isAdmin && (
+          <NavLink
+            to="/usuarios"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mx-3 mb-1 ${
+                isActive ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'
+              }`
+            }
+          >
+            <Users size={17} />
+            <span>Usuários</span>
+          </NavLink>
+        )}
         <button
           onClick={() => supabase.auth.signOut()}
           className="flex items-center gap-3 px-6 py-4 text-sm text-slate-400 hover:text-white border-t border-slate-800"

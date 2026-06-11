@@ -12,7 +12,7 @@ import { Card, PageHeader, Badge, Vazio, ErroBanner, inputCls, btnPrimario } fro
 // Conta corrente (cartão vai pelo fluxo de Faturas). Categoria viva (sem tipo,
 // mostra todas). Import reporta duplicatas e FITID sintético (follow-up 1c).
 export default function Extrato() {
-  const { empresaAtiva } = useApp()
+  const { empresaAtiva, isAdmin } = useApp()
   const [contas, setContas] = useState<Account[]>([])
   const [categorias, setCategorias] = useState<Category[]>([])
   const [contaSelecionada, setContaSelecionada] = useState('')
@@ -82,7 +82,7 @@ export default function Extrato() {
               {contas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <label className={btnPrimario + (contaSelecionada ? ' cursor-pointer' : ' opacity-50 cursor-not-allowed')}>
+          <label className={btnPrimario + (!isAdmin ? ' opacity-50 pointer-events-none' : contaSelecionada ? ' cursor-pointer' : ' opacity-50 cursor-not-allowed')}>
             <Upload size={16} />
             {importando ? 'Importando…' : 'Importar arquivo OFX'}
             <input
@@ -129,9 +129,9 @@ export default function Extrato() {
                       {t.category ? (
                         <div className="flex items-center gap-2">
                           <Badge cor={corDaCategoria(t.category.color_index).text}>{t.category.name}</Badge>
-                          <button onClick={() => categorizar(t, '')} className="text-xs text-slate-400 hover:text-red-500">×</button>
+                          {isAdmin && <button onClick={() => categorizar(t, '')} className="text-xs text-slate-400 hover:text-red-500">×</button>}
                         </div>
-                      ) : (
+                      ) : isAdmin ? (
                         <select
                           className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500"
                           value=""
@@ -140,7 +140,7 @@ export default function Extrato() {
                           <option value="">Categorizar…</option>
                           {categorias.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 ))}

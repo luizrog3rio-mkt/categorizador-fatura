@@ -12,7 +12,7 @@ import type { Account, Invoice } from '../lib/types'
 // Evoluções conscientes: import grava account_id (cartão selecionável quando
 // houver mais de um), erros aparecem em banner.
 export default function Faturas() {
-  const { session } = useApp()
+  const { session, isAdmin } = useApp()
   const { regras, erro: erroWorld } = useFaturaWorld()
   const navigate = useNavigate()
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -89,8 +89,8 @@ export default function Faturas() {
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             background: '#3b82f6', color: '#fff', padding: '10px 20px',
-            borderRadius: 10, cursor: importando ? 'wait' : 'pointer', fontWeight: 700, fontSize: 14,
-            opacity: importando ? 0.6 : 1,
+            borderRadius: 10, cursor: !isAdmin ? 'default' : importando ? 'wait' : 'pointer', fontWeight: 700, fontSize: 14,
+            opacity: !isAdmin || importando ? 0.4 : 1, pointerEvents: !isAdmin ? 'none' : undefined,
           }}
         >
           {importando ? '⏳ Importando…' : '📂 Importar .OFX'}
@@ -137,7 +137,8 @@ export default function Faturas() {
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); excluir(inv) }}
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#cbd5e1', fontSize: 16, padding: '4px 8px', borderRadius: 6 }}
+              disabled={!isAdmin}
+              style={{ background: 'transparent', border: 'none', cursor: isAdmin ? 'pointer' : 'default', color: '#cbd5e1', fontSize: 16, padding: '4px 8px', borderRadius: 6, display: isAdmin ? undefined : 'none' }}
               onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
               onMouseLeave={(e) => (e.currentTarget.style.color = '#cbd5e1')}
               title="Excluir fatura"

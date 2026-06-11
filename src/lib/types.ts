@@ -8,6 +8,7 @@ export type AccountType = 'checking' | 'credit_card' | 'inter_company'
 export interface Profile {
   id: string
   email: string | null
+  role: 'admin' | 'viewer'
   created_at: string | null
 }
 

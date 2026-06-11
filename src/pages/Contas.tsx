@@ -23,7 +23,7 @@ const rotulos: Record<AccountType, string> = {
 }
 
 export default function Contas() {
-  const { empresas, empresaAtiva } = useApp()
+  const { empresas, empresaAtiva, isAdmin } = useApp()
   const [contas, setContas] = useState<ContaComSaldo[]>([])
   const [erro, setErro] = useState<string | null>(null)
   const [modalAberto, setModalAberto] = useState(false)
@@ -102,7 +102,7 @@ export default function Contas() {
         titulo="Contas & Cartões"
         subtitulo="Contas bancárias, cartões de crédito e empréstimos inter-empresas"
         acao={
-          <button onClick={() => { setForm({ company_id: empresaAtiva?.id ?? empresas[0]?.id ?? '', name: '', type: 'checking', bank: '', initial_balance: '0', statement_closing_day: '', due_day: '', active: true }); setModalAberto(true) }} className={btnPrimario}>
+          <button onClick={() => { setForm({ company_id: empresaAtiva?.id ?? empresas[0]?.id ?? '', name: '', type: 'checking', bank: '', initial_balance: '0', statement_closing_day: '', due_day: '', active: true }); setModalAberto(true) }} disabled={!isAdmin} className={btnPrimario}>
             <Plus size={16} /> Nova conta
           </button>
         }
@@ -130,12 +130,14 @@ export default function Contas() {
                       </p>
                     </div>
                   </div>
+                  {isAdmin && (
                   <button
                     onClick={() => { setForm({ id: c.id, company_id: c.company_id, name: c.name, type: c.type, bank: c.bank ?? '', initial_balance: String(c.initial_balance), statement_closing_day: c.statement_closing_day ? String(c.statement_closing_day) : '', due_day: c.due_day ? String(c.due_day) : '', active: c.active }); setModalAberto(true) }}
                     className="text-slate-300 hover:text-indigo-600"
                   >
                     <Pencil size={15} />
                   </button>
+                  )}
                 </div>
                 <p className={`text-2xl font-bold mt-4 ${c.saldo < 0 ? 'text-red-600' : 'text-slate-800'}`}>
                   {fmtBRL(c.saldo)}

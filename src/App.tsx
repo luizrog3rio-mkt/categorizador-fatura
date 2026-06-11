@@ -11,6 +11,7 @@ import Lancamentos from './pages/Lancamentos'
 import Extrato from './pages/Extrato'
 import Hotmart from './pages/Hotmart'
 import Categorias from './pages/Categorias'
+import Usuarios from './pages/Usuarios'
 
 // Dashboard carrega o recharts (centenas de kB) — lazy tira do bundle inicial
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -48,6 +49,7 @@ function Rotas() {
         <Route path="/hotmart" element={<Hotmart />} />
         <Route path="/contas" element={<Contas />} />
         <Route path="/categorias" element={<Categorias />} />
+        <Route path="/usuarios" element={<Usuarios />} />
       </Route>
     </Routes>
   )

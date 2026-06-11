@@ -8,11 +8,13 @@ export default function TagSelector({
   categories,
   onChange,
   onAddCategory,
+  readOnly = false,
 }: {
   value: string | null
   categories: CatUI[]
   onChange: (cat: string | null) => void
   onAddCategory: (name: string) => void
+  readOnly?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [newName, setNewName] = useState('')
@@ -38,7 +40,7 @@ export default function TagSelector({
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => !readOnly && setOpen((o) => !o)}
         style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20,
           border: cat ? `1.5px solid ${cat.color.border}` : '1.5px dashed #cbd5e1',

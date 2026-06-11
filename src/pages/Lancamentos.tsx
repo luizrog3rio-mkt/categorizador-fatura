@@ -45,7 +45,7 @@ const formVazio = (companyId: string): FormState => ({
 })
 
 export default function Lancamentos({ tipo }: { tipo: EntryType }) {
-  const { empresas, empresaAtiva, session } = useApp()
+  const { empresas, empresaAtiva, session, isAdmin } = useApp()
   const [lancamentos, setLancamentos] = useState<Entry[]>([])
   const [categorias, setCategorias] = useState<Category[]>([])
   const [contas, setContas] = useState<Account[]>([])
@@ -157,7 +157,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         titulo={ehPagar ? 'Contas a Pagar' : 'Contas a Receber'}
         subtitulo="Fluxo: Emissão → Vencimento → Pagamento"
         acao={
-          <button onClick={abrirNovo} className={btnPrimario}>
+          <button onClick={abrirNovo} disabled={!isAdmin} className={btnPrimario}>
             <Plus size={16} /> Novo lançamento
           </button>
         }
@@ -225,17 +225,21 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
                     <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 justify-end">
-                        {l.status !== 'paid' && l.status !== 'cancelled' && (
+                        {isAdmin && l.status !== 'paid' && l.status !== 'cancelled' && (
                           <button title={ehPagar ? 'Marcar como pago' : 'Marcar como recebido'} onClick={() => marcarPago(l)} className="text-green-600 hover:text-green-800">
                             <CheckCircle2 size={17} />
                           </button>
                         )}
+                        {isAdmin && (
                         <button title="Editar" onClick={() => abrirEdicao(l)} className="text-slate-400 hover:text-indigo-600">
                           <Pencil size={16} />
                         </button>
+                        )}
+                        {isAdmin && (
                         <button title="Excluir" onClick={() => excluir(l)} className="text-slate-400 hover:text-red-600">
                           <Trash2 size={16} />
                         </button>
+                        )}
                       </div>
                     </td>
                   </tr>

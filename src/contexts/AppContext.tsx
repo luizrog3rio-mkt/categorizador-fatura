@@ -8,6 +8,7 @@ interface AppCtx {
   session: Session | null
   carregando: boolean
   perfil: Profile | null
+  isAdmin: boolean
   empresas: Company[]
   empresaAtiva: Company | null // null = consolidado (todas)
   setEmpresaAtiva: (e: Company | null) => void
@@ -68,9 +69,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
   }, [session, recarregarPendentes])
 
+  const isAdmin = perfil?.role !== 'viewer'
+
   return (
     <Ctx.Provider
-      value={{ session, carregando, perfil, empresas, empresaAtiva, setEmpresaAtiva, recarregarEmpresas, pendingCount, recarregarPendentes }}
+      value={{ session, carregando, perfil, isAdmin, empresas, empresaAtiva, setEmpresaAtiva, recarregarEmpresas, pendingCount, recarregarPendentes }}
     >
       {children}
     </Ctx.Provider>

@@ -22,7 +22,7 @@ type Aba = 'lancamentos' | 'dashboard' | 'compras'
 
 export default function Fatura() {
   const { id } = useParams<{ id: string }>()
-  const { session, recarregarPendentes } = useApp()
+  const { session, isAdmin, recarregarPendentes } = useApp()
   const { categorias, purchaseCategorias, regras, erro: erroWorld, addCategoria, addPurchaseCategoria } = useFaturaWorld()
   const navigate = useNavigate()
   const location = useLocation()
@@ -186,7 +186,7 @@ export default function Fatura() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           <ExportMenu transactions={transactions} filtered={filtered} filter={filter} />
-          <label style={{ ...S.newBtn, cursor: importando ? 'wait' : 'pointer', opacity: importando ? 0.6 : 1 }}>
+          <label style={{ ...S.newBtn, cursor: !isAdmin ? 'default' : importando ? 'wait' : 'pointer', opacity: !isAdmin || importando ? 0.4 : 1, pointerEvents: !isAdmin ? 'none' : undefined }}>
             📂 Nova fatura
             <input ref={fileInput} type="file" accept=".ofx" style={{ display: 'none' }} disabled={importando}
               onChange={(e) => onNovoArquivo(e.target.files?.[0])} />
@@ -270,7 +270,7 @@ export default function Fatura() {
                     <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{fmt(t.amount)}</td>
                     <td style={S.td}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <TagSelector value={t.category} categories={categorias} onChange={(cat) => setCategory(t.id, cat)} onAddCategory={addCategoria} />
+                        <TagSelector value={t.category} categories={categorias} onChange={(cat) => setCategory(t.id, cat)} onAddCategory={addCategoria} readOnly={!isAdmin} />
                         {t.auto && t.category && (
                           <span title="Categorizado automaticamente" style={{ fontSize: 10, color: '#6366f1', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 10, padding: '2px 7px', fontWeight: 700, whiteSpace: 'nowrap' }}>✦ auto</span>
                         )}
@@ -309,6 +309,7 @@ export default function Fatura() {
           onDelete={deleteItem}
           onAddCategory={addPurchaseCategoria}
           isPending={false}
+          readOnly={!isAdmin}
         />
       )}
 

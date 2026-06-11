@@ -10,7 +10,7 @@ import type { PurchaseItem } from '../lib/types'
 // itens com invoice_id null, agrupados por mês desc, "não entram em totais".
 // Ao importar uma fatura, o modal de pendentes (Etapa 2) oferece anexá-los.
 export default function Compras() {
-  const { session, recarregarPendentes } = useApp()
+  const { session, isAdmin, recarregarPendentes } = useApp()
   const { purchaseCategorias, erro: erroWorld, addPurchaseCategoria } = useFaturaWorld()
   const [items, setItems] = useState<PurchaseItem[]>([])
   const [erro, setErro] = useState<string | null>(null)
@@ -78,6 +78,7 @@ export default function Compras() {
           onDelete={deleteItem}
           onAddCategory={addPurchaseCategoria}
           isPending
+          readOnly={!isAdmin}
         />
       </div>
     </div>
