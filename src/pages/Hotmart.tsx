@@ -224,10 +224,12 @@ export default function Hotmart() {
                   <th className="px-4 py-3 text-right">Valor Total</th>
                   <th className="px-4 py-3 text-right">Bruto</th>
                   <th className="px-4 py-3 text-right">Taxa</th>
+                  <th className="px-4 py-3 text-right">% Hotmart</th>
                   <th className="px-4 py-3 text-right">Afil./Coprod.</th>
                   <th className="px-4 py-3 text-right">Líquido</th>
                   <th className="px-4 py-3">Liberação</th>
                   <th className="px-4 py-3">Pagamento</th>
+                  <th className="px-4 py-3 text-center">Parcelas</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
@@ -245,12 +247,16 @@ export default function Hotmart() {
                     <td className="px-4 py-2.5 text-right">{fmtBRL(Number(v.total_amount))}</td>
                     <td className="px-4 py-2.5 text-right">{fmtBRL(Number(v.gross_amount))}</td>
                     <td className="px-4 py-2.5 text-right text-red-600">{fmtBRL(Number(v.hotmart_fee))}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-500 whitespace-nowrap">{v.fee_percentage != null ? `${Number(v.fee_percentage)}%` : '—'}</td>
                     <td className="px-4 py-2.5 text-right text-orange-600">
                       {fmtBRL(Number(v.affiliate_commission) + Number(v.coproduction_commission))}
                     </td>
                     <td className="px-4 py-2.5 text-right font-semibold text-green-700">{fmtBRL(Number(v.net_amount))}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">{fmtData(v.release_date)}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap">{v.payment_method ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-center text-slate-600 whitespace-nowrap">
+                      {v.installments == null ? '—' : v.installments <= 1 ? 'À vista' : `${v.installments}x`}
+                    </td>
                     <td className="px-4 py-2.5">
                       <StatusHotmart status={v.status} />
                     </td>

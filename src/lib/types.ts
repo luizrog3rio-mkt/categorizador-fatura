@@ -84,6 +84,8 @@ export interface HotmartSale {
   total_amount: number   // total pago pelo comprador (price.value — inclui juros de parcelamento)
   gross_amount: number   // bruto: preço base do produto (hotmart_fee.base — sem juros de parcelamento)
   hotmart_fee: number
+  fee_percentage: number | null  // % cobrada pela Hotmart (hotmart_fee.percentage)
+  installments: number | null    // nº de parcelas (payment.installments_number; 1 = à vista)
   affiliate_commission: number
   coproduction_commission: number
   net_amount: number

@@ -77,6 +77,8 @@ function mapSale(it: any, companyId: string) {
     total_amount: total,
     gross_amount: gross,
     hotmart_fee: fee,
+    fee_percentage: p.hotmart_fee?.percentage ?? null, // % cobrada pela Hotmart
+    installments: p.payment?.installments_number ?? null, // nº de parcelas (1 = à vista)
     affiliate_commission: affiliate,
     coproduction_commission: coproduction,
     net_amount: net,
