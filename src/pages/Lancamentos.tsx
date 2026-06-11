@@ -90,7 +90,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       category_id: l.category_id ?? '',
       description: l.description,
       amount: String(l.amount),
-      issue_date: l.issue_date,
+      issue_date: l.issue_date ?? '',
       due_date: l.due_date,
       payment_date: l.payment_date ?? '',
       counterparty: l.counterparty ?? '',
@@ -110,7 +110,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       type: tipo,
       description: form.description,
       amount: parseFloat(form.amount.replace(',', '.')),
-      issue_date: form.issue_date,
+      issue_date: form.issue_date || null,
       due_date: form.due_date,
       payment_date: form.payment_date || null,
       status: form.payment_date ? 'paid' : form.due_date < hoje() ? 'overdue' : 'pending',
@@ -271,8 +271,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <input required inputMode="decimal" className={inputCls} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Data de emissão *</label>
-              <input type="date" required className={inputCls} value={form.issue_date} onChange={(e) => setForm({ ...form, issue_date: e.target.value })} />
+              <label className="block text-sm font-medium mb-1">Data de emissão</label>
+              <input type="date" className={inputCls} value={form.issue_date} onChange={(e) => setForm({ ...form, issue_date: e.target.value })} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Vencimento *</label>

@@ -41,7 +41,7 @@ export interface Entry {
   type: EntryType
   description: string
   amount: number
-  issue_date: string
+  issue_date: string | null
   due_date: string
   payment_date: string | null
   status: EntryStatus
