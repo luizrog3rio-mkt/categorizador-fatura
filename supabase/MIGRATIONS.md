@@ -19,8 +19,9 @@
 
 O banco vivo (`qdnqghefwjpeiidjlzjy`) nunca teve histórico de migrations — todo o schema
 foi aplicado via SQL Editor (confirmado: `supabase_migrations.schema_migrations` não
-existe; `list_migrations` vazio). Os arquivos antigos do repo (`supabase/legacy/*.sql`)
-estavam desatualizados em relação à produção. A Fase 1a estabelece o marco zero:
+existe; `list_migrations` vazio). Os arquivos antigos do repo (`supabase/legacy/*.sql`,
+removidos do repo em 2026-06-10 — histórico no git) estavam desatualizados em
+relação à produção. A Fase 1a estabelece o marco zero:
 
 | Arquivo | Papel | Como entra no banco |
 |---|---|---|
@@ -35,7 +36,8 @@ compatibilidade com o App.jsx, e este runbook) — 0 blockers em 2026-06-09.
 ## Ordem de aplicação (passos 1–5 ✅ executados em 2026-06-10, incluindo o smoke)
 
 1. **Aplicar o hardening** via MCP `apply_migration` com name `phase1a_hardening` e o
-   conteúdo de `20260609120100_phase1a_hardening.sql`. Isso cria a tabela
+   conteúdo de `20260609120100_phase1a_hardening.sql` (nome pré-rename; hoje o
+   arquivo é `20260610010051_phase1a_hardening.sql`). Isso cria a tabela
    `supabase_migrations.schema_migrations` e registra a migration. Em seguida, rodar
    `list_migrations` para confirmar a criação e **anotar o version real gravado**.
 2. **Renomear o arquivo local** para casar com o version real — o `apply_migration`
@@ -388,9 +390,9 @@ existem.
 - ~~**Import deve REPORTAR duplicatas puladas**~~ ✅ IMPLEMENTADO
   (src/lib/importarExtrato.ts: relatório "N no arquivo · X novas · Y
   duplicadas · Z sem FITID").
-- ~~**FITID vazio → sintético**~~ ✅ IMPLEMENTADO (src/lib/ofxExtrato.ts +
-  importarExtrato.ts: `syn:data:valor:memo` determinístico, com #n pra
-  colisão intra-arquivo).
+- ~~**FITID vazio → sintético**~~ ✅ IMPLEMENTADO (src/lib/importarExtrato.ts:
+  `syn:data:valor:memo` determinístico, com #n pra colisão intra-arquivo; o
+  parser ofxExtrato.ts apenas entrega o fitid vazio).
 - ~~**Upsert Hotmart em reimport**~~ — superado: o fluxo primário virou o sync
   via API (Edge Function), single-company na prática; merge por
   transaction_code mantido de propósito (atualiza status de reembolso).
@@ -412,9 +414,10 @@ existem.
 | `20260611002326` | phase3_data_fixes | Fase 3 — 2 fixes pontuais (valor 1.16398→1163.98; regra captions.ai Viagem→Ferramenta). Diagnóstico atestou dados íntegros; categoria continua TEXTO por design. |
 | `20260611021420` | move_pgnet_to_extensions | Move pg_net do public pro schema extensions (advisor 0014). API `net.*` inalterada; cron re-testado vivo. |
 
-Infra fora do SQL (vive no projeto Supabase, não no repo): Edge Function
-**`hotmart-sync`** (verify_jwt=false; modos usuário/serviço/debug; secrets
+Infra fora do histórico de migrations: Edge Function **`hotmart-sync`**
+(deployada no projeto Supabase; fonte versionada em
+`supabase/functions/hotmart-sync/index.ts`; verify_jwt=false; modos
+usuário/serviço/debug). Os SEGREDOS vivem só no projeto (não no repo):
 `HOTMART_CLIENT_ID`/`HOTMART_CLIENT_SECRET`/`HOTMART_SYNC_SERVICE_KEY` no env
-da function) e o segredo `hotmart_service_key` no **Vault** (consumido pelo
-cron). hotmart_sales carrega ~13k vendas reais (backfill 12 meses,
-2026-06-10).
+da function e `hotmart_service_key` no **Vault** (consumido pelo cron).
+hotmart_sales carrega ~13k vendas reais (backfill 12 meses, 2026-06-10).

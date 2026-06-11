@@ -16,10 +16,10 @@ Compras (anotações pendentes por mês), Contas a Pagar/Receber (`entries`),
 Extratos OFX (`bank_transactions`), Hotmart (sync via API + cron diário),
 Contas & Cartões (`accounts`), Categorias (gestão com rename-cascade).
 
-Fonte da verdade do schema: banco vivo + `supabase/migrations/` (baseline +
-migrations aplicadas, todas com header "APLICADA"). Runbook completo em
-`supabase/MIGRATIONS.md`. Mapas históricos da portagem em `docs/fase2/` e
-`supabase/audit/`.
+Fonte da verdade do schema: banco vivo + `supabase/migrations/` (baseline
+registrado sem execução + migrations aplicadas; status de cada uma no
+runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
+`docs/fase2/` e `supabase/audit/`.
 
 ## Regras do projeto
 
