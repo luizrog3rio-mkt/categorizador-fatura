@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Plus, Pencil, CheckCircle2, Trash2 } from 'lucide-react'
+import { Plus, Pencil, CheckCircle2, Trash2, ArrowRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
 import { corDaCategoria } from '../lib/fatura'
-import type { Account, Category, Entry, EntryType } from '../lib/types'
+import type { Account, Category, Entry, EntryType, EntryStatus } from '../lib/types'
 import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, inputCls, btnPrimario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
@@ -28,6 +28,7 @@ interface FormState {
   issue_date: string
   due_date: string
   payment_date: string
+  status: EntryStatus
   counterparty: string
   notes: string
 }
@@ -41,6 +42,7 @@ const formVazio = (companyId: string): FormState => ({
   issue_date: hoje(),
   due_date: hoje(),
   payment_date: '',
+  status: 'to_pay',
   counterparty: '',
   notes: '',
 })
@@ -94,6 +96,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       issue_date: l.issue_date ?? '',
       due_date: l.due_date,
       payment_date: l.payment_date ?? '',
+      status: (l.status as EntryStatus) ?? 'to_pay',
       counterparty: l.counterparty ?? '',
       notes: l.notes ?? '',
     })
@@ -104,6 +107,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     e.preventDefault()
     setSalvando(true)
     setErro(null)
+    const status = form.status
+    // se marcou como pago sem informar data de pagamento, usa hoje
+    const payment_date = status === 'paid' && !form.payment_date ? hoje() : form.payment_date || null
     const payload = {
       company_id: form.company_id,
       account_id: form.account_id || null,
@@ -113,8 +119,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       amount: parseFloat(form.amount.replace(',', '.')),
       issue_date: form.issue_date || null,
       due_date: form.due_date,
-      payment_date: form.payment_date || null,
-      status: form.payment_date ? 'paid' : form.due_date < hoje() ? 'overdue' : 'pending',
+      payment_date,
+      status,
       counterparty: form.counterparty || null,
       notes: form.notes || null,
       ...(form.id ? {} : { created_by: session?.user.id }),
@@ -127,6 +133,12 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     setModalAberto(false)
     carregar()
   }
+
+  const enviarParaPagamento = useCallback(async (l: Entry) => {
+    const { error } = await supabase.from('entries').update({ status: 'pending' }).eq('id', l.id)
+    if (error) { setErro('Erro ao atualizar status: ' + error.message); return }
+    carregar()
+  }, [carregar])
 
   const marcarPago = useCallback(async (l: Entry) => {
     const { error } = await supabase.from('entries').update({ payment_date: hoje(), status: 'paid' }).eq('id', l.id)
@@ -141,14 +153,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     carregar()
   }, [carregar])
 
-  const totais = useMemo(() => {
-    const aberto = lancamentos.filter((l) => l.status === 'pending' || l.status === 'overdue')
-    return {
-      aberto: aberto.reduce((s, l) => s + Number(l.amount), 0),
-      atrasado: lancamentos.filter((l) => l.status === 'overdue').reduce((s, l) => s + Number(l.amount), 0),
-      pago: lancamentos.filter((l) => l.status === 'paid').reduce((s, l) => s + Number(l.amount), 0),
-    }
-  }, [lancamentos])
+  const totais = useMemo(() => ({
+    aPagar: lancamentos.filter((l) => l.status === 'to_pay').reduce((s, l) => s + Number(l.amount), 0),
+    pendente: lancamentos.filter((l) => l.status === 'pending').reduce((s, l) => s + Number(l.amount), 0),
+    pago: lancamentos.filter((l) => l.status === 'paid').reduce((s, l) => s + Number(l.amount), 0),
+  }), [lancamentos])
 
   const ehPagar = tipo === 'payable'
 
@@ -164,10 +173,15 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     { id: 'due_date', header: 'Vencimento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.due_date)}</span> },
     { id: 'payment_date', header: 'Pagamento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.payment_date)}</span> },
     { id: 'amount', header: 'Valor', size: 120, align: 'right', cell: (l) => <span className="font-semibold">{fmtBRL(Number(l.amount))}</span> },
-    { id: 'status', header: 'Status', size: 120, cell: (l) => <StatusBadge status={l.status} /> },
-    { id: 'acoes', header: '', label: 'Ações', size: 110, align: 'right', enableHiding: false, cell: (l) => (
+    { id: 'status', header: 'Status', size: 130, cell: (l) => <StatusBadge status={l.status} tipo={tipo} /> },
+    { id: 'acoes', header: '', label: 'Ações', size: 120, align: 'right', enableHiding: false, cell: (l) => (
       <div className="flex gap-2 justify-end">
-        {isAdmin && l.status !== 'paid' && l.status !== 'cancelled' && (
+        {isAdmin && l.status === 'to_pay' && (
+          <button title="Enviar para pagamento" onClick={() => enviarParaPagamento(l)} className="text-blue-500 hover:text-blue-700">
+            <ArrowRight size={17} />
+          </button>
+        )}
+        {isAdmin && l.status === 'pending' && (
           <button title={ehPagar ? 'Marcar como pago' : 'Marcar como recebido'} onClick={() => marcarPago(l)} className="text-green-600 hover:text-green-800">
             <CheckCircle2 size={17} />
           </button>
@@ -184,7 +198,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         )}
       </div>
     ) },
-  ], [isAdmin, ehPagar, marcarPago, abrirEdicao, excluir])
+  ], [isAdmin, ehPagar, tipo, enviarParaPagamento, marcarPago, abrirEdicao, excluir])
 
   return (
     <div>
@@ -202,12 +216,12 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Em aberto</p>
-          <p className="text-xl font-bold text-amber-600 mt-1">{fmtBRL(totais.aberto)}</p>
+          <p className="text-xs text-slate-500 uppercase">{ehPagar ? 'A pagar' : 'A receber'}</p>
+          <p className="text-xl font-bold text-blue-600 mt-1">{fmtBRL(totais.aPagar)}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Atrasado</p>
-          <p className="text-xl font-bold text-red-600 mt-1">{fmtBRL(totais.atrasado)}</p>
+          <p className="text-xs text-slate-500 uppercase">Pendente</p>
+          <p className="text-xl font-bold text-amber-600 mt-1">{fmtBRL(totais.pendente)}</p>
         </Card>
         <Card className="p-4">
           <p className="text-xs text-slate-500 uppercase">{ehPagar ? 'Pago' : 'Recebido'}</p>
@@ -218,8 +232,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       <div className="mb-4">
         <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} className={inputCls + ' max-w-48'}>
           <option value="">Todos os status</option>
+          <option value="to_pay">{ehPagar ? 'A pagar' : 'A receber'}</option>
           <option value="pending">Pendente</option>
-          <option value="overdue">Atrasado</option>
           <option value="paid">{ehPagar ? 'Pago' : 'Recebido'}</option>
           <option value="cancelled">Cancelado</option>
         </select>
@@ -269,6 +283,15 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             <div>
               <label className="block text-sm font-medium mb-1">Data de pagamento</label>
               <input type="date" className={inputCls} value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Status *</label>
+              <select required className={inputCls} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as EntryStatus })}>
+                <option value="to_pay">{ehPagar ? 'A pagar' : 'A receber'}</option>
+                <option value="pending">Pendente</option>
+                <option value="paid">{ehPagar ? 'Pago' : 'Recebido'}</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Categoria</label>

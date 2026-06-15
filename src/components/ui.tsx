@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { EntryStatus } from '../lib/types'
+import type { EntryStatus, EntryType } from '../lib/types'
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -41,23 +41,31 @@ export function Badge({ children, cor }: { children: ReactNode; cor: string }) {
 }
 
 // status das entries (enum EN no banco, rótulo PT na UI)
-const coresStatus: Record<EntryStatus, string> = {
-  pending: '#f59e0b',
-  paid: '#22c55e',
-  overdue: '#ef4444',
-  cancelled: '#94a3b8',
+// Fluxo: to_pay → pending → paid  (ou cancelled em qualquer etapa)
+const coresStatus: Record<string, string> = {
+  to_pay: '#3b82f6',    // azul  — cadastrado, aguardando envio
+  pending: '#f59e0b',   // âmbar — enviado, aguardando aprovação
+  paid: '#22c55e',      // verde — pago e confirmado
+  cancelled: '#94a3b8', // cinza — cancelado
+  overdue: '#ef4444',   // vermelho — legado (não usado no fluxo novo)
 }
 
-const rotulosStatus: Record<EntryStatus, string> = {
+const rotulosStatus: Record<string, string> = {
+  to_pay: 'A pagar',
   pending: 'Pendente',
   paid: 'Pago',
-  overdue: 'Atrasado',
   cancelled: 'Cancelado',
+  overdue: 'Atrasado',
 }
 
-export function StatusBadge({ status }: { status: string }) {
-  const s = status as EntryStatus
-  return <Badge cor={coresStatus[s] ?? '#64748b'}>{rotulosStatus[s] ?? status}</Badge>
+export function StatusBadge({ status, tipo }: { status: string; tipo?: EntryType }) {
+  const cor = coresStatus[status] ?? '#64748b'
+  let rotulo = rotulosStatus[status] ?? status
+  if (tipo === 'receivable') {
+    if (status === 'to_pay') rotulo = 'A receber'
+    else if (status === 'paid') rotulo = 'Recebido'
+  }
+  return <Badge cor={cor}>{rotulo}</Badge>
 }
 
 export function Vazio({ mensagem }: { mensagem: string }) {

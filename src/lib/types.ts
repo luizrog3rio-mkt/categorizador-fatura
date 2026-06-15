@@ -1,6 +1,12 @@
 // ── Enums das tabelas novas (Fase 1c, schema EN) ─────────────────────────────
 export type EntryType = 'payable' | 'receivable'
-export type EntryStatus = 'pending' | 'paid' | 'overdue' | 'cancelled'
+// 'to_pay' = cadastrado, não enviado para pagamento (status inicial)
+// 'pending' = enviado para pagamento, aguardando aprovação
+// 'paid'    = pago e confirmado
+// 'cancelled' = cancelado
+// (o valor 'overdue' continua no enum do banco por restrição do Postgres,
+//  mas não é mais usado no fluxo — entradas antigas foram migradas para 'to_pay')
+export type EntryStatus = 'to_pay' | 'pending' | 'paid' | 'cancelled'
 export type AccountType = 'checking' | 'credit_card' | 'inter_company'
 
 // ── Tabelas novas (EN) ───────────────────────────────────────────────────────
