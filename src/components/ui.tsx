@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { EntryStatus, EntryType } from '../lib/types'
+import type { EntryType } from '../lib/types'
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (

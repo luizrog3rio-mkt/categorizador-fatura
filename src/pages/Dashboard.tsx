@@ -97,7 +97,7 @@ export default function Dashboard() {
     const doMes = lancamentos.filter((l) => l.due_date.startsWith(mesAtual))
     const aReceber = doMes.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
     const aPagar = doMes.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
-    const atrasados = lancamentos.filter((l) => l.status === 'overdue' || (l.status === 'pending' && l.due_date < hoje())).reduce((s, l) => s + Number(l.amount), 0)
+    const atrasados = lancamentos.filter((l) => (l.status === 'to_pay' || l.status === 'pending') && l.due_date < hoje()).reduce((s, l) => s + Number(l.amount), 0)
     const hotmartMes = vendas.filter((v) => v.sale_date.startsWith(mesAtual) && vendaAprovada(v.status)).reduce((s, v) => s + Number(v.net_amount), 0)
     const aLiberar = vendas.filter((v) => v.release_date && v.release_date >= hoje() && vendaAprovada(v.status)).reduce((s, v) => s + Number(v.net_amount), 0)
     return { aReceber, aPagar, atrasados, hotmartMes, aLiberar }
