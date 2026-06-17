@@ -53,6 +53,7 @@ export interface Entry {
   status: EntryStatus
   counterparty: string | null
   notes: string | null
+  is_recurring: boolean
   invoice_account_id: string | null
   invoice_month: string | null
   created_by: string | null

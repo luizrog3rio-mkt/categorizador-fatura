@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Plus, Pencil, CheckCircle2, Trash2, ArrowRight } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Plus, Pencil, CheckCircle2, Trash2, ArrowRight, Repeat, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
 import { corDaCategoria } from '../lib/fatura'
 import type { Account, Category, Entry, EntryType, EntryStatus } from '../lib/types'
-import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, inputCls, btnPrimario } from '../components/ui'
+import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
 // Etapa 4 — Contas a Pagar/Receber. Port do Lancamentos.tsx do rb7 adaptado
@@ -31,6 +31,7 @@ interface FormState {
   status: EntryStatus
   counterparty: string
   notes: string
+  is_recurring: boolean
 }
 
 const formVazio = (companyId: string): FormState => ({
@@ -45,7 +46,73 @@ const formVazio = (companyId: string): FormState => ({
   status: 'to_pay',
   counterparty: '',
   notes: '',
+  is_recurring: false,
 })
+
+function normalizar(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+}
+
+function mapColunas(headers: string[]) {
+  const idx: Record<string, number> = {}
+  headers.forEach((h, i) => {
+    const k = normalizar(h)
+    if (['descricao', 'description', 'desc'].includes(k)) idx.description = i
+    if (['valor', 'amount', 'value'].includes(k)) idx.amount = i
+    if (['vencimento', 'due_date', 'venc'].includes(k)) idx.due_date = i
+    if (['emissao', 'issue_date', 'emis'].includes(k)) idx.issue_date = i
+    if (['fornecedor', 'cliente', 'counterparty', 'sacado'].includes(k)) idx.counterparty = i
+    if (['categoria', 'category'].includes(k)) idx.category = i
+    if (['conta', 'account'].includes(k)) idx.account = i
+    if (['observacoes', 'notes', 'obs'].includes(k)) idx.notes = i
+    if (['status'].includes(k)) idx.status = i
+    if (['recorrente', 'recurring'].includes(k)) idx.recurring = i
+  })
+  return idx
+}
+
+function parseCsv(text: string): string[][] {
+  return text.split(/\r?\n/).filter(Boolean).map(line => {
+    const row: string[] = []
+    let field = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') { inQuotes = !inQuotes }
+      else if ((ch === ',' || ch === ';') && !inQuotes) { row.push(field.trim()); field = '' }
+      else { field += ch }
+    }
+    row.push(field.trim())
+    return row
+  })
+}
+
+function parseData(val: string): string {
+  const v = val.trim()
+  const br = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v
+  return ''
+}
+
+function parseValor(val: string): number {
+  let v = val.replace(/[R$\s]/g, '')
+  if (v.includes('.') && v.includes(',')) {
+    // 1.234,56 — BR: ponto = milhar, vírgula = decimal
+    v = v.replace(/\./g, '').replace(',', '.')
+  } else if (v.includes(',')) {
+    // 1234,56 — vírgula como decimal (BR)
+    v = v.replace(',', '.')
+  }
+  return parseFloat(v) || 0
+}
+
+const STATUS_MAP: Record<string, EntryStatus> = {
+  'a pagar': 'to_pay', 'a receber': 'to_pay', 'to_pay': 'to_pay',
+  'pendente': 'pending', 'pending': 'pending',
+  'pago': 'paid', 'recebido': 'paid', 'paid': 'paid',
+  'cancelado': 'cancelled', 'cancelled': 'cancelled',
+}
 
 export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const { empresas, empresaAtiva, session, isAdmin } = useApp()
@@ -57,6 +124,14 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const [form, setForm] = useState<FormState>(formVazio(''))
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+
+  // import
+  const [importAberto, setImportAberto] = useState(false)
+  const [importLinhas, setImportLinhas] = useState<string[][]>([])
+  const [importHeaders, setImportHeaders] = useState<string[]>([])
+  const [importErro, setImportErro] = useState<string | null>(null)
+  const [importando, setImportando] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const carregar = useCallback(async () => {
     setErro(null)
@@ -99,6 +174,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       status: (l.status as EntryStatus) ?? 'to_pay',
       counterparty: l.counterparty ?? '',
       notes: l.notes ?? '',
+      is_recurring: l.is_recurring ?? false,
     })
     setModalAberto(true)
   }, [])
@@ -108,7 +184,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     setSalvando(true)
     setErro(null)
     const status = form.status
-    // se marcou como pago sem informar data de pagamento, usa hoje
     const payment_date = status === 'paid' && !form.payment_date ? hoje() : form.payment_date || null
     const payload = {
       company_id: form.company_id,
@@ -123,6 +198,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       status,
       counterparty: form.counterparty || null,
       notes: form.notes || null,
+      is_recurring: form.is_recurring,
       ...(form.id ? {} : { created_by: session?.user.id }),
     }
     const { error } = form.id
@@ -143,8 +219,27 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const marcarPago = useCallback(async (l: Entry) => {
     const { error } = await supabase.from('entries').update({ payment_date: hoje(), status: 'paid' }).eq('id', l.id)
     if (error) { setErro('Erro ao marcar como pago: ' + error.message); return }
+    if (l.is_recurring) {
+      const prox = new Date(l.due_date + 'T00:00:00')
+      prox.setMonth(prox.getMonth() + 1)
+      const proximoVenc = prox.toISOString().slice(0, 10)
+      await supabase.from('entries').insert({
+        company_id: l.company_id,
+        account_id: l.account_id ?? null,
+        category_id: l.category_id ?? null,
+        type: l.type,
+        description: l.description,
+        amount: l.amount,
+        due_date: proximoVenc,
+        counterparty: l.counterparty ?? null,
+        notes: l.notes ?? null,
+        status: 'to_pay' as EntryStatus,
+        is_recurring: true,
+        created_by: session?.user.id ?? null,
+      })
+    }
     carregar()
-  }, [carregar])
+  }, [carregar, session])
 
   const excluir = useCallback(async (l: Entry) => {
     if (!window.confirm(`Excluir "${l.description}"?`)) return
@@ -152,6 +247,103 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     if (error) { setErro('Erro ao excluir lançamento: ' + error.message); return }
     carregar()
   }, [carregar])
+
+  const processarArquivo = async (file: File) => {
+    setImportErro(null)
+    setImportLinhas([])
+    setImportHeaders([])
+    try {
+      let rows: string[][]
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        const text = await file.text()
+        rows = parseCsv(text)
+      } else {
+        const XLSX = await import('xlsx')
+        const buf = await file.arrayBuffer()
+        const wb = XLSX.read(buf, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' }) as string[][]
+      }
+      if (rows.length < 2) { setImportErro('Arquivo vazio ou sem linhas de dados.'); return }
+      const [headers, ...data] = rows
+      setImportHeaders(headers.map(String))
+      setImportLinhas(data.map(r => r.map(String)))
+    } catch (e) {
+      setImportErro('Erro ao ler arquivo: ' + String(e))
+    }
+  }
+
+  const confirmarImport = async () => {
+    setImportando(true)
+    setImportErro(null)
+    const idx = mapColunas(importHeaders)
+    if (idx.description === undefined || idx.amount === undefined || idx.due_date === undefined) {
+      setImportErro('Colunas obrigatórias não encontradas. Verifique se o cabeçalho tem: Descrição, Valor, Vencimento.')
+      setImportando(false)
+      return
+    }
+    const catByName = (name: string) => categorias.find(c => normalizar(c.name) === normalizar(name))?.id ?? null
+    const contaByName = (name: string) => contas.find(c => normalizar(c.name) === normalizar(name))?.id ?? null
+    const cid = empresaAtiva?.id ?? empresas[0]?.id ?? ''
+    const payload = importLinhas
+      .filter(r => r[idx.description]?.trim())
+      .map(r => ({
+        company_id: cid,
+        type: tipo,
+        description: r[idx.description].trim(),
+        amount: parseValor(r[idx.amount] ?? ''),
+        due_date: parseData(r[idx.due_date] ?? ''),
+        issue_date: idx.issue_date !== undefined ? parseData(r[idx.issue_date] ?? '') || null : null,
+        counterparty: idx.counterparty !== undefined ? r[idx.counterparty]?.trim() || null : null,
+        category_id: idx.category !== undefined ? catByName(r[idx.category] ?? '') : null,
+        account_id: idx.account !== undefined ? contaByName(r[idx.account] ?? '') : null,
+        notes: idx.notes !== undefined ? r[idx.notes]?.trim() || null : null,
+        status: (idx.status !== undefined ? STATUS_MAP[normalizar(r[idx.status] ?? '')] : undefined) ?? ('to_pay' as EntryStatus),
+        is_recurring: idx.recurring !== undefined
+          ? ['sim', 'yes', 'true', '1', 'x'].includes(normalizar(r[idx.recurring] ?? ''))
+          : false,
+        created_by: session?.user.id ?? null,
+      }))
+      .filter(r => r.amount > 0 && r.due_date)
+    if (payload.length === 0) {
+      setImportErro('Nenhuma linha válida (Valor > 0 e Vencimento no formato DD/MM/AAAA ou AAAA-MM-DD).')
+      setImportando(false)
+      return
+    }
+    const { error } = await supabase.from('entries').insert(payload)
+    setImportando(false)
+    if (error) { setImportErro('Erro ao importar: ' + error.message); return }
+    fecharImport()
+    carregar()
+  }
+
+  const fecharImport = () => {
+    setImportAberto(false)
+    setImportLinhas([])
+    setImportHeaders([])
+    setImportErro(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const downloadTemplate = useCallback(() => {
+    const ehPagar = tipo === 'payable'
+    const cols = ['Descrição', 'Valor', 'Vencimento', 'Emissão', ehPagar ? 'Fornecedor' : 'Cliente', 'Categoria', 'Conta', 'Observações', 'Recorrente']
+    const ex = ['Aluguel escritório', '2500,00', '2026-07-10', '2026-07-01', 'João Imóveis', 'Despesas Fixas', 'Conta Corrente', 'Mensalidade', 'sim']
+    const csv = [cols.join(';'), ex.join(';')].join('\r\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `modelo_${ehPagar ? 'pagar' : 'receber'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [tipo])
+
+  const importColIdx = useMemo(() => mapColunas(importHeaders), [importHeaders])
+  const importValidas = useMemo(
+    () => importLinhas.filter(r => r[importColIdx.description ?? -1]?.trim()).length,
+    [importLinhas, importColIdx]
+  )
 
   const totais = useMemo(() => ({
     aPagar: lancamentos.filter((l) => l.status === 'to_pay').reduce((s, l) => s + Number(l.amount), 0),
@@ -164,7 +356,10 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const colunas = useMemo<DataColumn<Entry>[]>(() => [
     { id: 'description', header: 'Descrição', size: 240, cell: (l) => (
       <div>
-        <p className="font-medium text-slate-800">{l.description}</p>
+        <p className="font-medium text-slate-800 flex items-center gap-1">
+          {l.description}
+          {l.is_recurring && <span title="Recorrente"><Repeat size={13} className="text-indigo-400 shrink-0" /></span>}
+        </p>
         {l.counterparty && <p className="text-xs text-slate-400">{l.counterparty}</p>}
       </div>
     ) },
@@ -206,9 +401,16 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         titulo={ehPagar ? 'Contas a Pagar' : 'Contas a Receber'}
         subtitulo="Fluxo: Emissão → Vencimento → Pagamento"
         acao={
-          <button onClick={abrirNovo} disabled={!isAdmin} className={btnPrimario}>
-            <Plus size={16} /> Novo lançamento
-          </button>
+          isAdmin ? (
+            <div className="flex gap-2">
+              <button onClick={() => setImportAberto(true)} className={btnSecundario}>
+                <Upload size={16} /> Importar
+              </button>
+              <button onClick={abrirNovo} className={btnPrimario}>
+                <Plus size={16} /> Novo lançamento
+              </button>
+            </div>
+          ) : undefined
         }
       />
 
@@ -252,6 +454,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         )}
       </Card>
 
+      {/* Modal: novo/editar lançamento */}
       <Modal titulo={form.id ? 'Editar lançamento' : 'Novo lançamento'} aberto={modalAberto} onFechar={() => setModalAberto(false)}>
         <form onSubmit={salvar} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -317,11 +520,102 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <label className="block text-sm font-medium mb-1">Observações</label>
               <textarea rows={2} className={inputCls} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
+            <div className="col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  checked={form.is_recurring}
+                  onChange={(e) => setForm({ ...form, is_recurring: e.target.checked })}
+                />
+                <span className="text-sm font-medium flex items-center gap-1.5">
+                  <Repeat size={14} className="text-indigo-500" />
+                  Recorrente — cria automaticamente o próximo mês ao pagar
+                </span>
+              </label>
+            </div>
           </div>
           <button type="submit" disabled={salvando} className={btnPrimario + ' w-full justify-center'}>
             {salvando ? 'Salvando…' : 'Salvar'}
           </button>
         </form>
+      </Modal>
+
+      {/* Modal: importar planilha */}
+      <Modal titulo="Importar Lançamentos" aberto={importAberto} onFechar={fecharImport}>
+        <div className="space-y-4">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 leading-relaxed">
+            <p className="font-semibold text-slate-800 mb-1">Colunas reconhecidas no cabeçalho (case insensitive):</p>
+            <p><span className="font-medium text-slate-700">Obrigatórias:</span> Descrição · Valor · Vencimento</p>
+            <p><span className="font-medium text-slate-700">Opcionais:</span> Emissão · {ehPagar ? 'Fornecedor' : 'Cliente'} · Categoria · Conta · Observações · Status · Recorrente</p>
+            <p className="mt-1.5 text-slate-400">Datas: DD/MM/AAAA ou AAAA-MM-DD · Valores: vírgula ou ponto decimal · Recorrente: sim/não</p>
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium">Arquivo (.xlsx ou .csv)</label>
+            <button type="button" onClick={downloadTemplate} className="text-xs text-indigo-600 hover:text-indigo-800 underline">
+              Baixar modelo CSV
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.csv"
+            className={inputCls}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) processarArquivo(f) }}
+          />
+          {importErro && <p className="text-sm text-red-600">{importErro}</p>}
+          {importLinhas.length > 0 && (
+            <>
+              <p className="text-sm text-slate-600">
+                <span className="font-semibold text-slate-800">{importValidas}</span> linha{importValidas !== 1 ? 's' : ''} válida{importValidas !== 1 ? 's' : ''} encontrada{importValidas !== 1 ? 's' : ''}
+              </p>
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="text-xs min-w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      {importHeaders.map((h, i) => (
+                        <th key={i} className="px-2 py-1.5 text-left font-medium text-slate-600 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {importLinhas.slice(0, 5).map((row, i) => (
+                      <tr key={i}>
+                        {importHeaders.map((_, j) => (
+                          <td key={j} className="px-2 py-1.5 text-slate-700 whitespace-nowrap">{row[j] ?? ''}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {importLinhas.length > 5 && (
+                <p className="text-xs text-slate-400">… e mais {importLinhas.length - 5} linha{importLinhas.length - 5 !== 1 ? 's' : ''}</p>
+              )}
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={confirmarImport}
+                  disabled={importando || importValidas === 0}
+                  className={btnPrimario + ' flex-1 justify-center'}
+                >
+                  {importando ? 'Importando…' : `Importar ${importValidas} lançamento${importValidas !== 1 ? 's' : ''}`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportLinhas([])
+                    setImportHeaders([])
+                    setImportErro(null)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                  className={btnSecundario}
+                >
+                  Limpar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </Modal>
     </div>
   )
