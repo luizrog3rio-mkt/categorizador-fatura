@@ -3,10 +3,11 @@ import { Upload, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { parseHotmartCSV } from '../lib/hotmart'
-import { fmtBRL, fmtData, primeiroDiaMes, ultimoDiaMes } from '../lib/format'
+import { fmtBRL, fmtData } from '../lib/format'
 import type { HotmartSale } from '../lib/types'
 import { Card, PageHeader, Vazio, ErroBanner, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
+import DateRangePicker from '../components/DateRangePicker'
 
 // Etapa 6 — Conciliação Hotmart. Port do Hotmart.tsx do rb7 pra hotmart_sales.
 // Feature 100% exclusiva do rb7 (não existia no app antigo). Upsert por
@@ -49,7 +50,8 @@ export default function Hotmart() {
   const [erro, setErro] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
-  const [mesFiltro, setMesFiltro] = useState('') // YYYY-MM
+  const [dataDe, setDataDe] = useState('')
+  const [dataAte, setDataAte] = useState('')
   const [totais, setTotais] = useState({ qtd: 0, total: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0, foraMoeda: 0 })
 
   useEffect(() => {
@@ -58,18 +60,13 @@ export default function Hotmart() {
 
   const carregar = useCallback(async () => {
     setErro(null)
-    let pStart: string | null = null
-    let pEnd: string | null = null
-    if (mesFiltro) {
-      const [y, m] = mesFiltro.split('-').map(Number)
-      const base = new Date(y, m - 1, 1)
-      pStart = primeiroDiaMes(base)
-      pEnd = ultimoDiaMes(base)
-    }
+    const pStart: string | null = dataDe || null
+    const pEnd: string | null = dataAte || null
     // tabela: 300 vendas mais recentes (o PostgREST limita a 1000 mesmo)
     let q = supabase.from('hotmart_sales').select('*').order('sale_date', { ascending: false }).limit(300)
     if (empresaAtiva) q = q.eq('company_id', empresaAtiva.id)
-    if (pStart) q = q.gte('sale_date', pStart).lte('sale_date', pEnd!)
+    if (pStart) q = q.gte('sale_date', pStart)
+    if (pEnd) q = q.lte('sale_date', pEnd)
     const { data, error } = await q
     if (error) { setErro('Erro ao carregar vendas: ' + error.message); return }
     setVendas((data as HotmartSale[]) ?? [])
@@ -85,7 +82,7 @@ export default function Hotmart() {
     setTotais(t
       ? { qtd: Number(t.qtd), total: Number(t.total), bruto: Number(t.bruto), taxas: Number(t.taxas), afiliados: Number(t.afiliados), liquido: Number(t.liquido), foraMoeda: Number(t.fora_moeda) }
       : { qtd: 0, total: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0, foraMoeda: 0 })
-  }, [empresaAtiva, mesFiltro])
+  }, [empresaAtiva, dataDe, dataAte])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -195,8 +192,8 @@ export default function Hotmart() {
             />
           </label>
           <div className="ml-auto">
-            <label className="block text-sm font-medium mb-1">Mês</label>
-            <input type="month" className={inputCls} value={mesFiltro} onChange={(e) => setMesFiltro(e.target.value)} />
+            <label className="block text-sm font-medium mb-1">Período</label>
+            <DateRangePicker de={dataDe} ate={dataAte} onChange={(d, a) => { setDataDe(d); setDataAte(a) }} />
           </div>
         </div>
         {msg && <p className="text-sm text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2 mt-4">{msg}</p>}
@@ -248,7 +245,7 @@ export default function Hotmart() {
             />
             {totais.qtd > vendas.length && (
               <p className="text-xs text-slate-400 text-center py-3 border-t border-slate-100">
-                Mostrando as {vendas.length} vendas mais recentes. Os totais acima consideram todas as {totais.qtd} aprovadas do período. Use o filtro de mês para ver outros períodos.
+                Mostrando as {vendas.length} vendas mais recentes. Os totais acima consideram todas as {totais.qtd} aprovadas do período. Use o filtro de período para ver outros intervalos.
               </p>
             )}
           </>
