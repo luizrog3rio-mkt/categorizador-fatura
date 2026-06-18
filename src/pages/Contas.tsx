@@ -108,7 +108,10 @@ export default function Contas() {
     return true
   }), [contas, filtroTipo, filtroAtivo])
 
-  const temFiltro = !!(filtroTipo || filtroAtivo || filtroEmpresa)
+  // se o filtro de empresa coincide com o escopo global, trata como "sem filtro"
+  // (a empresa ativa é omitida das opções — evita o select renderizar em branco)
+  const filtroEmpresaVisivel = filtroEmpresa && filtroEmpresa !== empresaAtiva?.id ? filtroEmpresa : ''
+  const temFiltro = !!(filtroTipo || filtroAtivo || filtroEmpresaVisivel)
   const limparFiltros = () => { setFiltroTipo(''); setFiltroAtivo(''); setFiltroEmpresa('') }
 
   return (
@@ -148,7 +151,7 @@ export default function Contas() {
             {empresas.length > 1 && (
               <div className="w-48">
                 <label className="block text-sm font-medium mb-1">Empresa</label>
-                <select className={inputCls} value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
+                <select className={inputCls} value={filtroEmpresaVisivel} onChange={(e) => setFiltroEmpresa(e.target.value)}>
                   <option value="">{empresaAtiva ? `Apenas ${empresaAtiva.name}` : 'Todas as empresas'}</option>
                   {empresas.filter((e) => e.id !== empresaAtiva?.id).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
