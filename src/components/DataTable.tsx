@@ -39,6 +39,7 @@ export interface DataColumn<T> {
   size?: number
   minSize?: number
   align?: 'left' | 'right' | 'center'
+  footer?: ReactNode // se alguma coluna definir, a tabela renderiza um rodapé (ex.: total)
   enableReorder?: boolean // default true
   enableResize?: boolean // default true
   enableHiding?: boolean // default true
@@ -96,6 +97,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty 
   )
 
   const ordemIds = table.getVisibleLeafColumns().map((c) => c.id)
+  const temFooter = table.getVisibleLeafColumns().some((col) => colMap.get(col.id)?.footer !== undefined)
 
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e
@@ -160,6 +162,24 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty 
                 </tr>
               )}
             </tbody>
+            {temFooter && table.getRowModel().rows.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-slate-200 bg-slate-50">
+                  {table.getVisibleLeafColumns().map((col) => {
+                    const dc = colMap.get(col.id)
+                    return (
+                      <td
+                        key={col.id}
+                        style={{ width: col.getSize() }}
+                        className={`px-4 py-2.5 align-middle font-semibold text-slate-800 ${alignClasse(dc?.align)}`}
+                      >
+                        {dc?.footer}
+                      </td>
+                    )
+                  })}
+                </tr>
+              </tfoot>
+            )}
           </table>
         </DndContext>
       </div>

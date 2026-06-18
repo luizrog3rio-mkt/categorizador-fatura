@@ -445,6 +445,16 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     pago: lancamentosExibidos.filter((l) => l.status === 'paid').reduce((s, l) => s + Number(l.amount), 0),
   }), [lancamentosExibidos])
 
+  // total da coluna Valor (rodapé da tabela): exclui cancelados (anulados não
+  // contam), exceto quando o filtro é justamente "Cancelado" — assim o rodapé
+  // concilia com os cards (A pagar + Pendente + Pago)
+  const totalValor = useMemo(
+    () => lancamentosExibidos
+      .filter((l) => filtroStatus === 'cancelled' || l.status !== 'cancelled')
+      .reduce((s, l) => s + Number(l.amount), 0),
+    [lancamentosExibidos, filtroStatus]
+  )
+
   // se o filtro de empresa coincide com o escopo global, trata como "sem filtro"
   // (a empresa ativa é omitida das opções — evita o select renderizar em branco)
   const filtroEmpresaVisivel = filtroEmpresa && filtroEmpresa !== empresaAtiva?.id ? filtroEmpresa : ''
@@ -469,12 +479,12 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         </p>
         {l.counterparty && <p className="text-xs text-slate-400">{l.counterparty}</p>}
       </div>
-    ) },
+    ), footer: 'Total' },
     { id: 'category', header: 'Categoria', size: 150, cell: (l) => (l.category ? <Badge cor={corDaCategoria(l.category.color_index).text}>{l.category.name}</Badge> : '—') },
     { id: 'issue_date', header: 'Emissão', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.issue_date)}</span> },
     { id: 'due_date', header: 'Vencimento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.due_date)}</span> },
     { id: 'payment_date', header: 'Pagamento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.payment_date)}</span> },
-    { id: 'amount', header: 'Valor', size: 120, align: 'right', cell: (l) => <span className="font-semibold">{fmtBRL(Number(l.amount))}</span> },
+    { id: 'amount', header: 'Valor', size: 120, align: 'right', cell: (l) => <span className="font-semibold">{fmtBRL(Number(l.amount))}</span>, footer: fmtBRL(totalValor) },
     { id: 'status', header: 'Status', size: 130, cell: (l) => <StatusBadge status={l.status} tipo={tipo} /> },
     { id: 'acoes', header: '', label: 'Ações', size: 120, align: 'right', enableHiding: false, cell: (l) => (
       <div className="flex gap-2 justify-end">
@@ -500,7 +510,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         )}
       </div>
     ) },
-  ], [isAdmin, ehPagar, tipo, enviarParaPagamento, marcarPago, abrirEdicao, excluir])
+  ], [isAdmin, ehPagar, tipo, totalValor, enviarParaPagamento, marcarPago, abrirEdicao, excluir])
 
   return (
     <div>
