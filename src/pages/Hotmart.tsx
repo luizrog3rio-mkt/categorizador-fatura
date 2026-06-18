@@ -193,7 +193,7 @@ export default function Hotmart() {
           </label>
           <div className="ml-auto">
             <label className="block text-sm font-medium mb-1">Período</label>
-            <DateRangePicker de={dataDe} ate={dataAte} onChange={(d, a) => { setDataDe(d); setDataAte(a) }} />
+            <DateRangePicker de={dataDe} ate={dataAte} align="right" onChange={(d, a) => { setDataDe(d); setDataAte(a) }} />
           </div>
         </div>
         {msg && <p className="text-sm text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2 mt-4">{msg}</p>}

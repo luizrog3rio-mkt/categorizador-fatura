@@ -34,7 +34,7 @@ function atalhos(): { label: string; range: () => [Date, Date] }[] {
   ]
 }
 
-export default function DateRangePicker({ de, ate, onChange }: { de: string; ate: string; onChange: (de: string, ate: string) => void }) {
+export default function DateRangePicker({ de, ate, onChange, align = 'left' }: { de: string; ate: string; onChange: (de: string, ate: string) => void; align?: 'left' | 'right' }) {
   const [aberto, setAberto] = useState(false)
   const [start, setStart] = useState<Date | null>(() => (de ? fromYMD(de) : null))
   const [end, setEnd] = useState<Date | null>(() => (ate ? fromYMD(ate) : null))
@@ -125,7 +125,7 @@ export default function DateRangePicker({ de, ate, onChange }: { de: string; ate
       {aberto && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setAberto(false)} />
-          <div className="absolute left-0 z-40 mt-2 flex rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} z-40 mt-2 flex rounded-xl border border-slate-200 bg-white shadow-xl`}>
             <div className="w-40 shrink-0 border-r border-slate-100 py-2">
               <p className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Atalhos</p>
               {ATALHOS.map((a) => (
