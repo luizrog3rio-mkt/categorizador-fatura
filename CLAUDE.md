@@ -92,7 +92,7 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `sb_publishable_`/`sb_secret_`; as JWT legadas estão **desabilitadas** — não
   reativar). `.env.example` na raiz.
 - `npm run dev` → localhost:5173 · `npm run build` (tsc strict + vite) ·
-  `npm run lint` (0 errors; os 15 warnings conscientes = 13 fetch-on-mount + 2 da
+  `npm run lint` (0 errors; os 16 warnings conscientes = 14 fetch-on-mount + 2 da
   DataTable: o load-on-mount do useColumnPrefs e o react-compiler "incompatible
   library" das libs de tabela —
   ver eslint.config.js).

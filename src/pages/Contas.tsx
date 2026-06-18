@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Plus, Pencil, Landmark, CreditCard, ArrowLeftRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
@@ -25,6 +25,9 @@ const rotulos: Record<AccountType, string> = {
 export default function Contas() {
   const { empresas, empresaAtiva, isAdmin } = useApp()
   const [contas, setContas] = useState<ContaComSaldo[]>([])
+  const [filtroTipo, setFiltroTipo] = useState('')
+  const [filtroAtivo, setFiltroAtivo] = useState('')
+  const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [modalAberto, setModalAberto] = useState(false)
   const [form, setForm] = useState<{
@@ -35,7 +38,9 @@ export default function Contas() {
   const carregar = useCallback(async () => {
     setErro(null)
     let q = supabase.from('accounts').select('*').order('name')
-    if (empresaAtiva) q = q.eq('company_id', empresaAtiva.id)
+    // empresa: filtro local da tela tem precedência sobre o escopo global
+    const escopoEmpresa = filtroEmpresa || empresaAtiva?.id
+    if (escopoEmpresa) q = q.eq('company_id', escopoEmpresa)
     const { data: cts, error } = await q
     if (error) { setErro('Erro ao carregar contas: ' + error.message); return }
     if (!cts) { setContas([]); return }
@@ -69,7 +74,7 @@ export default function Contas() {
             : somaLanc.get(c.id) ?? 0),
       }))
     )
-  }, [empresaAtiva])
+  }, [empresaAtiva, filtroEmpresa])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -96,6 +101,16 @@ export default function Contas() {
 
   const nomeEmpresa = (id: string) => empresas.find((e) => e.id === id)?.name ?? ''
 
+  const contasFiltradas = useMemo(() => contas.filter((c) => {
+    if (filtroTipo && c.type !== filtroTipo) return false
+    if (filtroAtivo === 'ativas' && !c.active) return false
+    if (filtroAtivo === 'inativas' && c.active) return false
+    return true
+  }), [contas, filtroTipo, filtroAtivo])
+
+  const temFiltro = !!(filtroTipo || filtroAtivo || filtroEmpresa)
+  const limparFiltros = () => { setFiltroTipo(''); setFiltroAtivo(''); setFiltroEmpresa('') }
+
   return (
     <div>
       <PageHeader
@@ -110,11 +125,49 @@ export default function Contas() {
 
       <ErroBanner mensagem={erro} />
 
-      {contas.length === 0 ? (
-        <Card><Vazio mensagem="Nenhuma conta cadastrada." /></Card>
+      {contas.length > 0 && (
+        <Card className="p-4 mb-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="w-48">
+              <label className="block text-sm font-medium mb-1">Tipo</label>
+              <select className={inputCls} value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+                <option value="">Todos os tipos</option>
+                <option value="checking">Conta corrente</option>
+                <option value="credit_card">Cartão de crédito</option>
+                <option value="inter_company">Inter-empresas</option>
+              </select>
+            </div>
+            <div className="w-44">
+              <label className="block text-sm font-medium mb-1">Situação</label>
+              <select className={inputCls} value={filtroAtivo} onChange={(e) => setFiltroAtivo(e.target.value)}>
+                <option value="">Todas</option>
+                <option value="ativas">Ativas</option>
+                <option value="inativas">Inativas</option>
+              </select>
+            </div>
+            {empresas.length > 1 && (
+              <div className="w-48">
+                <label className="block text-sm font-medium mb-1">Empresa</label>
+                <select className={inputCls} value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
+                  <option value="">{empresaAtiva ? `Apenas ${empresaAtiva.name}` : 'Todas as empresas'}</option>
+                  {empresas.filter((e) => e.id !== empresaAtiva?.id).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              </div>
+            )}
+            {temFiltro && (
+              <button type="button" onClick={limparFiltros} className="text-sm text-slate-500 hover:text-red-600 underline pb-2">
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {contasFiltradas.length === 0 ? (
+        <Card><Vazio mensagem={contas.length === 0 ? 'Nenhuma conta cadastrada.' : 'Nenhuma conta com esses filtros.'} /></Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {contas.map((c) => {
+          {contasFiltradas.map((c) => {
             const Icone = icones[c.type]
             return (
               <Card key={c.id} className={`p-5 ${!c.active ? 'opacity-50' : ''}`}>

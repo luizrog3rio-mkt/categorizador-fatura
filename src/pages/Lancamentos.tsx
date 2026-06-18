@@ -29,6 +29,7 @@ interface FormState {
   due_date: string
   payment_date: string
   status: EntryStatus
+  statusOriginal?: EntryStatus // status antes da edição (p/ detectar a transição p/ "pago")
   counterparty: string
   notes: string
   is_recurring: boolean
@@ -186,12 +187,52 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       due_date: l.due_date,
       payment_date: l.payment_date ?? '',
       status: (l.status as EntryStatus) ?? 'to_pay',
+      statusOriginal: (l.status as EntryStatus) ?? 'to_pay',
       counterparty: l.counterparty ?? '',
       notes: l.notes ?? '',
       is_recurring: l.is_recurring ?? false,
     })
     setModalAberto(true)
   }, [])
+
+  // gera o lançamento do mês seguinte de uma série recorrente (mesmo valor,
+  // categoria, conta; vencimento +1 mês; status inicial "a pagar")
+  const inserirProximoMes = useCallback(async (b: {
+    company_id: string; account_id: string | null; category_id: string | null
+    type: EntryType; description: string; amount: number; due_date: string
+    counterparty: string | null; notes: string | null
+  }) => {
+    // avança 1 mês com "clamp" no último dia do mês alvo (vencimento dia 31 cai
+    // em 28/30 quando o mês não tem o dia) — evita o overflow do setMonth do JS,
+    // que pularia meses curtos (31/01 → 03/03). Monta a data por string p/ não
+    // sofrer deslocamento de fuso.
+    const [y, m, d] = b.due_date.split('-').map(Number) // m: 1-12
+    const alvo = new Date(y, m, 1) // 1º dia do mês seguinte (JS é 0-based: índice m = mês m+1)
+    const ano = alvo.getFullYear()
+    const mes = alvo.getMonth() + 1 // 1-12
+    const ultimoDia = new Date(ano, mes, 0).getDate()
+    const due = `${ano}-${String(mes).padStart(2, '0')}-${String(Math.min(d, ultimoDia)).padStart(2, '0')}`
+    // idempotência: não duplica se o lançamento desse mês da série já existe
+    // (cobre re-pagamento: paid → to_pay → paid)
+    const { data: existe } = await supabase.from('entries').select('id')
+      .eq('company_id', b.company_id).eq('type', b.type).eq('description', b.description)
+      .eq('amount', b.amount).eq('due_date', due).eq('is_recurring', true).limit(1)
+    if (existe && existe.length) return null
+    return (await supabase.from('entries').insert({
+      company_id: b.company_id,
+      account_id: b.account_id,
+      category_id: b.category_id,
+      type: b.type,
+      description: b.description,
+      amount: b.amount,
+      due_date: due,
+      counterparty: b.counterparty,
+      notes: b.notes,
+      status: 'to_pay' as EntryStatus,
+      is_recurring: true,
+      created_by: session?.user.id ?? null,
+    })).error
+  }, [session])
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault()
@@ -220,6 +261,23 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       : await supabase.from('entries').insert(payload)
     setSalvando(false)
     if (error) { setErro('Erro ao salvar lançamento: ' + error.message); return }
+    // recorrência: se o lançamento virou "pago" agora (ou já nasceu pago) e é
+    // recorrente, gera o próximo mês — espelha o que o botão "marcar pago" faz.
+    const virouPago = status === 'paid' && form.statusOriginal !== 'paid'
+    if (form.is_recurring && virouPago) {
+      const errRec = await inserirProximoMes({
+        company_id: payload.company_id,
+        account_id: payload.account_id,
+        category_id: payload.category_id,
+        type: tipo,
+        description: payload.description,
+        amount: payload.amount,
+        due_date: payload.due_date,
+        counterparty: payload.counterparty,
+        notes: payload.notes,
+      })
+      if (errRec) setErro('Lançamento salvo, mas não foi possível gerar a recorrência do próximo mês: ' + errRec.message)
+    }
     setModalAberto(false)
     carregar()
   }
@@ -234,26 +292,21 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     const { error } = await supabase.from('entries').update({ payment_date: hoje(), status: 'paid' }).eq('id', l.id)
     if (error) { setErro('Erro ao marcar como pago: ' + error.message); return }
     if (l.is_recurring) {
-      const prox = new Date(l.due_date + 'T00:00:00')
-      prox.setMonth(prox.getMonth() + 1)
-      const proximoVenc = prox.toISOString().slice(0, 10)
-      await supabase.from('entries').insert({
+      const errRec = await inserirProximoMes({
         company_id: l.company_id,
         account_id: l.account_id ?? null,
         category_id: l.category_id ?? null,
         type: l.type,
         description: l.description,
-        amount: l.amount,
-        due_date: proximoVenc,
+        amount: Number(l.amount),
+        due_date: l.due_date,
         counterparty: l.counterparty ?? null,
         notes: l.notes ?? null,
-        status: 'to_pay' as EntryStatus,
-        is_recurring: true,
-        created_by: session?.user.id ?? null,
       })
+      if (errRec) setErro('Pago com sucesso, mas não foi possível gerar a recorrência do próximo mês: ' + errRec.message)
     }
     carregar()
-  }, [carregar, session])
+  }, [carregar, inserirProximoMes])
 
   const excluir = useCallback(async (l: Entry) => {
     if (!window.confirm(`Excluir "${l.description}"?`)) return

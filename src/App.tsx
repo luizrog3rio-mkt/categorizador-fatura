@@ -11,6 +11,7 @@ import Lancamentos from './pages/Lancamentos'
 import Extrato from './pages/Extrato'
 import Hotmart from './pages/Hotmart'
 import Categorias from './pages/Categorias'
+import Empresas from './pages/Empresas'
 import Usuarios from './pages/Usuarios'
 
 // Dashboard carrega o recharts (centenas de kB) — lazy tira do bundle inicial
@@ -49,6 +50,7 @@ function Rotas() {
         <Route path="/hotmart" element={<Hotmart />} />
         <Route path="/contas" element={<Contas />} />
         <Route path="/categorias" element={<Categorias />} />
+        <Route path="/empresas" element={<Empresas />} />
         <Route path="/usuarios" element={<Usuarios />} />
       </Route>
     </Routes>

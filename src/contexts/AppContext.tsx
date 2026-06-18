@@ -36,11 +36,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  const recarregarEmpresas = async () => {
+  const recarregarEmpresas = useCallback(async () => {
     const { data, error } = await supabase.from('companies').select('*').order('name')
     if (error) console.error('Erro carregando companies:', error.message)
-    setEmpresas(data ?? [])
-  }
+    const lista = data ?? []
+    setEmpresas(lista)
+    // reconcilia o escopo global: empresa renomeada → atualiza o objeto;
+    // empresa excluída → cai para consolidado (null)
+    setEmpresaAtiva((prev) => (prev ? lista.find((e) => e.id === prev.id) ?? null : null))
+  }, [])
 
   const recarregarPendentes = useCallback(async () => {
     const { count, error } = await supabase
@@ -67,7 +71,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (error) console.error('Erro carregando profile:', error.message)
         setPerfil(data)
       })
-  }, [session, recarregarPendentes])
+  }, [session, recarregarPendentes, recarregarEmpresas])
 
   const isAdmin = perfil?.role !== 'viewer'
 
