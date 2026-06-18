@@ -72,14 +72,18 @@ function mapColunas(headers: string[]) {
 }
 
 function parseCsv(text: string): string[][] {
-  return text.split(/\r?\n/).filter(Boolean).map(line => {
+  const linhas = text.split(/\r?\n/).filter(Boolean)
+  // separador: ';' tem precedência (padrão de planilha BR/Excel pt-BR, em que a
+  // vírgula é o decimal — ex.: 2500,00); cai para ',' nos CSVs internacionais.
+  const sep = linhas[0]?.includes(';') ? ';' : ','
+  return linhas.map((line) => {
     const row: string[] = []
     let field = ''
     let inQuotes = false
     for (let i = 0; i < line.length; i++) {
       const ch = line[i]
       if (ch === '"') { inQuotes = !inQuotes }
-      else if ((ch === ',' || ch === ';') && !inQuotes) { row.push(field.trim()); field = '' }
+      else if (ch === sep && !inQuotes) { row.push(field.trim()); field = '' }
       else { field += ch }
     }
     row.push(field.trim())
