@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
+import AtualizacaoBanner from './AtualizacaoBanner'
 
 const itens = [
   { to: '/', rotulo: 'Dashboard', icone: LayoutDashboard },
@@ -105,6 +106,7 @@ export default function Layout() {
       <main className="flex-1 ml-60 p-6">
         <Outlet />
       </main>
+      <AtualizacaoBanner />
     </div>
   )
 }
