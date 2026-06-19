@@ -1,8 +1,11 @@
+import { BarChart3 } from 'lucide-react'
 import { CAT_CHART_COLORS, TAG_COLORS, fmt, type CatUI, type TagColor } from '../../lib/fatura'
+import { Card } from '../ui'
 import type { TxView } from './ExportMenu'
 
-// Port 1:1 do Dashboard por fatura do App.jsx (KPIs + ranking + donut com
-// drill-down: clicar numa categoria filtra e leva pra aba Lançamentos).
+// Dashboard por fatura (KPIs + ranking + donut com drill-down: clicar numa
+// categoria filtra e leva pra aba Lançamentos). Padronizado no design system
+// (Card + Tailwind); o donut continua SVG próprio com as cores CAT_CHART_COLORS.
 
 interface EntryAgg {
   cat: string
@@ -29,7 +32,7 @@ function DonutChart({ entries, grandTotal }: { entries: EntryAgg[]; grandTotal: 
   }
 
   return (
-    <svg width={size} height={size} style={{ flexShrink: 0 }}>
+    <svg width={size} height={size} className="shrink-0">
       {slices.map((s, i) => {
         if (s.end - s.start < 0.001) return null
         const s1 = pt(s.start, r), s2 = pt(s.end, r)
@@ -78,77 +81,77 @@ export default function FaturaDashboard({
 
   if (transactions.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', color: '#94a3b8' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
-        <p style={{ margin: 0, fontSize: 15 }}>Importe uma fatura para ver o dashboard</p>
+      <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+        <BarChart3 size={40} className="mb-3" />
+        <p className="text-sm">Importe uma fatura para ver o dashboard</p>
       </div>
     )
   }
 
   return (
-    <div style={{ padding: '20px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
+    <div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Total gasto', value: fmt(grandTotal), sub: `${transactions.length} lançamentos` },
           { label: 'Maior categoria', value: entries[0] ? fmt(entries[0].total) : '—', sub: `${entries[0]?.cat || '—'} · ${entries[0]?.pct.toFixed(1) || 0}%` },
           { label: 'Ticket médio', value: fmt(ticket), sub: 'por lançamento' },
           { label: 'Sem categoria', value: String(semCat), sub: semCat === 0 ? 'tudo categorizado ✓' : `de ${transactions.length} lançamentos` },
         ].map(({ label, value, sub }) => (
-          <div key={label} style={{ background: '#f8fafc', borderRadius: 10, padding: '14px 16px', border: '1px solid #f1f5f9' }}>
-            <p style={{ margin: '0 0 4px', fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
-            <p style={{ margin: '0 0 2px', fontSize: 20, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{value}</p>
-            <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{sub}</p>
-          </div>
+          <Card key={label} className="p-4">
+            <p className="text-xs text-slate-500 uppercase">{label}</p>
+            <p className="text-lg font-bold text-slate-800 mt-1">{value}</p>
+            <p className="text-xs text-slate-400 mt-0.5 truncate">{sub}</p>
+          </Card>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 20, alignItems: 'start' }}>
-        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 18px 10px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>Ranking por categoria</span>
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>clique para ver os lançamentos</span>
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-6 items-start">
+        <Card className="overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-baseline gap-2">
+            <span className="font-bold text-sm text-slate-800">Ranking por categoria</span>
+            <span className="text-xs text-slate-400">clique para ver os lançamentos</span>
           </div>
-          {entries.map((e, i) => (
+          {entries.map((e) => (
             <div
               key={e.cat}
               onClick={() => onFilterClick(e.cat)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', borderBottom: i < entries.length - 1 ? '1px solid #f8fafc' : 'none', cursor: 'pointer' }}
-              onMouseEnter={(ev) => (ev.currentTarget.style.background = '#f8fafc')}
-              onMouseLeave={(ev) => (ev.currentTarget.style.background = 'transparent')}
+              className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50"
             >
-              <span style={{ fontSize: 11, color: '#cbd5e1', width: 16, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
-              <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, background: e.tagColor.bg, color: e.tagColor.text, border: `1px solid ${e.tagColor.border}`, fontSize: 11, fontWeight: 700, width: 116, textAlign: 'center', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.cat}</span>
-              <div style={{ flex: 1, height: 7, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 4, background: e.chartColor, width: `${(e.total / maxVal) * 100}%`, transition: 'width 0.5s ease' }} />
+              <span
+                className="inline-block px-2.5 py-1 rounded-full text-xs font-bold w-28 text-center truncate shrink-0 border"
+                style={{ background: e.tagColor.bg, color: e.tagColor.text, borderColor: e.tagColor.border }}
+              >
+                {e.cat}
+              </span>
+              <div className="flex-1 h-2 bg-slate-100 rounded overflow-hidden">
+                <div className="h-full rounded transition-[width] duration-500" style={{ background: e.chartColor, width: `${(e.total / maxVal) * 100}%` }} />
               </div>
-              <span style={{ fontSize: 11, color: '#94a3b8', width: 40, textAlign: 'right', flexShrink: 0 }}>{e.pct.toFixed(1)}%</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', width: 110, textAlign: 'right', flexShrink: 0 }}>{fmt(e.total)}</span>
-              <span style={{ fontSize: 11, color: '#cbd5e1', width: 50, textAlign: 'right', flexShrink: 0 }}>{e.count} lanç.</span>
+              <span className="text-xs text-slate-400 w-10 text-right shrink-0">{e.pct.toFixed(1)}%</span>
+              <span className="text-sm font-bold text-slate-800 w-[110px] text-right shrink-0">{fmt(e.total)}</span>
+              <span className="text-xs text-slate-300 w-12 text-right shrink-0">{e.count} lanç.</span>
             </div>
           ))}
-        </div>
+        </Card>
 
-        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '16px 18px', minWidth: 220 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', marginBottom: 14 }}>Distribuição</div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+        <Card className="p-4 min-w-56">
+          <div className="font-bold text-sm text-slate-800 mb-3.5">Distribuição</div>
+          <div className="flex justify-center mb-4">
             <DonutChart entries={entries} grandTotal={grandTotal} />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="flex flex-col gap-1.5">
             {entries.map((e) => (
               <div
                 key={e.cat}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
                 onClick={() => onFilterClick(e.cat)}
-                onMouseEnter={(ev) => (ev.currentTarget.style.opacity = '0.7')}
-                onMouseLeave={(ev) => (ev.currentTarget.style.opacity = '1')}
+                className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition"
               >
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: e.chartColor, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: '#334155', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.cat}</span>
-                <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, flexShrink: 0 }}>{e.pct.toFixed(1)}%</span>
+                <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: e.chartColor }} />
+                <span className="text-xs text-slate-600 flex-1 truncate">{e.cat}</span>
+                <span className="text-xs text-slate-400 font-semibold shrink-0">{e.pct.toFixed(1)}%</span>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   )
