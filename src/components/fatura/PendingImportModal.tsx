@@ -1,10 +1,13 @@
 import { useState } from 'react'
+import { ShoppingCart, Calendar } from 'lucide-react'
 import { fmt, formatMonth } from '../../lib/fatura'
 import type { PurchaseItem } from '../../lib/types'
+import { btnPrimario, btnSecundario } from '../ui'
 
-// Port 1:1 do PendingImportModal do App.jsx (contrato #7): abre automaticamente
-// após importar fatura com pendentes existentes, todos pré-selecionados,
-// agrupados por mês desc; "Pular" mantém pendentes; confirmar atrela à fatura.
+// Modal de pendentes (contrato #7): abre automaticamente após importar fatura
+// com pendentes existentes, todos pré-selecionados, agrupados por mês desc;
+// "Pular" mantém pendentes; confirmar atrela à fatura. Padronizado no design
+// system (overlay + card + botões compartilhados); comportamento idêntico.
 export default function PendingImportModal({
   items,
   onConfirm,
@@ -44,46 +47,51 @@ export default function PendingImportModal({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: '#fff', borderRadius: 14, maxWidth: 640, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0' }}>
-          <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800, color: '#0f172a' }}>🛒 Importar compras pendentes</h2>
-          <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+            <ShoppingCart size={18} /> Importar compras pendentes
+          </h3>
+          <p className="text-sm text-slate-500 mt-0.5">
             Selecione quais itens incluir nesta fatura. Os não selecionados continuam pendentes.
           </p>
         </div>
 
-        <div style={{ overflowY: 'auto', padding: '12px 24px', flex: 1 }}>
+        <div className="overflow-y-auto px-6 py-3 flex-1">
           {groupKeys.map((gk) => {
             const groupItems = grouped[gk]
             const allSelected = groupItems.every((i) => selected.has(i.id))
             return (
-              <div key={gk || 'single'} style={{ marginBottom: 16 }}>
-                <div onClick={() => toggleGroup(gk)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', marginBottom: 4 }}>
-                  <input type="checkbox" checked={allSelected} readOnly style={{ cursor: 'pointer' }} />
-                  <span style={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>📅 {formatMonth(gk || null)}</span>
-                  <span style={{ fontSize: 11, color: '#94a3b8' }}>({groupItems.length})</span>
-                </div>
+              <div key={gk || 'single'} className="mb-4">
+                <label
+                  onClick={() => toggleGroup(gk)}
+                  className="flex items-center gap-2 py-1.5 cursor-pointer border-b border-slate-100 mb-1"
+                >
+                  <input type="checkbox" checked={allSelected} readOnly className="cursor-pointer" />
+                  <Calendar size={14} className="text-slate-400" />
+                  <span className="font-semibold text-sm text-slate-800">{formatMonth(gk || null)}</span>
+                  <span className="text-xs text-slate-400">({groupItems.length})</span>
+                </label>
                 {groupItems.map((it) => (
                   <label
                     key={it.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', cursor: 'pointer', borderRadius: 6 }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    className="flex items-center gap-2.5 px-1.5 py-2 cursor-pointer rounded-md hover:bg-slate-50"
                   >
-                    <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggle(it.id)} style={{ cursor: 'pointer' }} />
+                    <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggle(it.id)} className="cursor-pointer" />
                     {it.purchase_date && (
-                      <span style={{ fontSize: 11, color: '#94a3b8', fontVariantNumeric: 'tabular-nums', minWidth: 70 }}>
+                      <span className="text-xs text-slate-400 tabular-nums min-w-[70px]">
                         {it.purchase_date.split('-').reverse().join('/')}
                       </span>
                     )}
-                    <span style={{ flex: 1, fontSize: 13, color: '#1e293b' }}>{it.description}</span>
-                    {it.payment_method && <span style={{ fontSize: 11, color: '#64748b' }}>{it.payment_method}</span>}
+                    <span className="flex-1 text-sm text-slate-800">{it.description}</span>
+                    {it.payment_method && <span className="text-xs text-slate-500">{it.payment_method}</span>}
                     {it.category && (
-                      <span style={{ fontSize: 11, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 12 }}>{it.category}</span>
+                      <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{it.category}</span>
                     )}
                     {it.amount != null && (
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmt(Number(it.amount))}</span>
+                      <span className="text-xs font-bold text-slate-800 tabular-nums">{fmt(Number(it.amount))}</span>
                     )}
                   </label>
                 ))}
@@ -92,15 +100,11 @@ export default function PendingImportModal({
           })}
         </div>
 
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: '#64748b' }}>{selected.size} de {items.length} selecionados</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onCancel} style={{ background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 16px', fontWeight: 600, fontSize: 13, color: '#64748b', cursor: 'pointer' }}>
-              Pular
-            </button>
-            <button onClick={() => onConfirm([...selected])} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-              Importar selecionados
-            </button>
+        <div className="px-6 py-4 border-t border-slate-200 flex justify-between items-center">
+          <span className="text-xs text-slate-500">{selected.size} de {items.length} selecionados</span>
+          <div className="flex gap-2">
+            <button onClick={onCancel} className={btnSecundario}>Pular</button>
+            <button onClick={() => onConfirm([...selected])} className={btnPrimario}>Importar selecionados</button>
           </div>
         </div>
       </div>
