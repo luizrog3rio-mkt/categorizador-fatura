@@ -30,6 +30,7 @@ function assetsRodando(): string {
 export default function AtualizacaoModal() {
   const forcar = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('previewUpdate')
   const [novaVersao, setNovaVersao] = useState(forcar)
+  const [dispensado, setDispensado] = useState(false)
 
   useEffect(() => {
     if (!import.meta.env.PROD || forcar) return
@@ -62,7 +63,7 @@ export default function AtualizacaoModal() {
     }
   }, [forcar])
 
-  if (!novaVersao) return null
+  if (!novaVersao || dispensado) return null
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -80,6 +81,12 @@ export default function AtualizacaoModal() {
           className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl px-4 py-3 transition"
         >
           <RefreshCw size={18} /> Atualizar agora
+        </button>
+        <button
+          onClick={() => setDispensado(true)}
+          className="mt-3 text-sm text-slate-400 hover:text-slate-600 transition"
+        >
+          Agora não
         </button>
       </div>
     </div>
