@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Upload, Trash2, FileText, CreditCard } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { useFaturaWorld } from '../hooks/useFaturaWorld'
 import { importarFaturaOFX } from '../lib/importarFatura'
 import { fmt } from '../lib/fatura'
-import { ErroBanner, Modal, btnPrimario, inputCls } from '../components/ui'
+import { PageHeader, ErroBanner, Modal, btnPrimario, inputCls } from '../components/ui'
 import type { Account, Invoice } from '../lib/types'
 
-// Lista de faturas — port do InvoiceHistory do App.jsx, dentro do shell novo.
-// Evoluções conscientes: import grava account_id (cartão selecionável quando
-// houver mais de um), erros aparecem em banner.
+// Lista de faturas — padronizada no design system do app (PageHeader + Card +
+// botões/Modal compartilhados). Comportamento preservado do port: import grava
+// account_id (cartão selecionável quando houver mais de um), erros em banner,
+// exclusão com o window.confirm de texto exato (contrato #8).
 export default function Faturas() {
   const { session, isAdmin } = useApp()
   const { regras, erro: erroWorld } = useFaturaWorld()
@@ -76,75 +78,68 @@ export default function Faturas() {
   }
 
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto' }}>
-      <ErroBanner mensagem={erro ?? erroWorld} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 800, color: '#0f172a' }}>Suas faturas</h2>
-          <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
-            {invoices.length === 0 ? 'Nenhuma fatura importada ainda' : `${invoices.length} fatura${invoices.length !== 1 ? 's' : ''} importada${invoices.length !== 1 ? 's' : ''}`}
-          </p>
-        </div>
-        <label
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: '#3b82f6', color: '#fff', padding: '10px 20px',
-            borderRadius: 10, cursor: !isAdmin ? 'default' : importando ? 'wait' : 'pointer', fontWeight: 700, fontSize: 14,
-            opacity: !isAdmin || importando ? 0.4 : 1, pointerEvents: !isAdmin ? 'none' : undefined,
-          }}
-        >
-          {importando ? '⏳ Importando…' : '📂 Importar .OFX'}
-          <input ref={fileInput} type="file" accept=".ofx" style={{ display: 'none' }} disabled={importando}
-            onChange={(e) => onNovoArquivo(e.target.files?.[0])} />
-        </label>
-      </div>
+    <div>
+      <PageHeader
+        titulo="Faturas de Cartão"
+        subtitulo={
+          invoices.length === 0
+            ? 'Nenhuma fatura importada ainda'
+            : `${invoices.length} fatura${invoices.length !== 1 ? 's' : ''} importada${invoices.length !== 1 ? 's' : ''}`
+        }
+        acao={
+          <label className={btnPrimario + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
+            <Upload size={16} />
+            {importando ? 'Importando…' : 'Importar .OFX'}
+            <input ref={fileInput} type="file" accept=".ofx" className="hidden" disabled={importando}
+              onChange={(e) => onNovoArquivo(e.target.files?.[0])} />
+          </label>
+        }
+      />
 
-      {loading && <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Carregando...</div>}
+      <ErroBanner mensagem={erro ?? erroWorld} />
+
+      {loading && <div className="text-center py-10 text-slate-400 text-sm">Carregando...</div>}
 
       {!loading && invoices.length === 0 && (
-        <div style={{ background: '#fff', border: '2px dashed #e2e8f0', borderRadius: 16, padding: '60px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>💳</div>
-          <p style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Importe sua primeira fatura</p>
-          <p style={{ margin: 0, fontSize: 14, color: '#64748b' }}>Arraste um arquivo .OFX ou clique no botão acima</p>
+        <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl py-16 px-6 text-center">
+          <div className="flex justify-center mb-3 text-slate-300"><CreditCard size={48} /></div>
+          <p className="text-base font-bold text-slate-800 mb-1">Importe sua primeira fatura</p>
+          <p className="text-sm text-slate-500">Clique em “Importar .OFX” no topo da página</p>
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {invoices.map((inv) => (
-          <div
-            key={inv.id}
-            style={{
-              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
-              padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16,
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#93c5fd'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(59,130,246,0.08)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = 'none' }}
-            onClick={() => navigate(`/faturas/${inv.id}`)}
-          >
-            <div style={{ width: 44, height: 44, borderRadius: 10, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>📋</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', marginBottom: 2 }}>
-                {inv.name || 'Fatura importada'}
+      <div className="flex flex-col gap-2.5">
+        {invoices.map((inv) => {
+          const cartao = inv.account_id ? cartoes.find((c) => c.id === inv.account_id) : null
+          return (
+            <div
+              key={inv.id}
+              onClick={() => navigate(`/faturas/${inv.id}`)}
+              className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4 flex items-center gap-4 cursor-pointer transition hover:border-indigo-300 hover:shadow-md"
+            >
+              <div className="w-11 h-11 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 shrink-0">
+                <FileText size={20} />
               </div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                {inv.transaction_count} lançamentos · {inv.imported_at ? new Date(inv.imported_at).toLocaleDateString('pt-BR') : '—'}
-                {inv.account_id && cartoes.find((c) => c.id === inv.account_id) ? ` · ${cartoes.find((c) => c.id === inv.account_id)!.name}` : ''}
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm text-slate-800 truncate">{inv.name || 'Fatura importada'}</div>
+                <div className="text-xs text-slate-400">
+                  {inv.transaction_count} lançamentos · {inv.imported_at ? new Date(inv.imported_at).toLocaleDateString('pt-BR') : '—'}
+                  {cartao ? ` · ${cartao.name}` : ''}
+                </div>
               </div>
+              <div className="text-right shrink-0 font-extrabold text-base text-slate-800">{fmt(Number(inv.total ?? 0))}</div>
+              {isAdmin && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); excluir(inv) }}
+                  className="text-slate-300 hover:text-red-500 p-1.5 rounded-md transition shrink-0"
+                  title="Excluir fatura"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>{fmt(Number(inv.total ?? 0))}</div>
-            </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); excluir(inv) }}
-              disabled={!isAdmin}
-              style={{ background: 'transparent', border: 'none', cursor: isAdmin ? 'pointer' : 'default', color: '#cbd5e1', fontSize: 16, padding: '4px 8px', borderRadius: 6, display: isAdmin ? undefined : 'none' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = '#cbd5e1')}
-              title="Excluir fatura"
-            >✕</button>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <Modal titulo="De qual cartão é esta fatura?" aberto={arquivoPendente !== null} onFechar={() => setArquivoPendente(null)}>
