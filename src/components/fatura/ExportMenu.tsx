@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react'
 import { exportCSV, exportXLSX } from '../../lib/exportFatura'
-import { S } from './estilos'
 
 interface TxView {
   id: string
@@ -11,9 +11,9 @@ interface TxView {
   auto: boolean
 }
 
-// Port 1:1 do ExportMenu original — distingue "filtrados (N)" vs "todos (N)";
-// comportamento preservado (contrato #14): busca ativa + "exportar todos"
-// ignora a busca, como no app antigo.
+// Menu de export — distingue "filtrados (N)" vs "todos (N)"; comportamento
+// preservado (contrato #14): busca ativa + "exportar todos" ignora a busca,
+// como no app antigo. Só o visual foi padronizado (Tailwind/lucide).
 export default function ExportMenu({
   transactions,
   filtered,
@@ -38,59 +38,53 @@ export default function ExportMenu({
   const label = isFiltered ? `filtrados (${filtered.length})` : `todos (${transactions.length})`
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
         disabled={transactions.length === 0}
-        style={{ ...S.newBtn, background: '#0f172a', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 6, opacity: transactions.length === 0 ? 0.4 : 1, cursor: transactions.length === 0 ? 'not-allowed' : 'pointer' }}
+        className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        <span>⬇ Exportar</span>
-        <span style={{ fontSize: 9, opacity: 0.6 }}>▼</span>
+        <Download size={16} /> Exportar <ChevronDown size={14} className="opacity-60" />
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.13)', minWidth: 230, zIndex: 9999, overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px 6px', fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Exportar {label}</div>
-          {[
-            { icon: '📊', label: 'Excel (.xlsx)', sub: 'Abre direto no Excel', action: () => { exportXLSX(exportTarget).catch(console.error); setOpen(false) } },
-            { icon: '📄', label: 'CSV (.csv)', sub: 'Compatível com qualquer app', action: () => { exportCSV(exportTarget); setOpen(false) } },
-          ].map(({ icon, label: l, sub, action }) => (
-            <div
-              key={l}
-              onClick={action}
-              style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
-              <span style={{ fontSize: 20 }}>{icon}</span>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>{l}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub}</div>
-              </div>
-            </div>
-          ))}
+        <div className="absolute top-[calc(100%+6px)] right-0 z-[9999] min-w-60 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+          <div className="px-4 pt-2.5 pb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">Exportar {label}</div>
+          <ExportOption Icon={FileSpreadsheet} label="Excel (.xlsx)" sub="Abre direto no Excel" onClick={() => { exportXLSX(exportTarget).catch(console.error); setOpen(false) }} />
+          <ExportOption Icon={FileText} label="CSV (.csv)" sub="Compatível com qualquer app" onClick={() => { exportCSV(exportTarget); setOpen(false) }} />
           {isFiltered && (
             <>
-              <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0' }} />
-              <div style={{ padding: '6px 14px 4px', fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Exportar todos ({transactions.length})</div>
-              {[
-                { icon: '📊', label: 'Excel (.xlsx)', action: () => { exportXLSX(transactions).catch(console.error); setOpen(false) } },
-                { icon: '📄', label: 'CSV (.csv)', action: () => { exportCSV(transactions); setOpen(false) } },
-              ].map(({ icon, label: l, action }) => (
-                <div
-                  key={`all-${l}`}
-                  onClick={action}
-                  style={{ padding: '8px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <span style={{ fontSize: 18 }}>{icon}</span>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: '#334155' }}>{l}</div>
-                </div>
-              ))}
+              <div className="h-px bg-slate-100 my-1" />
+              <div className="px-4 pt-1.5 pb-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">Exportar todos ({transactions.length})</div>
+              <ExportOption Icon={FileSpreadsheet} label="Excel (.xlsx)" onClick={() => { exportXLSX(transactions).catch(console.error); setOpen(false) }} compact />
+              <ExportOption Icon={FileText} label="CSV (.csv)" onClick={() => { exportCSV(transactions); setOpen(false) }} compact />
             </>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function ExportOption({
+  Icon,
+  label,
+  sub,
+  onClick,
+  compact = false,
+}: {
+  Icon: typeof FileText
+  label: string
+  sub?: string
+  onClick: () => void
+  compact?: boolean
+}) {
+  return (
+    <div onClick={onClick} className="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer hover:bg-slate-50">
+      <Icon size={compact ? 16 : 18} className="text-slate-500 shrink-0" />
+      <div>
+        <div className={`text-sm ${compact ? 'font-medium text-slate-600' : 'font-bold text-slate-800'}`}>{label}</div>
+        {sub && <div className="text-[11px] text-slate-400">{sub}</div>}
+      </div>
     </div>
   )
 }

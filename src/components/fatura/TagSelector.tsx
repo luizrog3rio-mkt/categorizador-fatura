@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChevronDown, Check, X, Plus } from 'lucide-react'
 import type { CatUI } from '../../lib/fatura'
 
-// Port 1:1 do TagSelector original (App.jsx) — pílula com cor da categoria,
-// dropdown com paleta, remover categoria e criar nova inline.
+// Seletor de categoria — pílula com a cor da categoria (cores dinâmicas via
+// style), dropdown com a paleta, remover categoria e criar nova inline.
+// Comportamento idêntico ao port; só o visual foi padronizado (Tailwind/lucide).
 export default function TagSelector({
   value,
   categories,
@@ -38,53 +40,60 @@ export default function TagSelector({
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+    <div ref={ref} className="relative inline-block">
       <button
         onClick={() => !readOnly && setOpen((o) => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20,
-          border: cat ? `1.5px solid ${cat.color.border}` : '1.5px dashed #cbd5e1',
-          background: cat ? cat.color.bg : 'transparent', color: cat ? cat.color.text : '#94a3b8',
-          cursor: 'pointer', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', minWidth: 160,
-        }}
+        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap min-w-40 border ${
+          cat ? '' : 'border-dashed border-slate-300 text-slate-400'
+        } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
+        style={cat ? { background: cat.color.bg, color: cat.color.text, borderColor: cat.color.border } : undefined}
       >
-        <span style={{ flex: 1, textAlign: 'left' }}>{cat ? cat.name : 'Selecionar categoria'}</span>
-        <span style={{ fontSize: 9, opacity: 0.5 }}>▼</span>
+        <span className="flex-1 text-left">{cat ? cat.name : 'Selecionar categoria'}</span>
+        <ChevronDown size={12} className="opacity-50" />
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.13)', minWidth: 210, zIndex: 9999 }}>
-          {categories.map((c) => (
-            <div
-              key={c.name}
-              onClick={() => { onChange(c.name); setOpen(false) }}
-              style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
-              <span style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 20, background: c.color.bg, color: c.color.text, border: `1px solid ${c.color.border}`, fontWeight: 600, fontSize: 12 }}>{c.name}</span>
-              {value === c.name && <span style={{ marginLeft: 'auto', color: '#3b82f6', fontSize: 13 }}>✓</span>}
-            </div>
-          ))}
+        <div className="absolute top-[calc(100%+4px)] left-0 z-[9999] min-w-52 rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className="max-h-72 overflow-y-auto py-1">
+            {categories.map((c) => (
+              <div
+                key={c.name}
+                onClick={() => { onChange(c.name); setOpen(false) }}
+                className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50"
+              >
+                <span
+                  className="inline-block px-3 py-0.5 rounded-full text-xs font-semibold border"
+                  style={{ background: c.color.bg, color: c.color.text, borderColor: c.color.border }}
+                >
+                  {c.name}
+                </span>
+                {value === c.name && <Check size={14} className="ml-auto text-indigo-500" />}
+              </div>
+            ))}
+          </div>
           {value && (
             <div
               onClick={() => { onChange(null); setOpen(false) }}
-              style={{ padding: '7px 12px', cursor: 'pointer', fontSize: 12, color: '#94a3b8', borderTop: '1px solid #f1f5f9' }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              className="flex items-center gap-1.5 px-3 py-2 cursor-pointer text-xs text-slate-400 border-t border-slate-100 hover:bg-slate-50"
             >
-              ✕ Remover categoria
+              <X size={12} /> Remover categoria
             </div>
           )}
-          <div style={{ padding: '8px 10px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 6 }}>
+          <div className="flex gap-1.5 p-2 border-t border-slate-100">
             <input
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); e.stopPropagation() }}
               placeholder="Nova categoria..."
-              style={{ flex: 1, border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 8px', fontSize: 12, outline: 'none', color: '#334155' }}
+              className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-            <button onClick={handleAdd} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>+</button>
+            <button
+              onClick={handleAdd}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-md px-2.5 flex items-center justify-center"
+              title="Criar categoria"
+            >
+              <Plus size={14} />
+            </button>
           </div>
         </div>
       )}
