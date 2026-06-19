@@ -1,34 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Upload, Search, FileText, BarChart3, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { useFaturaWorld } from '../hooks/useFaturaWorld'
 import { importarFaturaOFX } from '../lib/importarFatura'
 import { fmt } from '../lib/fatura'
-import { S } from '../components/fatura/estilos'
 import TagSelector from '../components/fatura/TagSelector'
 import ExportMenu, { type TxView } from '../components/fatura/ExportMenu'
 import FaturaDashboard from '../components/fatura/FaturaDashboard'
 import PurchaseItemsTab, { type NovoItem } from '../components/fatura/PurchaseItemsTab'
 import PendingImportModal from '../components/fatura/PendingImportModal'
-import { ErroBanner } from '../components/ui'
-import ColumnVisibilityMenu, { type ColMeta } from '../components/ColumnVisibilityMenu'
-import { useColumnPrefs } from '../hooks/useColumnPrefs'
+import { Card, Badge, ErroBanner, btnSecundario } from '../components/ui'
+import DataTable, { type DataColumn } from '../components/DataTable'
 import type { Invoice, PurchaseItem } from '../lib/types'
 
-// colunas da tabela de lançamentos da fatura (só esconder — mundo fatura é travado)
-const LANC_COLS: ColMeta[] = [
-  { id: 'date', label: 'Data' },
-  { id: 'memo', label: 'Descrição' },
-  { id: 'amount', label: 'Valor' },
-  { id: 'category', label: 'Categoria' },
-]
-
-// Página da fatura — port da "invoice view" do App.jsx com as 3 abas
-// (Lançamentos / Dashboard / Compras), busca, pílulas de filtro por categoria
-// (só com count>0, contrato #13), badge "✦ auto" (contrato #4), footer sticky,
-// export (contrato #9) e modal de pendentes pós-import (contrato #7).
+// Página da fatura — padronizada no design system (PageHeader-like + Card +
+// DataTable + componentes compartilhados). As 3 abas (Lançamentos / Dashboard /
+// Compras), busca, pílulas de filtro por categoria (só com count>0, contrato
+// #13), badge "✦ auto" (contrato #4), total no rodapé, export (contrato #9) e
+// modal de pendentes pós-import (contrato #7) seguem idênticos no comportamento.
 type Aba = 'lancamentos' | 'dashboard' | 'compras'
+
+const ABAS: { key: Aba; label: string; Icon: typeof FileText }[] = [
+  { key: 'lancamentos', label: 'Lançamentos', Icon: FileText },
+  { key: 'dashboard', label: 'Dashboard', Icon: BarChart3 },
+  { key: 'compras', label: 'Compras', Icon: ShoppingCart },
+]
 
 export default function Fatura() {
   const { id } = useParams<{ id: string }>()
@@ -93,11 +91,16 @@ export default function Fatura() {
   }, [])
 
   // ── ações ──────────────────────────────────────────────────────────────────
-  const setCategory = async (txId: string, cat: string | null) => {
+  const setCategory = useCallback(async (txId: string, cat: string | null) => {
     setTransactions((prev) => prev.map((t) => (t.id === txId ? { ...t, category: cat } : t)))
     const { error } = await supabase.from('transactions').update({ category: cat }).eq('id', txId)
     if (error) setErro('Erro ao salvar categoria: ' + error.message)
-  }
+  }, [])
+
+  // addCategoria do hook não é estável; ref mantém a memo de colunas lint-clean
+  const addCategoriaRef = useRef(addCategoria)
+  useEffect(() => { addCategoriaRef.current = addCategoria }, [addCategoria])
+  const onAddCategoria = useCallback((name: string) => addCategoriaRef.current(name), [])
 
   const addItem = async (item: NovoItem) => {
     if (!session) return
@@ -174,144 +177,130 @@ export default function Fatura() {
     setActiveTab('lancamentos')
   }
 
-  // visibilidade de coluna (só esconder/mostrar) da tabela de lançamentos
-  const colPrefs = useColumnPrefs('fatura-lancamentos')
-  const colVisivel = (id: string) => colPrefs.columnVisibility[id] !== false
-  const alternarCol = (id: string) => colPrefs.onColumnVisibilityChange({ ...colPrefs.columnVisibility, [id]: !colVisivel(id) })
-  const colsVisiveis = LANC_COLS.filter((c) => colVisivel(c.id)).length
-
-  return (
-    <div style={{ margin: '-1.5rem -1.5rem 0', minHeight: 'calc(100vh - 0px)', background: '#f8fafc' }}>
-      {/* Header da fatura */}
-      <div style={S.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-          <button
-            onClick={() => navigate('/faturas')}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 18, color: '#64748b', padding: '0 4px', flexShrink: 0 }}
-            title="Voltar"
-          >←</button>
-          <span style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            💳 {invoice?.name || 'Fatura'}
-          </span>
-          <span style={{ ...S.chip, flexShrink: 0 }}>{transactions.length} lançamentos</span>
-          {semCategoria > 0 && (
-            <span style={{ ...S.chip, background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', flexShrink: 0 }}>
-              {semCategoria} sem categoria
-            </span>
+  const colunas = useMemo<DataColumn<TxView>[]>(() => [
+    {
+      id: 'date', header: 'Data', size: 110,
+      cell: (t) => <span className="text-slate-500 text-xs whitespace-nowrap">{t.date}</span>,
+      footer: <span className="font-normal text-slate-500">{filtered.length} lançamento{filtered.length !== 1 ? 's' : ''} exibido{filtered.length !== 1 ? 's' : ''}</span>,
+    },
+    {
+      id: 'memo', header: 'Descrição', size: 380,
+      cell: (t) => <span className="text-slate-700 font-medium">{t.memo}</span>,
+    },
+    {
+      id: 'amount', header: 'Valor', size: 130, align: 'right',
+      cell: (t) => <span className="font-semibold text-slate-800 tabular-nums">{fmt(t.amount)}</span>,
+      footer: <span className="font-bold text-slate-800">Total: {fmt(totalFiltered)}</span>,
+    },
+    {
+      id: 'category', header: 'Categoria', size: 240,
+      cell: (t) => (
+        <div className="flex items-center gap-1.5">
+          <TagSelector value={t.category} categories={categorias} onChange={(cat) => setCategory(t.id, cat)} onAddCategory={onAddCategoria} readOnly={!isAdmin} />
+          {t.auto && t.category && (
+            <span title="Categorizado automaticamente" className="text-[10px] text-indigo-500 bg-indigo-50 border border-indigo-200 rounded-full px-1.5 py-0.5 font-bold whitespace-nowrap">✦ auto</span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+      ),
+    },
+  ], [filtered.length, totalFiltered, categorias, isAdmin, setCategory, onAddCategoria])
+
+  return (
+    <div>
+      {/* Header da fatura */}
+      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={() => navigate('/faturas')} className="text-slate-400 hover:text-slate-700 transition shrink-0" title="Voltar">
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <h2 className="text-2xl font-bold text-slate-800 truncate">{invoice?.name || 'Fatura'}</h2>
+            <Badge cor="#64748b">{transactions.length} lançamentos</Badge>
+            {semCategoria > 0 && <Badge cor="#c2410c">{semCategoria} sem categoria</Badge>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <ExportMenu transactions={transactions} filtered={filtered} filter={filter} />
-          <label style={{ ...S.newBtn, cursor: !isAdmin ? 'default' : importando ? 'wait' : 'pointer', opacity: !isAdmin || importando ? 0.4 : 1, pointerEvents: !isAdmin ? 'none' : undefined }}>
-            📂 Nova fatura
-            <input ref={fileInput} type="file" accept=".ofx" style={{ display: 'none' }} disabled={importando}
+          <label className={btnSecundario + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
+            <Upload size={16} />
+            {importando ? 'Importando…' : 'Nova fatura'}
+            <input ref={fileInput} type="file" accept=".ofx" className="hidden" disabled={importando}
               onChange={(e) => onNovoArquivo(e.target.files?.[0])} />
           </label>
         </div>
       </div>
 
-      <div style={{ padding: '0 0 0' }}>
-        <ErroBanner mensagem={erro ?? erroWorld} />
-      </div>
+      <ErroBanner mensagem={erro ?? erroWorld} />
 
       {/* Abas */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '0 20px', display: 'flex' }}>
-        {([
-          { key: 'lancamentos', label: '📋  Lançamentos' },
-          { key: 'dashboard', label: '📊  Dashboard' },
-          { key: 'compras', label: '🛒  Compras' },
-        ] as { key: Aba; label: string }[]).map(({ key, label }) => (
+      <div className="flex border-b border-slate-200 mb-5">
+        {ABAS.map(({ key, label, Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            style={{
-              padding: '12px 18px', background: 'transparent', border: 'none',
-              borderBottom: activeTab === key ? '2px solid #3b82f6' : '2px solid transparent',
-              color: activeTab === key ? '#1d4ed8' : '#64748b',
-              fontWeight: activeTab === key ? 700 : 500, fontSize: 13,
-              cursor: 'pointer', marginBottom: -1,
-            }}
-          >{label}</button>
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition ${
+              activeTab === key ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Icon size={16} /> {label}
+          </button>
         ))}
       </div>
 
       {/* Aba: Lançamentos */}
       {activeTab === 'lancamentos' && (
         <>
-          <div style={S.filterBar}>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍  Buscar descrição..." style={S.search} />
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+          <Card className="p-4 mb-4">
+            <div className="relative max-w-sm">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar descrição..."
+                className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="flex gap-1.5 flex-wrap mt-3">
               {[
                 { key: 'all', label: `Todos (${transactions.length})` },
                 { key: 'sem', label: `Sem categoria (${semCategoria})` },
               ].map(({ key, label }) => (
-                <button key={key} style={{ ...S.tab, ...(filter === key ? S.tabOn : {}) }} onClick={() => setFilter(key)}>{label}</button>
+                <button
+                  key={key}
+                  onClick={() => setFilter(key)}
+                  className={`px-3 py-1 rounded-full border text-xs font-semibold transition ${
+                    filter === key ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  {label}
+                </button>
               ))}
               {categorias.map((c) => {
                 const count = transactions.filter((t) => t.category === c.name).length
                 if (!count) return null
+                const ativo = filter === c.name
                 return (
                   <button
                     key={c.name}
-                    style={{ ...S.tab, ...(filter === c.name ? { background: c.color.bg, color: c.color.text, borderColor: c.color.border } : {}) }}
-                    onClick={() => setFilter(filter === c.name ? 'all' : c.name)}
+                    onClick={() => setFilter(ativo ? 'all' : c.name)}
+                    className={`px-3 py-1 rounded-full border text-xs font-semibold transition ${ativo ? '' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                    style={ativo ? { background: c.color.bg, color: c.color.text, borderColor: c.color.border } : undefined}
                   >
                     {c.name} ({count})
                   </button>
                 )
               })}
             </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 20px 8px' }}>
-            <ColumnVisibilityMenu columns={LANC_COLS} isVisible={colVisivel} onToggle={alternarCol} onReset={colPrefs.reset} />
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={S.table}>
-              <thead>
-                <tr>
-                  {colVisivel('date') && <th style={{ ...S.th, width: 88 }}>Data</th>}
-                  {colVisivel('memo') && <th style={S.th}>Descrição</th>}
-                  {colVisivel('amount') && <th style={{ ...S.th, textAlign: 'right', width: 120 }}>Valor</th>}
-                  {colVisivel('category') && <th style={{ ...S.th, width: 250 }}>Categoria</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((t) => (
-                  <tr
-                    key={t.id}
-                    style={S.row}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
-                  >
-                    {colVisivel('date') && <td style={{ ...S.td, color: '#94a3b8', fontSize: 12 }}>{t.date}</td>}
-                    {colVisivel('memo') && <td style={S.td}><span style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{t.memo}</span></td>}
-                    {colVisivel('amount') && <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{fmt(t.amount)}</td>}
-                    {colVisivel('category') && (
-                      <td style={S.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <TagSelector value={t.category} categories={categorias} onChange={(cat) => setCategory(t.id, cat)} onAddCategory={addCategoria} readOnly={!isAdmin} />
-                          {t.auto && t.category && (
-                            <span title="Categorizado automaticamente" style={{ fontSize: 10, color: '#6366f1', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 10, padding: '2px 7px', fontWeight: 700, whiteSpace: 'nowrap' }}>✦ auto</span>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={colsVisiveis} style={{ textAlign: 'center', padding: '48px 0', color: '#94a3b8' }}>Nenhum lançamento encontrado.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div style={S.footer}>
-            <span style={{ color: '#64748b', fontSize: 13 }}>
-              {filtered.length} lançamento{filtered.length !== 1 ? 's' : ''} exibido{filtered.length !== 1 ? 's' : ''}
-            </span>
-            <span style={{ fontWeight: 700, color: '#0f172a', fontSize: 14 }}>Total: {fmt(totalFiltered)}</span>
-          </div>
+          </Card>
+          <Card className="p-3">
+            <DataTable
+              tableKey="fatura-lancamentos"
+              columns={colunas}
+              data={filtered}
+              getRowId={(t) => t.id}
+              empty="Nenhum lançamento encontrado."
+            />
+          </Card>
         </>
       )}
 
