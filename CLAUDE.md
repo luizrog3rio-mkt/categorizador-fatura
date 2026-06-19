@@ -100,17 +100,25 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   está abandonado com CVE; não trocar de volta.
 - PowerShell 5.1: mensagem de `git commit` via here-string `@'...'@` **não
   pode conter aspas duplas** (re-tokenização quebra o comando nativo).
-- O "mundo fatura" (src/components/fatura/, Faturas, Fatura) usa estilos
-  inline portados 1:1 do app antigo — fidelidade visual aos 15 contratos de
-  `docs/fase2/contratos-app-antigo.md`. É intencional; o resto é Tailwind.
+- O "mundo fatura" (src/components/fatura/, Faturas, Fatura) foi **padronizado
+  no design system** (Tailwind + `ui.tsx` + `DataTable` + `Modal`; estilos inline
+  e o `estilos.ts`/objeto `S` foram removidos — 2026-06-19). Os 15 contratos de
+  `docs/fase2/contratos-app-antigo.md` são preservados no **comportamento/dados**
+  (parser OFX, `fit_id` não-dedupe, categoria-string, fluxo de pendentes, export
+  filtrados-vs-todos, drill-down, texto exato do confirm de excluir fatura,
+  reimport duplica); a **fidelidade visual 1:1 deixou de ser regra** — o visual
+  agora segue o resto do app.
 - **Tabelas reordenáveis/redimensionáveis/ocultáveis**: `src/components/DataTable.tsx`
   (TanStack Table v8 headless + @dnd-kit pro arrastar do header) + hook
   `src/hooks/useColumnPrefs.ts` (cacheia em localStorage, persiste em
   `user_table_prefs` por usuário, debounce 600ms). A página só descreve
   `DataColumn<T>[]` (id/header/cell/size/align). Em uso: Hotmart, Contas a
-  Pagar/Receber (`lancamentos:${tipo}`), Extratos, Usuários. Handlers usados em
-  `cell` precisam de `useCallback` (senão a memo das colunas recria toda render →
-  warn exhaustive-deps). **Faturas (mundo fatura: Fatura + PurchaseItemsTab) têm
-  SÓ o menu "esconder coluna"** (`src/components/ColumnVisibilityMenu.tsx`, inline,
-  reusa o `columnVisibility` do `useColumnPrefs`) — sem drag/resize, preservando
-  os contratos visuais 1:1.
+  Pagar/Receber (`lancamentos:${tipo}`), Extratos, Usuários e **Lançamentos da
+  fatura** (`fatura-lancamentos`). Handlers usados em `cell` precisam de
+  `useCallback` (senão a memo das colunas recria toda render → warn
+  exhaustive-deps); em `Fatura.tsx` o `addCategoria` do hook (não estável) é
+  acessado via `ref` pra manter a memo limpa. **A tabela de Compras
+  (`PurchaseItemsTab`) NÃO usa o DataTable** — tem edição inline on-blur, então
+  fica num `<table>` Tailwind com SÓ o menu "esconder coluna"
+  (`src/components/ColumnVisibilityMenu.tsx`, agora em Tailwind, reusa o
+  `columnVisibility` do `useColumnPrefs`).
