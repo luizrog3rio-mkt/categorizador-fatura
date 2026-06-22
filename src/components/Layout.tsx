@@ -13,6 +13,7 @@ import {
   Users,
   PieChart,
   Scale,
+  Link2,
   LogOut,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -26,6 +27,7 @@ const itens = [
   { to: '/pagar', rotulo: 'Contas a Pagar', icone: ArrowDownCircle },
   { to: '/receber', rotulo: 'Contas a Receber', icone: ArrowUpCircle },
   { to: '/extrato', rotulo: 'Extratos (OFX)', icone: FileDown },
+  { to: '/conciliacao', rotulo: 'Conciliação', icone: Link2 },
   { to: '/hotmart', rotulo: 'Hotmart', icone: ShoppingCart },
   { to: '/contas', rotulo: 'Contas & Cartões', icone: Landmark },
   { to: '/relatorio-categorias', rotulo: 'Relatório', icone: PieChart },

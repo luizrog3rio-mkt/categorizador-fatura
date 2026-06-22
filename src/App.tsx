@@ -14,6 +14,7 @@ import Categorias from './pages/Categorias'
 import Empresas from './pages/Empresas'
 import Usuarios from './pages/Usuarios'
 import DRE from './pages/DRE'
+import Conciliacao from './pages/Conciliacao'
 
 // Dashboard e Relatório carregam o recharts (centenas de kB) — lazy tira do bundle inicial
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -49,6 +50,7 @@ function Rotas() {
         <Route path="/pagar" element={<Lancamentos key="payable" tipo="payable" />} />
         <Route path="/receber" element={<Lancamentos key="receivable" tipo="receivable" />} />
         <Route path="/extrato" element={<Extrato />} />
+        <Route path="/conciliacao" element={<Conciliacao />} />
         <Route path="/hotmart" element={<Hotmart />} />
         <Route path="/contas" element={<Contas />} />
         <Route
