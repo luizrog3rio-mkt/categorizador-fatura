@@ -14,8 +14,9 @@ import Categorias from './pages/Categorias'
 import Empresas from './pages/Empresas'
 import Usuarios from './pages/Usuarios'
 
-// Dashboard carrega o recharts (centenas de kB) — lazy tira do bundle inicial
+// Dashboard e Relatório carregam o recharts (centenas de kB) — lazy tira do bundle inicial
 const Dashboard = lazy(() => import('./pages/Dashboard'))
+const RelatorioCategorias = lazy(() => import('./pages/RelatorioCategorias'))
 
 function Rotas() {
   const { session, carregando } = useApp()
@@ -49,6 +50,14 @@ function Rotas() {
         <Route path="/extrato" element={<Extrato />} />
         <Route path="/hotmart" element={<Hotmart />} />
         <Route path="/contas" element={<Contas />} />
+        <Route
+          path="/relatorio-categorias"
+          element={
+            <Suspense fallback={<div className="text-slate-400 text-sm p-8">Carregando…</div>}>
+              <RelatorioCategorias />
+            </Suspense>
+          }
+        />
         <Route path="/categorias" element={<Categorias />} />
         <Route path="/empresas" element={<Empresas />} />
         <Route path="/usuarios" element={<Usuarios />} />

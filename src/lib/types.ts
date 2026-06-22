@@ -59,6 +59,21 @@ export interface AccountLedgerRow {
   origem_id: string
 }
 
+// retorno da RPC relatorio_categorias (uma linha por categoria, consolidando fontes)
+export interface RelatorioCategoriaLinha {
+  categoria: string
+  color_index: number
+  despesa_cartao: number
+  despesa_entries: number
+  receita_entries: number
+  despesa_extrato: number
+  receita_extrato: number
+  despesa_total: number
+  receita_total: number
+  saldo: number
+  n_lanc: number
+}
+
 export interface Entry {
   id: string
   company_id: string

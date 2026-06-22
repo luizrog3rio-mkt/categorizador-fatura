@@ -100,10 +100,10 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `sb_publishable_`/`sb_secret_`; as JWT legadas estão **desabilitadas** — não
   reativar). `.env.example` na raiz.
 - `npm run dev` → localhost:5173 · `npm run build` (tsc strict + vite) ·
-  `npm run lint` (0 errors; os 16 warnings conscientes = 14 fetch-on-mount + 2 da
+  `npm run lint` (0 errors; os 17 warnings conscientes = 15 fetch-on-mount + 2 da
   DataTable: o load-on-mount do useColumnPrefs e o react-compiler "incompatible
-  library" das libs de tabela —
-  ver eslint.config.js).
+  library" das libs de tabela — ver eslint.config.js). Cada página nova com o
+  padrão `useEffect(() => { carregar() }, [carregar])` soma 1 fetch-on-mount.
 - `xlsx` vem do tarball oficial do SheetJS (cdn.sheetjs.com) — o pacote do npm
   está abandonado com CVE; não trocar de volta.
 - PowerShell 5.1: mensagem de `git commit` via here-string `@'...'@` **não
