@@ -41,7 +41,15 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
 - **Categoria é TEXTO por nome** em transactions/purchase_items/auto_rules
   (sem FK) — auditado na Fase 3 e mantido (dado íntegro; a tela Categorias faz
   cascade no rename). `transactions.date` é texto 'DD/MM/YYYY'; `amount` é
-  sempre positivo (despesa de cartão).
+  sempre positivo (magnitude) e `transactions.kind` ('debit'/'credit') dá o
+  sinal contábil: débito = despesa (soma), crédito = estorno/desconto (abate).
+  O parser de cartão (`lib/fatura.ts`) classifica pelo TRNTYPE do OFX e
+  **descarta o pagamento da fatura anterior** (CREDIT com memo `/PAGAMENTO|BOLETO/`,
+  que se anula com a linha "FATURA ANTERIOR"). Total/dashboards/export usam o
+  helper `valorComSinal()` — fonte única do sinal (decisão de 2026-06-22,
+  desvia do contrato #3 que descartava todo crédito). Faturas importadas ANTES
+  dessa data têm `kind='debit'` no backfill e total inflado pelos créditos
+  ignorados — só reimportar corrige.
 - **RLS = modelo de EQUIPE**: `using (true) with check (true)` para
   authenticated em todas as tabelas (Fase 1b/1c). Os ~11 WARNs
   `rls_policy_always_true` dos advisors são **aceitos por design**.

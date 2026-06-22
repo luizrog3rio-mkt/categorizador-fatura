@@ -1,8 +1,12 @@
 // ─── Mundo "fatura de cartão" — port fiel do App.jsx original ────────────────
 // Contratos preservados: docs/fase2/contratos-app-antigo.md
-// (parser com Math.abs + descarte de CREDIT + datas texto DD/MM/YYYY;
-//  auto-categorização por substring case-insensitive, primeira regra vence;
-//  TAG_COLORS por color_index; defaults de seed idênticos.)
+// (datas texto DD/MM/YYYY; auto-categorização por substring case-insensitive,
+//  primeira regra vence; TAG_COLORS por color_index; defaults de seed idênticos.)
+// DESVIO CONSCIENTE do contrato #3 (2026-06-22, decisão do Luiz): o parser não
+// descarta mais TODO crédito. Estornos/descontos (TRNTYPE=CREDIT) entram com
+// kind='credit' e ABATEM o total; só o pagamento da fatura ANTERIOR
+// (memo /PAGAMENTO|BOLETO/) é descartado. amount segue positivo (magnitude);
+// o sinal vem do kind — ver valorComSinal().
 
 export interface TagColor {
   bg: string
@@ -139,17 +143,20 @@ export function autoCategorizeMemo(memo: string, rules: RegraUI[]): string | nul
   return null
 }
 
-// ─── Parser OFX de FATURA DE CARTÃO (contrato #3: port 1:1 do original) ──────
-// Math.abs no valor, CREDIT>0 descartado (pagamento da fatura não aparece),
+// ─── Parser OFX de FATURA DE CARTÃO ─────────────────────────────────────────
+// Sicoob: despesa = TRNTYPE=PAYMENT (valor negativo); crédito = TRNTYPE=CREDIT
+// (valor positivo: estorno/desconto/pagamento da fatura). Guardamos amount como
+// magnitude (Math.abs) + kind; o pagamento da fatura ANTERIOR é descartado.
 // data como texto DD/MM/YYYY, unescape de &amp;. NÃO usar pra extrato corrente
 // (esse é o parser genérico que entra na Etapa 5).
 export interface TxImportada {
   fit_id: string
   memo: string
-  amount: number
+  amount: number // sempre positivo (magnitude); o sinal vem de kind
   date: string
   category: string | null
   auto: boolean
+  kind: 'debit' | 'credit' // débito = despesa; crédito = estorno/desconto (abate)
 }
 
 export function parseOFXCartao(text: string, rules: RegraUI[]): TxImportada[] {
@@ -169,7 +176,10 @@ export function parseOFXCartao(text: string, rules: RegraUI[]): TxImportada[] {
     const dateRaw = get('DTPOSTED')
     const date = dateRaw ? `${dateRaw.slice(6, 8)}/${dateRaw.slice(4, 6)}/${dateRaw.slice(0, 4)}` : ''
     if (!memo || isNaN(amtRaw)) continue
-    if (tipo === 'CREDIT' && amtRaw > 0) continue
+    // pagamento da fatura ANTERIOR não entra nesta fatura (se anula com a
+    // linha "FATURA ANTERIOR" do resumo) — descartado por memo
+    if (tipo === 'CREDIT' && /PAGAMENTO|BOLETO/i.test(memo)) continue
+    const kind: 'debit' | 'credit' = tipo === 'CREDIT' ? 'credit' : 'debit'
     const autoCategory = autoCategorizeMemo(memo, rules)
     transactions.push({
       fit_id: get('FITID'),
@@ -178,9 +188,16 @@ export function parseOFXCartao(text: string, rules: RegraUI[]): TxImportada[] {
       date,
       category: autoCategory,
       auto: !!autoCategory,
+      kind,
     })
   }
   return transactions
+}
+
+// Valor com o sinal contábil: despesa soma (+), crédito/estorno abate (−).
+// Fonte única do sinal pra todo o "mundo fatura" (total, dashboard, export).
+export function valorComSinal(t: { amount: number; kind: 'debit' | 'credit' }): number {
+  return t.kind === 'credit' ? -t.amount : t.amount
 }
 
 export function fmt(v: number): string {

@@ -7,13 +7,13 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
 import { vendaAprovada } from '../lib/hotmart'
-import { CAT_CHART_COLORS, fmt } from '../lib/fatura'
+import { CAT_CHART_COLORS, fmt, valorComSinal } from '../lib/fatura'
 import type { Entry, HotmartSale, Invoice } from '../lib/types'
 import { Card, PageHeader, StatusBadge, ErroBanner } from '../components/ui'
 
 interface MesAgg { mes: string; receber: number; pagar: number }
 interface CatAgg { nome: string; valor: number; cor: string }
-interface TxLite { amount: number; category: string | null }
+interface TxLite { amount: number; category: string | null; kind: 'debit' | 'credit' }
 interface CatRow { name: string; color_index: number }
 
 // Etapa 7 — Dashboard HÍBRIDO. Topo: cartão de crédito (dados reais das
@@ -56,7 +56,7 @@ export default function Dashboard() {
     const { data: invs, error: e3 } = await supabase.from('invoices').select('*').order('imported_at', { ascending: false })
     if (e3) erros.push('faturas: ' + e3.message)
     setInvoices(invs ?? [])
-    const { data: tx, error: e4 } = await supabase.from('transactions').select('amount, category')
+    const { data: tx, error: e4 } = await supabase.from('transactions').select('amount, category, kind')
     if (e4) erros.push('transações: ' + e4.message)
     setTxs((tx as TxLite[]) ?? [])
     const { data: cats, error: e5 } = await supabase.from('categories').select('name, color_index').order('created_at')
@@ -81,7 +81,7 @@ export default function Dashboard() {
     const m = new Map<string, number>()
     for (const t of txs) {
       const nome = t.category || 'Sem categoria'
-      m.set(nome, (m.get(nome) ?? 0) + Number(t.amount))
+      m.set(nome, (m.get(nome) ?? 0) + valorComSinal(t))
     }
     const porCategoria: CatAgg[] = [...m.entries()]
       .map(([nome, valor]) => ({ nome, valor, cor: nome === 'Sem categoria' ? '#94a3b8' : corDe(nome) }))

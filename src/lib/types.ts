@@ -132,6 +132,7 @@ export interface Invoice {
   transaction_count: number | null
   imported_at: string | null
   account_id: string | null // Fase 1c; preencher nos imports novos
+  ofx_path: string | null // caminho do .ofx no bucket Storage `faturas-ofx` (só imports novos)
 }
 
 export interface Transaction {
@@ -140,10 +141,11 @@ export interface Transaction {
   invoice_id: string | null
   fit_id: string | null // NÃO é único (Sicoob repete entre parcelas/faturas)
   memo: string
-  amount: number // sempre positivo no modelo vivo (despesa de cartão)
+  amount: number // sempre positivo (magnitude); o sinal vem de kind
   date: string // 'DD/MM/YYYY' em texto (formato vivo; Fase 3 manteve)
   category: string | null // nome da categoria (texto livre)
   auto_categorized: boolean | null
+  kind: 'debit' | 'credit' // débito = despesa; crédito = estorno/desconto (abate o total)
   created_at: string | null
 }
 

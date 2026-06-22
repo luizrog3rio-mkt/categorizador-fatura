@@ -413,6 +413,8 @@ existem.
 | `20260610203722` | hotmart_cron_daily | Job `hotmart-sync-diario` (09:00 UTC): chama a Edge Function `hotmart-sync` via `net.http_post` em modo-serviço, lendo o segredo do **Vault** (`hotmart_service_key`); janela 1 mês, timeout 60s, idempotente. |
 | `20260611002326` | phase3_data_fixes | Fase 3 — 2 fixes pontuais (valor 1.16398→1163.98; regra captions.ai Viagem→Ferramenta). Diagnóstico atestou dados íntegros; categoria continua TEXTO por design. |
 | `20260611021420` | move_pgnet_to_extensions | Move pg_net do public pro schema extensions (advisor 0014). API `net.*` inalterada; cron re-testado vivo. |
+| `20260622125458` | fatura_ofx_storage | Bucket Storage PRIVADO `faturas-ofx` (10 MB/arquivo) + policy RLS modelo equipe escopada ao bucket (+1 WARN `rls_policy_always_true` aceito) + coluna `invoices.ofx_path text`. Guarda o `.ofx` original de cada import novo (best-effort no `importarFatura.ts`; botão "Baixar OFX" na tela da fatura). Faturas pré-existentes ficam `ofx_path` NULL. |
+| `20260622133542` | transactions_kind | Coluna `transactions.kind text not null default 'debit' check (in 'debit','credit')`. O parser de cartão passou a importar créditos do OFX (estornos/descontos) que ABATEM o total — `amount` segue positivo, `kind` dá o sinal (helper `valorComSinal`). Pagamento da fatura anterior (CREDIT memo `/PAGAMENTO\|BOLETO/`) é descartado. Backfill: 1321 tx viram 'debit'. Desvia do contrato #3 (decisão do Luiz, 2026-06-22). Faturas antigas seguem com total inflado até reimportar. |
 
 Infra fora do histórico de migrations: Edge Function **`hotmart-sync`**
 (deployada no projeto Supabase; fonte versionada em

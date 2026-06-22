@@ -6,9 +6,10 @@ interface TxView {
   id: string
   date: string
   memo: string
-  amount: number
+  amount: number // magnitude positiva; o sinal vem de kind
   category: string | null
   auto: boolean
+  kind: 'debit' | 'credit'
 }
 
 // Menu de export — distingue "filtrados (N)" vs "todos (N)"; comportamento

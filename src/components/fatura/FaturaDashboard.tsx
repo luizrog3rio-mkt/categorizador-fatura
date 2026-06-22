@@ -1,5 +1,5 @@
 import { BarChart3 } from 'lucide-react'
-import { CAT_CHART_COLORS, TAG_COLORS, fmt, type CatUI, type TagColor } from '../../lib/fatura'
+import { CAT_CHART_COLORS, TAG_COLORS, fmt, valorComSinal, type CatUI, type TagColor } from '../../lib/fatura'
 import { Card } from '../ui'
 import type { TxView } from './ExportMenu'
 
@@ -56,7 +56,7 @@ export default function FaturaDashboard({
   categories: CatUI[]
   onFilterClick: (cat: string) => void
 }) {
-  const grandTotal = transactions.reduce((s, t) => s + t.amount, 0)
+  const grandTotal = transactions.reduce((s, t) => s + valorComSinal(t), 0)
   const semCat = transactions.filter((t) => !t.category).length
   const ticket = transactions.length > 0 ? grandTotal / transactions.length : 0
 
@@ -64,7 +64,7 @@ export default function FaturaDashboard({
   transactions.forEach((t) => {
     const key = t.category || 'Sem categoria'
     if (!byCategory[key]) byCategory[key] = { total: 0, count: 0 }
-    byCategory[key].total += t.amount
+    byCategory[key].total += valorComSinal(t)
     byCategory[key].count += 1
   })
 

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Upload, Search, FileText, BarChart3, ShoppingCart } from 'lucide-react'
+import { ArrowLeft, Upload, Download, Search, FileText, BarChart3, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { useFaturaWorld } from '../hooks/useFaturaWorld'
 import { importarFaturaOFX } from '../lib/importarFatura'
-import { fmt } from '../lib/fatura'
+import { fmt, valorComSinal } from '../lib/fatura'
 import TagSelector from '../components/fatura/TagSelector'
 import ExportMenu, { type TxView } from '../components/fatura/ExportMenu'
 import FaturaDashboard from '../components/fatura/FaturaDashboard'
@@ -70,6 +70,7 @@ export default function Fatura() {
         amount: Number(t.amount),
         category: t.category,
         auto: !!t.auto_categorized,
+        kind: (t.kind ?? 'debit') as 'debit' | 'credit',
       }))
     )
 
@@ -162,13 +163,28 @@ export default function Fatura() {
     if (ok) navigate(`/faturas/${ok.invoice.id}`, { state: { pendentes: ok.pendentes } })
   }
 
+  // baixa o .ofx original da fatura (só existe em imports feitos após o Storage)
+  const baixarOFX = async () => {
+    if (!invoice?.ofx_path) return
+    const { data, error } = await supabase.storage.from('faturas-ofx').download(invoice.ofx_path)
+    if (error || !data) { setErro('Erro ao baixar o OFX: ' + (error?.message ?? 'arquivo não encontrado')); return }
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = invoice.ofx_path.split('/').pop() || 'fatura.ofx'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
   // ── derivados ──────────────────────────────────────────────────────────────
   const filtered = transactions.filter((t) => {
     const matchSearch = t.memo.toLowerCase().includes(search.toLowerCase())
     const matchFilter = filter === 'all' || (filter === 'sem' && !t.category) || t.category === filter
     return matchSearch && matchFilter
   })
-  const totalFiltered = filtered.reduce((s, t) => s + t.amount, 0)
+  const totalFiltered = filtered.reduce((s, t) => s + valorComSinal(t), 0)
   const semCategoria = transactions.filter((t) => !t.category).length
 
   const handleDashFilterClick = (cat: string) => {
@@ -185,11 +201,20 @@ export default function Fatura() {
     },
     {
       id: 'memo', header: 'Descrição', size: 380,
-      cell: (t) => <span className="text-slate-700 font-medium">{t.memo}</span>,
+      cell: (t) => (
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-700 font-medium">{t.memo}</span>
+          {t.kind === 'credit' && (
+            <span title="Crédito (estorno/desconto) — abate o total" className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0.5 font-bold whitespace-nowrap">crédito</span>
+          )}
+        </div>
+      ),
     },
     {
       id: 'amount', header: 'Valor', size: 130, align: 'right',
-      cell: (t) => <span className="font-semibold text-slate-800 tabular-nums">{fmt(t.amount)}</span>,
+      cell: (t) => (
+        <span className={`font-semibold tabular-nums ${t.kind === 'credit' ? 'text-emerald-600' : 'text-slate-800'}`}>{fmt(valorComSinal(t))}</span>
+      ),
       footer: <span className="font-bold text-slate-800">Total: {fmt(totalFiltered)}</span>,
     },
     {
@@ -220,6 +245,11 @@ export default function Fatura() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {invoice?.ofx_path && (
+            <button onClick={baixarOFX} className={btnSecundario} title="Baixar o arquivo OFX original desta fatura">
+              <Download size={16} /> Baixar OFX
+            </button>
+          )}
           <ExportMenu transactions={transactions} filtered={filtered} filter={filter} />
           <label className={btnSecundario + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
             <Upload size={16} />

@@ -3,11 +3,14 @@
 // com formato numérico e mesmas colunas. O xlsx entra por dynamic import:
 // são ~400 kB que só servem pro botão exportar — fora do bundle inicial.
 
+import { valorComSinal } from './fatura'
+
 interface TxExport {
   date: string
   memo: string
-  amount: number
+  amount: number // magnitude positiva; o sinal contábil vem de kind
   category: string | null
+  kind: 'debit' | 'credit'
 }
 
 export function exportCSV(transactions: TxExport[]) {
@@ -15,7 +18,7 @@ export function exportCSV(transactions: TxExport[]) {
   const rows = transactions.map((t) => [
     t.date,
     `"${t.memo.replace(/"/g, '""')}"`,
-    t.amount.toFixed(2).replace('.', ','),
+    valorComSinal(t).toFixed(2).replace('.', ','),
     t.category ? `"${t.category.replace(/"/g, '""')}"` : 'Sem categoria',
   ])
   const csv = [header.join(';'), ...rows.map((r) => r.join(';'))].join('\r\n')
@@ -28,7 +31,7 @@ export async function exportXLSX(transactions: TxExport[]) {
   const rows = transactions.map((t) => ({
     Data: t.date,
     Descrição: t.memo,
-    'Valor (R$)': t.amount,
+    'Valor (R$)': valorComSinal(t),
     Categoria: t.category || 'Sem categoria',
   }))
   const ws = XLSX.utils.json_to_sheet(rows)
