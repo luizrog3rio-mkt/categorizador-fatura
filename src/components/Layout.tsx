@@ -12,6 +12,7 @@ import {
   Building2,
   Users,
   PieChart,
+  Scale,
   LogOut,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -28,6 +29,7 @@ const itens = [
   { to: '/hotmart', rotulo: 'Hotmart', icone: ShoppingCart },
   { to: '/contas', rotulo: 'Contas & Cartões', icone: Landmark },
   { to: '/relatorio-categorias', rotulo: 'Relatório', icone: PieChart },
+  { to: '/dre', rotulo: 'DRE', icone: Scale },
   { to: '/empresas', rotulo: 'Empresas', icone: Building2 },
   { to: '/categorias', rotulo: 'Categorias', icone: Tags },
 ]

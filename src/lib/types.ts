@@ -148,7 +148,15 @@ export interface Category {
   user_id: string
   name: string
   color_index: number
+  dre_group: string | null // "Grupo na DRE" (Receita Bruta/Dedução/Custo Variável/...); null = a classificar
   created_at: string | null
+}
+
+// retorno da RPC dre_competencia (o frontend monta a cascata a partir disto)
+export interface DreLinha {
+  bloco: string
+  categoria: string
+  valor: number
 }
 
 export interface AutoRule {

@@ -11,7 +11,10 @@ import { Card, PageHeader, Modal, Vazio, ErroBanner, inputCls, btnPrimario } fro
 // auditoria): RENOMEAR com cascade nos rótulos de TEXTO (transactions.category
 // etc. referenciam por nome), recolorir e excluir.
 type Vocab = 'transacao' | 'compra'
-interface CatRow { id: string; name: string; color_index: number }
+interface CatRow { id: string; name: string; color_index: number; dre_group?: string | null }
+
+// grupos da DRE (só pro vocabulário de transações; espelha o CHECK de categories.dre_group)
+const DRE_GROUPS = ['Receita Bruta', 'Dedução', 'Custo Variável', 'Despesa Fixa', 'Resultado Financeiro', 'Imposto s/ Lucro']
 
 const TABELA: Record<Vocab, string> = { transacao: 'categories', compra: 'purchase_item_categories' }
 // colunas onde o nome aparece como TEXTO (cascade obrigatório no rename)
@@ -28,7 +31,7 @@ export default function Categorias() {
   const [uso, setUso] = useState<Record<string, number>>({})
   const [erro, setErro] = useState<string | null>(null)
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState<{ id?: string; name: string; colorIndex: number }>({ name: '', colorIndex: 0 })
+  const [form, setForm] = useState<{ id?: string; name: string; colorIndex: number; dreGroup: string }>({ name: '', colorIndex: 0, dreGroup: '' })
 
   const carregar = useCallback(async () => {
     setErro(null)
@@ -43,8 +46,8 @@ export default function Categorias() {
 
   useEffect(() => { carregar() }, [carregar])
 
-  const abrirNovo = () => { setForm({ name: '', colorIndex: cats.length % TAG_COLORS.length }); setModal(true) }
-  const abrirEdicao = (c: CatRow) => { setForm({ id: c.id, name: c.name, colorIndex: c.color_index }); setModal(true) }
+  const abrirNovo = () => { setForm({ name: '', colorIndex: cats.length % TAG_COLORS.length, dreGroup: '' }); setModal(true) }
+  const abrirEdicao = (c: CatRow) => { setForm({ id: c.id, name: c.name, colorIndex: c.color_index, dreGroup: c.dre_group ?? '' }); setModal(true) }
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault()
@@ -56,7 +59,9 @@ export default function Categorias() {
       if (original && cats.some((c) => c.id !== form.id && c.name.toLowerCase() === nome.toLowerCase())) {
         setErro(`Já existe uma categoria "${nome}".`); return
       }
-      const { error } = await supabase.from(TABELA[vocab]).update({ name: nome, color_index: form.colorIndex }).eq('id', form.id)
+      const upd: Record<string, unknown> = { name: nome, color_index: form.colorIndex }
+      if (vocab === 'transacao') upd.dre_group = form.dreGroup || null // só categories tem a coluna
+      const { error } = await supabase.from(TABELA[vocab]).update(upd).eq('id', form.id)
       if (error) { setErro('Erro ao salvar: ' + error.message); return }
       // cascade do rename nos refs de TEXTO (FK refs como entries.category_id
       // acompanham por id automaticamente). Falha aqui deixaria rótulos órfãos
@@ -76,7 +81,9 @@ export default function Categorias() {
       }
     } else {
       if (cats.some((c) => c.name.toLowerCase() === nome.toLowerCase())) { setErro(`Já existe uma categoria "${nome}".`); return }
-      const { error } = await supabase.from(TABELA[vocab]).insert({ user_id: session?.user.id, name: nome, color_index: form.colorIndex })
+      const ins: Record<string, unknown> = { user_id: session?.user.id, name: nome, color_index: form.colorIndex }
+      if (vocab === 'transacao') ins.dre_group = form.dreGroup || null
+      const { error } = await supabase.from(TABELA[vocab]).insert(ins)
       if (error) { setErro('Erro ao criar: ' + error.message); return }
     }
     setModal(false)
@@ -134,6 +141,11 @@ export default function Categorias() {
                       {c.name}
                     </span>
                     <span className="text-xs text-slate-400 whitespace-nowrap">{n > 0 ? `${n} uso${n !== 1 ? 's' : ''}` : 'sem uso'}</span>
+                    {vocab === 'transacao' && (
+                      <span className={`text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap ${c.dre_group ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
+                        {c.dre_group ?? 'sem grupo DRE'}
+                      </span>
+                    )}
                   </div>
                   {isAdmin && (
                   <div className="flex items-center gap-1 shrink-0">
@@ -169,6 +181,16 @@ export default function Categorias() {
               ))}
             </div>
           </div>
+          {vocab === 'transacao' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Grupo na DRE</label>
+              <select className={inputCls} value={form.dreGroup} onChange={(e) => setForm({ ...form, dreGroup: e.target.value })}>
+                <option value="">(a classificar)</option>
+                {DRE_GROUPS.map((g) => <option key={g} value={g}>{g}</option>)}
+              </select>
+              <p className="text-xs text-slate-400 mt-1">Define em que linha da DRE esta categoria entra.</p>
+            </div>
+          )}
           {form.id && (
             <p className="text-xs text-slate-400">
               Renomear atualiza o rótulo em todas as transações/itens que usam esta categoria.
