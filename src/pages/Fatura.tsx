@@ -13,6 +13,7 @@ import PurchaseItemsTab, { type NovoItem } from '../components/fatura/PurchaseIt
 import PendingImportModal from '../components/fatura/PendingImportModal'
 import { Card, Badge, ErroBanner, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
+import type { RowSelectionState } from '@tanstack/react-table'
 import type { Invoice, PurchaseItem } from '../lib/types'
 
 // Página da fatura — padronizada no design system (PageHeader-like + Card +
@@ -48,6 +49,7 @@ export default function Fatura() {
   const [search, setSearch] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const fileInput = useRef<HTMLInputElement>(null)
 
   const carregar = useCallback(async () => {
@@ -187,6 +189,19 @@ export default function Fatura() {
   const totalFiltered = filtered.reduce((s, t) => s + valorComSinal(t), 0)
   const semCategoria = transactions.filter((t) => !t.category).length
 
+  // seleção em massa: só conta os marcados que ESTÃO visíveis (respeita o filtro)
+  const filteredIds = new Set(filtered.map((t) => t.id))
+  const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id] && filteredIds.has(id))
+
+  const aplicarCategoriaEmMassa = async (cat: string | null) => {
+    if (selectedIds.length === 0) return
+    const alvo = new Set(selectedIds)
+    setTransactions((prev) => prev.map((t) => (alvo.has(t.id) ? { ...t, category: cat } : t)))
+    setRowSelection({})
+    const { error } = await supabase.from('transactions').update({ category: cat }).in('id', selectedIds)
+    if (error) setErro('Erro ao alterar categorias em massa: ' + error.message)
+  }
+
   const handleDashFilterClick = (cat: string) => {
     setFilter(cat === 'Sem categoria' ? 'sem' : cat)
     setSearch('')
@@ -323,6 +338,21 @@ export default function Fatura() {
               })}
             </div>
           </Card>
+          {isAdmin && selectedIds.length > 0 && (
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl border border-indigo-200 bg-indigo-50 flex-wrap">
+              <span className="text-sm font-semibold text-indigo-800 whitespace-nowrap">
+                {selectedIds.length} selecionado{selectedIds.length !== 1 ? 's' : ''}
+              </span>
+              <span className="text-sm text-slate-500 whitespace-nowrap">Mudar categoria para:</span>
+              <TagSelector value={null} categories={categorias} onChange={aplicarCategoriaEmMassa} onAddCategory={onAddCategoria} />
+              <button
+                onClick={() => setRowSelection({})}
+                className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-700 whitespace-nowrap"
+              >
+                Limpar seleção
+              </button>
+            </div>
+          )}
           <Card className="p-3">
             <DataTable
               tableKey="fatura-lancamentos"
@@ -330,6 +360,9 @@ export default function Fatura() {
               data={filtered}
               getRowId={(t) => t.id}
               empty="Nenhum lançamento encontrado."
+              enableSelection={isAdmin}
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
             />
           </Card>
         </>

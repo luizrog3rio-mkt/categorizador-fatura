@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
 import {
   useReactTable,
@@ -7,6 +7,8 @@ import {
   type ColumnDef,
   type Header,
   type Table as TanTable,
+  type RowSelectionState,
+  type OnChangeFn,
 } from '@tanstack/react-table'
 import {
   DndContext,
@@ -51,12 +53,17 @@ interface DataTableProps<T> {
   tableKey: string
   getRowId: (row: T) => string
   empty?: ReactNode
+  // seleção de linhas (opt-in): a coluna de checkbox vive FORA do columnOrder
+  // (sempre fixa à esquerda, fora do menu/reordenação). Controlada pela página.
+  enableSelection?: boolean
+  rowSelection?: RowSelectionState
+  onRowSelectionChange?: OnChangeFn<RowSelectionState>
 }
 
 const alignClasse = (a?: string) =>
   a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left'
 
-export default function DataTable<T>({ columns, data, tableKey, getRowId, empty }: DataTableProps<T>) {
+export default function DataTable<T>({ columns, data, tableKey, getRowId, empty, enableSelection, rowSelection, onRowSelectionChange }: DataTableProps<T>) {
   const prefs = useColumnPrefs(tableKey)
   const colMap = useMemo(() => new Map(columns.map((c) => [c.id, c])), [columns])
 
@@ -83,10 +90,13 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty 
       columnOrder: prefs.columnOrder,
       columnSizing: prefs.columnSizing,
       columnVisibility: prefs.columnVisibility,
+      rowSelection: rowSelection ?? {},
     },
     onColumnOrderChange: prefs.onColumnOrderChange,
     onColumnSizingChange: prefs.onColumnSizingChange,
     onColumnVisibilityChange: prefs.onColumnVisibilityChange,
+    onRowSelectionChange,
+    enableRowSelection: !!enableSelection,
     columnResizeMode: 'onChange',
     enableColumnResizing: true,
   })
@@ -127,6 +137,15 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty 
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-slate-200">
+                  {enableSelection && (
+                    <th className="bg-white px-3 py-3 align-middle" style={{ width: 44 }}>
+                      <IndeterminateCheckbox
+                        checked={table.getIsAllRowsSelected()}
+                        indeterminate={table.getIsSomeRowsSelected()}
+                        onChange={table.getToggleAllRowsSelectedHandler()}
+                      />
+                    </th>
+                  )}
                   <SortableContext items={ordemIds} strategy={horizontalListSortingStrategy}>
                     {hg.headers.map((header) => (
                       <CabecalhoCelula
@@ -142,7 +161,16 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty 
             </thead>
             <tbody>
               {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <tr key={row.id} className={`border-b border-slate-100 ${row.getIsSelected() ? 'bg-indigo-50/60' : 'hover:bg-slate-50'}`}>
+                  {enableSelection && (
+                    <td className="px-3 py-2.5 align-middle" style={{ width: 44 }}>
+                      <IndeterminateCheckbox
+                        checked={row.getIsSelected()}
+                        disabled={!row.getCanSelect()}
+                        onChange={row.getToggleSelectedHandler()}
+                      />
+                    </td>
+                  )}
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
@@ -156,7 +184,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty 
               ))}
               {table.getRowModel().rows.length === 0 && (
                 <tr>
-                  <td colSpan={table.getVisibleLeafColumns().length} className="text-center py-10 text-slate-400 text-sm">
+                  <td colSpan={table.getVisibleLeafColumns().length + (enableSelection ? 1 : 0)} className="text-center py-10 text-slate-400 text-sm">
                     {empty ?? 'Nada por aqui.'}
                   </td>
                 </tr>
@@ -165,6 +193,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty 
             {temFooter && table.getRowModel().rows.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-slate-200 bg-slate-50">
+                  {enableSelection && <td style={{ width: 44 }} />}
                   {table.getVisibleLeafColumns().map((col) => {
                     const dc = colMap.get(col.id)
                     return (
@@ -184,6 +213,29 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty 
         </DndContext>
       </div>
     </div>
+  )
+}
+
+// checkbox com estado "indeterminate" (parcial) — só setável via property, não atributo
+function IndeterminateCheckbox({ checked, indeterminate, onChange, disabled }: {
+  checked: boolean
+  indeterminate?: boolean
+  onChange: (e: unknown) => void
+  disabled?: boolean
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !checked && !!indeterminate
+  }, [checked, indeterminate])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={onChange}
+      className="cursor-pointer accent-indigo-600 align-middle disabled:cursor-not-allowed disabled:opacity-40"
+    />
   )
 }
 
