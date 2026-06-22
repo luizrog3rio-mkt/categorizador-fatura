@@ -7,6 +7,7 @@ import { corDaCategoria } from '../lib/fatura'
 import type { Account, Category, Entry, EntryType, EntryStatus } from '../lib/types'
 import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
+import type { RowSelectionState } from '@tanstack/react-table'
 import DateRangePicker from '../components/DateRangePicker'
 
 // Etapa 4 — Contas a Pagar/Receber. Port do Lancamentos.tsx do rb7 adaptado
@@ -137,6 +138,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const [form, setForm] = useState<FormState>(formVazio(''))
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // import
   const [importAberto, setImportAberto] = useState(false)
@@ -470,6 +472,61 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
 
   const ehPagar = tipo === 'payable'
 
+  // ── seleção em massa (só conta os marcados que estão VISÍVEIS; respeita filtro/busca) ──
+  const idsVisiveis = new Set(lancamentosExibidos.map((l) => l.id))
+  const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id] && idsVisiveis.has(id))
+  const selectedEntries = lancamentosExibidos.filter((l) => rowSelection[l.id])
+
+  const aplicarCategoriaEmMassa = async (categoryId: string | null) => {
+    if (selectedIds.length === 0) return
+    const { error } = await supabase.from('entries').update({ category_id: categoryId }).in('id', selectedIds)
+    if (error) { setErro('Erro ao alterar categorias em massa: ' + error.message); return }
+    setRowSelection({})
+    carregar()
+  }
+
+  // espelha as transições individuais: "pago" grava a data de hoje e, para os
+  // recorrentes, gera o lançamento do próximo mês (inserirProximoMes é idempotente)
+  const aplicarStatusEmMassa = async (novoStatus: EntryStatus) => {
+    if (selectedEntries.length === 0) return
+    const n = selectedEntries.length
+    if (novoStatus === 'paid') {
+      const recorrentes = selectedEntries.filter((l) => l.is_recurring && l.status !== 'paid')
+      const palavra = ehPagar ? 'pago' : 'recebido'
+      const aviso =
+        `Marcar ${n} ${n === 1 ? 'lançamento' : 'lançamentos'} como ${palavra}${n === 1 ? '' : 's'} com a data de hoje?` +
+        (recorrentes.length
+          ? `\n\n${recorrentes.length} ${recorrentes.length === 1 ? 'é recorrente e vai gerar' : 'são recorrentes e vão gerar'} o lançamento do próximo mês.`
+          : '')
+      if (!window.confirm(aviso)) return
+      const { error } = await supabase.from('entries').update({ status: 'paid', payment_date: hoje() }).in('id', selectedIds)
+      if (error) { setErro('Erro ao marcar como pago em massa: ' + error.message); return }
+      const errs = await Promise.all(
+        recorrentes.map((l) =>
+          inserirProximoMes({
+            company_id: l.company_id,
+            account_id: l.account_id ?? null,
+            category_id: l.category_id ?? null,
+            type: l.type,
+            description: l.description,
+            amount: Number(l.amount),
+            due_date: l.due_date,
+            counterparty: l.counterparty ?? null,
+            notes: l.notes ?? null,
+            recurrence_day: l.recurrence_day,
+          })
+        )
+      )
+      const falhas = errs.filter(Boolean).length
+      if (falhas) setErro(`Marcados como ${palavra}s, mas ${falhas} recorrência(s) do próximo mês falharam.`)
+    } else {
+      const { error } = await supabase.from('entries').update({ status: novoStatus }).in('id', selectedIds)
+      if (error) { setErro('Erro ao alterar status em massa: ' + error.message); return }
+    }
+    setRowSelection({})
+    carregar()
+  }
+
   const colunas = useMemo<DataColumn<Entry>[]>(() => [
     { id: 'description', header: 'Descrição', size: 240, cell: (l) => (
       <div>
@@ -601,6 +658,43 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         </div>
       </Card>
 
+      {isAdmin && selectedIds.length > 0 && (
+        <div className="flex items-center gap-3 mb-4 p-3 rounded-xl border border-indigo-200 bg-indigo-50 flex-wrap">
+          <span className="text-sm font-semibold text-indigo-800 whitespace-nowrap">
+            {selectedIds.length} selecionado{selectedIds.length !== 1 ? 's' : ''}
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-500">Categoria:</span>
+            <select
+              value=""
+              onChange={(e) => { const v = e.target.value; if (v) aplicarCategoriaEmMassa(v === '__none__' ? null : v) }}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="" disabled>Escolher…</option>
+              <option value="__none__">Sem categoria</option>
+              {categorias.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-500">Status:</span>
+            <select
+              value=""
+              onChange={(e) => { const v = e.target.value as EntryStatus | ''; if (v) aplicarStatusEmMassa(v) }}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="" disabled>Escolher…</option>
+              <option value="to_pay">{ehPagar ? 'A pagar' : 'A receber'}</option>
+              <option value="pending">Pendente</option>
+              <option value="paid">{ehPagar ? 'Pago' : 'Recebido'}</option>
+              <option value="cancelled">Cancelado</option>
+            </select>
+          </div>
+          <button onClick={() => setRowSelection({})} className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-700 whitespace-nowrap">
+            Limpar seleção
+          </button>
+        </div>
+      )}
+
       <Card>
         {lancamentosExibidos.length === 0 ? (
           <Vazio mensagem={busca && lancamentos.length > 0 ? 'Nenhum lançamento para essa busca.' : 'Nenhum lançamento encontrado.'} />
@@ -610,6 +704,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             columns={colunas}
             data={lancamentosExibidos}
             getRowId={(l) => l.id}
+            enableSelection={isAdmin}
+            rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
           />
         )}
       </Card>
