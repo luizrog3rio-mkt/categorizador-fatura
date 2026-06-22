@@ -39,6 +39,26 @@ export interface Account {
   created_at: string
 }
 
+// retornos das RPCs de saldo (account_balances / account_ledger)
+export interface AccountBalance {
+  account_id: string
+  name: string
+  type: AccountType
+  initial_balance: number
+  movimento: number
+  saldo: number
+  fonte: 'ofx' | 'entries' | 'inicial'
+}
+
+export interface AccountLedgerRow {
+  data: string
+  descricao: string | null
+  amount: number
+  saldo_acumulado: number
+  fonte: 'ofx' | 'entries'
+  origem_id: string
+}
+
 export interface Entry {
   id: string
   company_id: string

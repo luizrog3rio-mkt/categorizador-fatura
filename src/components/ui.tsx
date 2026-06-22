@@ -93,17 +93,20 @@ export function Modal({
   aberto,
   onFechar,
   children,
+  largura = 'lg',
 }: {
   titulo: string
   aberto: boolean
   onFechar: () => void
   children: ReactNode
+  largura?: 'lg' | '2xl' | '4xl'
 }) {
   if (!aberto) return null
+  const maxW = largura === '4xl' ? 'max-w-4xl' : largura === '2xl' ? 'max-w-2xl' : 'max-w-lg'
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onFechar} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className={`relative bg-white rounded-2xl shadow-xl w-full ${maxW} max-h-[90vh] overflow-y-auto`}>
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h3 className="font-semibold text-slate-800">{titulo}</h3>
           <button onClick={onFechar} className="text-slate-400 hover:text-slate-600 text-xl leading-none">

@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Plus, Pencil, Landmark, CreditCard, ArrowLeftRight } from 'lucide-react'
+import { Plus, Pencil, Landmark, CreditCard, ArrowLeftRight, Receipt } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
-import { fmtBRL } from '../lib/format'
-import type { Account, AccountType } from '../lib/types'
-import { Card, PageHeader, Modal, Vazio, ErroBanner, inputCls, btnPrimario } from '../components/ui'
+import { fmtBRL, fmtData, primeiroDiaMes, ultimoDiaMes } from '../lib/format'
+import type { Account, AccountType, AccountBalance, AccountLedgerRow } from '../lib/types'
+import { Card, PageHeader, Modal, Vazio, ErroBanner, Badge, inputCls, btnPrimario } from '../components/ui'
+import DataTable, { type DataColumn } from '../components/DataTable'
 
 interface ContaComSaldo extends Account {
   saldo: number
+  fonte: 'ofx' | 'entries' | 'inicial'
+}
+
+const FONTE_LABEL: Record<ContaComSaldo['fonte'], { txt: string; cor: string }> = {
+  ofx: { txt: 'Extrato', cor: '#2563eb' },
+  entries: { txt: 'Lançamentos', cor: '#64748b' },
+  inicial: { txt: 'Só saldo inicial', cor: '#b45309' },
 }
 
 const icones: Record<AccountType, typeof Landmark> = {
@@ -45,33 +53,18 @@ export default function Contas() {
     if (error) { setErro('Erro ao carregar contas: ' + error.message); return }
     if (!cts) { setContas([]); return }
 
-    const ids = cts.map((c) => c.id)
-    const { data: ofx, error: eOfx } = await supabase
-      .from('bank_transactions').select('account_id, amount').in('account_id', ids)
-    const { data: lanc, error: eLanc } = await supabase
-      .from('entries').select('account_id, type, amount').eq('status', 'paid').in('account_id', ids)
-    if (eOfx || eLanc) {
-      setErro('Erro ao calcular saldos (mostrando só o saldo inicial): ' + (eOfx?.message ?? eLanc?.message))
-    }
-
-    const somaOfx = new Map<string, number>()
-    ofx?.forEach((t) => somaOfx.set(t.account_id, (somaOfx.get(t.account_id) ?? 0) + Number(t.amount)))
-    const somaLanc = new Map<string, number>()
-    lanc?.forEach((l) => {
-      const v = l.type === 'payable' ? -Number(l.amount) : Number(l.amount)
-      somaLanc.set(l.account_id, (somaLanc.get(l.account_id) ?? 0) + v)
-    })
+    // saldo vem do banco (RPC) — a regra OFX-XOR-lançamentos-pagos roda lá dentro,
+    // sem o bug do .in() que truncava em 1000 linhas no cliente.
+    const { data: bal, error: eBal } = await supabase.rpc('account_balances', { p_company: escopoEmpresa ?? null })
+    if (eBal) setErro('Erro ao calcular saldos (mostrando só o saldo inicial): ' + eBal.message)
+    const saldos = new Map<string, { saldo: number; fonte: ContaComSaldo['fonte'] }>()
+    ;(bal as AccountBalance[] | null)?.forEach((b) => saldos.set(b.account_id, { saldo: Number(b.saldo), fonte: b.fonte }))
 
     setContas(
       cts.map((c: Account) => ({
         ...c,
-        // conta corrente: se há OFX importado, ele é a fonte da verdade; senão lançamentos.
-        // cartão/inter-empresa: NUNCA usa a regra do OFX (fatura não passa por bank_transactions)
-        saldo:
-          Number(c.initial_balance) +
-          (c.type === 'checking' && somaOfx.has(c.id)
-            ? somaOfx.get(c.id)!
-            : somaLanc.get(c.id) ?? 0),
+        saldo: saldos.get(c.id)?.saldo ?? Number(c.initial_balance),
+        fonte: saldos.get(c.id)?.fonte ?? 'inicial',
       }))
     )
   }, [empresaAtiva, filtroEmpresa])
@@ -113,6 +106,42 @@ export default function Contas() {
   const filtroEmpresaVisivel = filtroEmpresa && filtroEmpresa !== empresaAtiva?.id ? filtroEmpresa : ''
   const temFiltro = !!(filtroTipo || filtroAtivo || filtroEmpresaVisivel)
   const limparFiltros = () => { setFiltroTipo(''); setFiltroAtivo(''); setFiltroEmpresa('') }
+
+  // ── extrato por conta (Modal com saldo acumulado) ──────────────────────────
+  const [ledgerConta, setLedgerConta] = useState<ContaComSaldo | null>(null)
+  const [ledgerDe, setLedgerDe] = useState(primeiroDiaMes())
+  const [ledgerAte, setLedgerAte] = useState(ultimoDiaMes())
+  const [ledger, setLedger] = useState<AccountLedgerRow[]>([])
+  const [ledgerLoading, setLedgerLoading] = useState(false)
+
+  // busca imperativa (não via effect) pra não somar warning de set-state-in-effect
+  const carregarLedger = useCallback(async (conta: ContaComSaldo, de: string, ate: string) => {
+    setLedgerLoading(true)
+    const { data, error } = await supabase.rpc('account_ledger', { p_account: conta.id, p_start: de || null, p_end: ate || null })
+    if (error) setErro('Erro ao carregar extrato: ' + error.message)
+    setLedger(((data as AccountLedgerRow[] | null) ?? []).map((r) => ({ ...r, amount: Number(r.amount), saldo_acumulado: Number(r.saldo_acumulado) })))
+    setLedgerLoading(false)
+  }, [])
+
+  const abrirExtrato = (c: ContaComSaldo) => {
+    const de = primeiroDiaMes(), ate = ultimoDiaMes()
+    setLedgerConta(c); setLedgerDe(de); setLedgerAte(ate); setLedger([])
+    carregarLedger(c, de, ate)
+  }
+  const mudarPeriodo = (de: string, ate: string) => {
+    setLedgerDe(de); setLedgerAte(ate)
+    if (ledgerConta) carregarLedger(ledgerConta, de, ate)
+  }
+
+  const ledgerCols = useMemo<DataColumn<AccountLedgerRow>[]>(() => [
+    { id: 'data', header: 'Data', size: 110, cell: (r) => <span className="text-slate-600 whitespace-nowrap">{fmtData(r.data)}</span> },
+    { id: 'descricao', header: 'Descrição', size: 340, cell: (r) => <span className="text-slate-700">{r.descricao || '—'}</span> },
+    { id: 'amount', header: 'Valor', size: 130, align: 'right',
+      cell: (r) => <span className={`font-medium tabular-nums ${r.amount < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{fmtBRL(r.amount)}</span> },
+    { id: 'saldo', header: 'Saldo acumulado', size: 160, align: 'right',
+      cell: (r) => <span className="font-semibold tabular-nums text-slate-800">{fmtBRL(r.saldo_acumulado)}</span>,
+      footer: ledger.length ? <span className="font-bold text-slate-800">{fmtBRL(ledger[ledger.length - 1].saldo_acumulado)}</span> : undefined },
+  ], [ledger])
 
   return (
     <div>
@@ -198,6 +227,12 @@ export default function Contas() {
                 <p className={`text-2xl font-bold mt-4 ${c.saldo < 0 ? 'text-red-600' : 'text-slate-800'}`}>
                   {fmtBRL(c.saldo)}
                 </p>
+                <div className="flex items-center justify-between mt-2">
+                  <Badge cor={FONTE_LABEL[c.fonte].cor}>{FONTE_LABEL[c.fonte].txt}</Badge>
+                  <button onClick={() => abrirExtrato(c)} className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                    <Receipt size={13} /> Ver extrato
+                  </button>
+                </div>
                 {c.type === 'inter_company' && (
                   <p className="text-xs text-slate-400 mt-1">
                     Saldo do empréstimo entre empresas (consultável)
@@ -265,6 +300,33 @@ export default function Contas() {
           </label>
           <button type="submit" className={btnPrimario + ' w-full justify-center'}>Salvar</button>
         </form>
+      </Modal>
+
+      {/* Modal: extrato da conta com saldo acumulado */}
+      <Modal titulo={`Extrato — ${ledgerConta?.name ?? ''}`} aberto={!!ledgerConta} onFechar={() => setLedgerConta(null)} largura="4xl">
+        <div className="flex flex-wrap items-end gap-3 mb-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">De</label>
+            <input type="date" className={inputCls} value={ledgerDe} onChange={(e) => mudarPeriodo(e.target.value, ledgerAte)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Até</label>
+            <input type="date" className={inputCls} value={ledgerAte} onChange={(e) => mudarPeriodo(ledgerDe, e.target.value)} />
+          </div>
+          {ledgerConta && (
+            <div className="ml-auto text-right">
+              <p className="text-xs text-slate-400 uppercase">Saldo atual</p>
+              <p className={`text-lg font-bold ${ledgerConta.saldo < 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmtBRL(ledgerConta.saldo)}</p>
+            </div>
+          )}
+        </div>
+        {ledgerLoading ? (
+          <Vazio mensagem="Carregando…" />
+        ) : ledger.length === 0 ? (
+          <Vazio mensagem={ledgerConta?.fonte === 'inicial' ? 'Sem movimentações — só o saldo inicial. Importe um OFX (Extratos) ou marque lançamentos como pagos com esta conta.' : 'Nenhuma movimentação no período.'} />
+        ) : (
+          <DataTable tableKey="account-ledger" columns={ledgerCols} data={ledger} getRowId={(r) => r.origem_id} />
+        )}
       </Modal>
     </div>
   )
