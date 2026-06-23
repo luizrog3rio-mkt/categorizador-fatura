@@ -82,6 +82,11 @@ export interface Entry {
   type: EntryType
   description: string
   amount: number
+  // encargos/desconto do pagamento (magnitude >= 0; default 0). Valor pago/recebido =
+  // amount + interest + fine - discount. Sinal de caixa vem do type, como o amount.
+  interest_amount: number // juros de mora
+  fine_amount: number     // multa
+  discount_amount: number // desconto
   issue_date: string | null
   due_date: string
   payment_date: string | null
