@@ -27,6 +27,9 @@ interface FormState {
   category_id: string
   description: string
   amount: string
+  interest: string
+  fine: string
+  discount: string
   issue_date: string
   due_date: string
   payment_date: string
@@ -45,6 +48,9 @@ const formVazio = (companyId: string): FormState => ({
   category_id: '',
   description: '',
   amount: '',
+  interest: '',
+  fine: '',
+  discount: '',
   issue_date: hoje(),
   due_date: hoje(),
   payment_date: '',
@@ -72,6 +78,9 @@ function mapColunas(headers: string[]) {
     if (['observacoes', 'notes', 'obs'].includes(k)) idx.notes = i
     if (['status'].includes(k)) idx.status = i
     if (['recorrente', 'recurring'].includes(k)) idx.recurring = i
+    if (['juros', 'interest'].includes(k)) idx.interest = i
+    if (['multa', 'fine', 'penalty'].includes(k)) idx.fine = i
+    if (['desconto', 'discount'].includes(k)) idx.discount = i
   })
   return idx
 }
@@ -115,6 +124,14 @@ function parseValor(val: string): number {
   }
   return parseFloat(v) || 0
 }
+
+// parse de campo do form (vírgula ou ponto decimal); vazio = 0
+const num = (s: string) => parseFloat((s ?? '').replace(',', '.')) || 0
+
+// valor efetivamente pago/recebido (amount + juros + multa − desconto). Os encargos
+// só são preenchidos no pagamento, então até lá isto é igual ao amount.
+const valorPago = (l: Entry) =>
+  Number(l.amount) + Number(l.interest_amount) + Number(l.fine_amount) - Number(l.discount_amount)
 
 const STATUS_MAP: Record<string, EntryStatus> = {
   'a pagar': 'to_pay', 'a receber': 'to_pay', 'to_pay': 'to_pay',
@@ -189,6 +206,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       category_id: l.category_id ?? '',
       description: l.description,
       amount: String(l.amount),
+      interest: l.interest_amount ? String(l.interest_amount) : '',
+      fine: l.fine_amount ? String(l.fine_amount) : '',
+      discount: l.discount_amount ? String(l.discount_amount) : '',
       issue_date: l.issue_date ?? '',
       due_date: l.due_date,
       payment_date: l.payment_date ?? '',
@@ -263,6 +283,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       type: tipo,
       description: form.description,
       amount: parseFloat(form.amount.replace(',', '.')),
+      interest_amount: num(form.interest),
+      fine_amount: num(form.fine),
+      discount_amount: num(form.discount),
       issue_date: form.issue_date || null,
       due_date: form.due_date,
       payment_date,
@@ -379,6 +402,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         description: r[idx.description].trim(),
         amount: parseValor(r[idx.amount] ?? ''),
         due_date: parseData(r[idx.due_date] ?? ''),
+        interest_amount: idx.interest !== undefined ? parseValor(r[idx.interest] ?? '') : 0,
+        fine_amount: idx.fine !== undefined ? parseValor(r[idx.fine] ?? '') : 0,
+        discount_amount: idx.discount !== undefined ? parseValor(r[idx.discount] ?? '') : 0,
         issue_date: idx.issue_date !== undefined ? parseData(r[idx.issue_date] ?? '') || null : null,
         counterparty: idx.counterparty !== undefined ? r[idx.counterparty]?.trim() || null : null,
         category_id: idx.category !== undefined ? catByName(r[idx.category] ?? '') : null,
@@ -413,8 +439,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
 
   const downloadTemplate = useCallback(() => {
     const ehPagar = tipo === 'payable'
-    const cols = ['Descrição', 'Valor', 'Vencimento', 'Emissão', ehPagar ? 'Fornecedor' : 'Cliente', 'Categoria', 'Conta', 'Observações', 'Recorrente']
-    const ex = ['Aluguel escritório', '2500,00', '2026-07-10', '2026-07-01', 'João Imóveis', 'Despesas Fixas', 'Conta Corrente', 'Mensalidade', 'sim']
+    const cols = ['Descrição', 'Valor', 'Vencimento', 'Emissão', ehPagar ? 'Fornecedor' : 'Cliente', 'Categoria', 'Conta', 'Observações', 'Recorrente', 'Juros', 'Multa', 'Desconto']
+    const ex = ['Aluguel escritório', '2500,00', '2026-07-10', '2026-07-01', 'João Imóveis', 'Despesas Fixas', 'Conta Corrente', 'Mensalidade', 'sim', '', '', '']
     const csv = [cols.join(';'), ex.join(';')].join('\r\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -444,7 +470,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const totais = useMemo(() => ({
     aPagar: lancamentosExibidos.filter((l) => l.status === 'to_pay').reduce((s, l) => s + Number(l.amount), 0),
     pendente: lancamentosExibidos.filter((l) => l.status === 'pending').reduce((s, l) => s + Number(l.amount), 0),
-    pago: lancamentosExibidos.filter((l) => l.status === 'paid').reduce((s, l) => s + Number(l.amount), 0),
+    // "Pago/Recebido" = caixa que de fato moveu (com juros/multa/desconto)
+    pago: lancamentosExibidos.filter((l) => l.status === 'paid').reduce((s, l) => s + valorPago(l), 0),
   }), [lancamentosExibidos])
 
   // total da coluna Valor (rodapé da tabela): exclui cancelados (anulados não
@@ -541,7 +568,19 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     { id: 'issue_date', header: 'Emissão', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.issue_date)}</span> },
     { id: 'due_date', header: 'Vencimento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.due_date)}</span> },
     { id: 'payment_date', header: 'Pagamento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.payment_date)}</span> },
-    { id: 'amount', header: 'Valor', size: 120, align: 'right', cell: (l) => <span className="font-semibold">{fmtBRL(Number(l.amount))}</span>, footer: fmtBRL(totalValor) },
+    { id: 'amount', header: 'Valor', size: 120, align: 'right', cell: (l) => {
+      const temEncargo = Number(l.interest_amount) + Number(l.fine_amount) + Number(l.discount_amount) !== 0
+      return (
+        <div>
+          <span className="font-semibold">{fmtBRL(Number(l.amount))}</span>
+          {temEncargo && (
+            <p className="text-xs text-slate-400" title="Juros + multa − desconto">
+              {ehPagar ? 'pago' : 'receb.'} {fmtBRL(valorPago(l))}
+            </p>
+          )}
+        </div>
+      )
+    }, footer: fmtBRL(totalValor) },
     { id: 'status', header: 'Status', size: 130, cell: (l) => <StatusBadge status={l.status} tipo={tipo} /> },
     { id: 'acoes', header: '', label: 'Ações', size: 120, align: 'right', enableHiding: false, cell: (l) => (
       <div className="flex gap-2 justify-end">
@@ -774,6 +813,31 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <input className={inputCls} value={form.counterparty} onChange={(e) => setForm({ ...form, counterparty: e.target.value })} />
             </div>
             <div className="col-span-2">
+              <p className="text-sm font-medium mb-1">Encargos e desconto <span className="font-normal text-slate-400">(no pagamento)</span></p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Juros (R$)</label>
+                  <input inputMode="decimal" className={inputCls} value={form.interest} onChange={(e) => setForm({ ...form, interest: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Multa (R$)</label>
+                  <input inputMode="decimal" className={inputCls} value={form.fine} onChange={(e) => setForm({ ...form, fine: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Desconto (R$)</label>
+                  <input inputMode="decimal" className={inputCls} value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
+                </div>
+              </div>
+              {(num(form.interest) || num(form.fine) || num(form.discount)) ? (
+                <p className="text-xs text-slate-500 mt-1.5">
+                  {ehPagar ? 'Valor a pagar' : 'Valor a receber'}:{' '}
+                  <span className="font-semibold text-slate-700">
+                    {fmtBRL(num(form.amount) + num(form.interest) + num(form.fine) - num(form.discount))}
+                  </span>
+                </p>
+              ) : null}
+            </div>
+            <div className="col-span-2">
               <label className="block text-sm font-medium mb-1">Observações</label>
               <textarea rows={2} className={inputCls} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
@@ -804,7 +868,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
           <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 leading-relaxed">
             <p className="font-semibold text-slate-800 mb-1">Colunas reconhecidas no cabeçalho (case insensitive):</p>
             <p><span className="font-medium text-slate-700">Obrigatórias:</span> Descrição · Valor · Vencimento</p>
-            <p><span className="font-medium text-slate-700">Opcionais:</span> Emissão · {ehPagar ? 'Fornecedor' : 'Cliente'} · Categoria · Conta · Observações · Status · Recorrente</p>
+            <p><span className="font-medium text-slate-700">Opcionais:</span> Emissão · {ehPagar ? 'Fornecedor' : 'Cliente'} · Categoria · Conta · Observações · Status · Recorrente · Juros · Multa · Desconto</p>
             <p className="mt-1.5 text-slate-400">Datas: DD/MM/AAAA ou AAAA-MM-DD · Valores: vírgula ou ponto decimal · Recorrente: sim/não</p>
           </div>
           <div className="flex items-center justify-between">
