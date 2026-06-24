@@ -96,14 +96,34 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
 
 ## Convenções
 
+- **Design system "Razão Calma"** (redesign 2026-06-24): tokens semânticos em
+  `src/index.css` via `@theme` do Tailwind 4 — **cor só com função**: `bg-brand`/
+  `text-brand` (ação, azul cobalto), `text-revenue`/`bg-revenue-bg` (entrada,
+  verde), `text-expense`/`bg-expense-bg` (saída/atraso, vinho), `text-warning`/
+  `bg-warning-bg` (pendente/alerta, âmbar); estrutura em `canvas`/`surface`/
+  `surface-2`/`border`/`border-strong`/`fg`/`fg-muted`/`fg-subtle`. Mais
+  `--radius-control/card/modal`, `--shadow-card/pop` e `@utility tnum` (números
+  tabulares em TODO valor financeiro). Fontes **Geist + Geist Mono**
+  (`@fontsource-variable/*`, importadas no `main.tsx`; a Mono é a assinatura dos
+  números do hero). **Não usar mais `slate-`/`indigo-`/`green-`/`red-`/`amber-`
+  cru — usar os tokens.** Primitivos novos em `src/components/ui.tsx`: `KPICard`/
+  `KPIStrip` (faixa de KPIs), `Button` (primary/secondary/danger/ghost), `Alert`
+  (info/success/warning/danger), `Badge`/`StatusBadge` por `tom` semântico — o
+  `Badge cor={hex}` legado segue **só** p/ identidade de categoria/natureza
+  (preservar). `btnPrimario`/`btnSecundario` viraram alias-string tokenizados.
+  Sidebar (`Layout.tsx`) clara, 7 grupos por domínio. **Gotcha Tailwind 4:** um
+  `*/` dentro de comentário no `index.css` fecha o comentário cedo e derruba o
+  `@theme` inteiro (silencioso, sem erro óbvio) — nunca escrever `bg-*/text-*`
+  em comentário.
 - Env: `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` (chaves novas
   `sb_publishable_`/`sb_secret_`; as JWT legadas estão **desabilitadas** — não
   reativar). `.env.example` na raiz.
 - `npm run dev` → localhost:5173 · `npm run build` (tsc strict + vite) ·
-  `npm run lint` (0 errors; os 19 warnings conscientes = 17 fetch-on-mount + 2 da
+  `npm run lint` (0 errors; os 23 warnings conscientes = 21 fetch-on-mount + 2 da
   DataTable: o load-on-mount do useColumnPrefs e o react-compiler "incompatible
   library" das libs de tabela — ver eslint.config.js). Cada página nova com o
-  padrão `useEffect(() => { carregar() }, [carregar])` soma 1 fetch-on-mount.
+  padrão `useEffect(() => { carregar() }, [carregar])` soma 1 fetch-on-mount (as
+  4 telas novas da DRE levaram o total de 17→21).
 - `xlsx` vem do tarball oficial do SheetJS (cdn.sheetjs.com) — o pacote do npm
   está abandonado com CVE; não trocar de volta.
 - PowerShell 5.1: mensagem de `git commit` via here-string `@'...'@` **não

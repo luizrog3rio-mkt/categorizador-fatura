@@ -6,7 +6,6 @@ import {
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
-import { vendaAprovada } from '../lib/hotmart'
 import { CAT_CHART_COLORS, fmt, valorComSinal } from '../lib/fatura'
 import type { Entry, HotmartSale, Invoice } from '../lib/types'
 import { Card, PageHeader, StatusBadge, ErroBanner, KPICard, KPIStrip } from '../components/ui'
@@ -30,6 +29,7 @@ export default function Dashboard() {
   const [lancamentos, setLancamentos] = useState<Entry[]>([])
   const [vendas, setVendas] = useState<HotmartSale[]>([])
   const [hotmartMesNet, setHotmartMesNet] = useState(0)
+  const [aLiberar, setALiberar] = useState(0)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [txs, setTxs] = useState<TxLite[]>([])
   const [categorias, setCategorias] = useState<CatRow[]>([])
@@ -70,6 +70,13 @@ export default function Dashboard() {
     })
     if (e6) erros.push('hotmart totais: ' + e6.message)
     setHotmartMesNet(Number(ht?.[0]?.liquido ?? 0))
+
+    // ── Hotmart a liberar (release_date futura) via RPC — agregado no banco ──
+    const { data: al, error: e7 } = await supabase.rpc('hotmart_a_liberar', {
+      p_company: empresaAtiva?.id ?? null,
+    })
+    if (e7) erros.push('hotmart a liberar: ' + e7.message)
+    setALiberar(Number(al ?? 0))
 
     // ── cartão: dados reais (faturas/transações vivas) ──
     const { data: invs, error: e3 } = await supabase.from('invoices').select('*').order('imported_at', { ascending: false })
@@ -119,9 +126,8 @@ export default function Dashboard() {
     const aReceber = doMes.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
     const aPagar = doMes.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
     const atrasados = lancamentos.filter((l) => (l.status === 'to_pay' || l.status === 'pending') && l.due_date < hoje()).reduce((s, l) => s + Number(l.amount), 0)
-    const aLiberar = vendas.filter((v) => v.release_date && v.release_date >= hoje() && vendaAprovada(v.status)).reduce((s, v) => s + Number(v.net_amount), 0)
-    return { aReceber, aPagar, atrasados, aLiberar }
-  }, [lancamentos, vendas, mesAtual])
+    return { aReceber, aPagar, atrasados }
+  }, [lancamentos, mesAtual])
 
   // ── hero: resultado projetado do mês (entradas − saídas) ──
   const entradas = hotmartMesNet + kpis.aReceber
@@ -176,7 +182,7 @@ export default function Dashboard() {
           <div className="flex flex-col justify-center md:border-l md:border-border md:pl-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">A liberar · Hotmart</p>
             <p className="mt-1 font-mono font-semibold tracking-tight tnum text-3xl text-brand">
-              {fmtBRL(kpis.aLiberar)}
+              {fmtBRL(aLiberar)}
             </p>
             <p className="mt-1 text-xs text-fg-subtle">previsibilidade de saque</p>
           </div>
