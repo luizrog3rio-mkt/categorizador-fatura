@@ -20,6 +20,7 @@ import {
   Tag,
   Lock,
   ArrowLeftRight,
+  Shuffle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -54,7 +55,10 @@ const grupos: Grupo[] = [
   },
   {
     titulo: 'Receitas & Vendas',
-    itens: [{ to: '/hotmart', rotulo: 'Hotmart', icone: ShoppingCart }],
+    itens: [
+      { to: '/hotmart', rotulo: 'Hotmart', icone: ShoppingCart },
+      { to: '/produtos-hotmart', rotulo: 'Produtos Hotmart', icone: Shuffle },
+    ],
   },
   {
     titulo: 'DRE & Relatórios',

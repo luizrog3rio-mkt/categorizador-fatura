@@ -236,7 +236,15 @@ export interface ChartOfAccount {
   is_analytical: boolean
   sort_order: number
   active: boolean
+  rateio_por_produto?: boolean
   parent?: ChartOfAccount | null
+}
+
+// De-para SKU cru do Hotmart → produto da DRE (dre_products). Usado na DRE por produto.
+export interface HotmartProductMap {
+  product: string
+  dre_product_id: string | null
+  updated_at?: string
 }
 
 export interface DreProduct {
