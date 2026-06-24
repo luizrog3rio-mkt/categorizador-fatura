@@ -111,12 +111,12 @@ export default function Categorias() {
 
       <ErroBanner mensagem={erro} />
 
-      <div className="inline-flex bg-slate-100 rounded-lg p-1 mb-6">
+      <div className="inline-flex bg-canvas rounded-control p-1 mb-6">
         {([['transacao', 'Transações'], ['compra', 'Compras']] as [Vocab, string][]).map(([v, label]) => (
           <button
             key={v}
             onClick={() => setVocab(v)}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${vocab === v ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}
+            className={`px-4 py-1.5 rounded-control text-sm font-medium transition ${vocab === v ? 'bg-surface shadow-card text-fg' : 'text-fg-muted'}`}
           >
             {label}
           </button>
@@ -132,7 +132,7 @@ export default function Categorias() {
               const cor = corDaCategoria(c.color_index)
               const n = uso[c.name] ?? 0
               return (
-                <div key={c.id} className="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-3 py-2.5">
+                <div key={c.id} className="flex items-center justify-between gap-2 border border-border rounded-card px-3 py-2.5">
                   <div className="flex items-center gap-2 min-w-0">
                     <span
                       className="inline-block px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
@@ -140,17 +140,17 @@ export default function Categorias() {
                     >
                       {c.name}
                     </span>
-                    <span className="text-xs text-slate-400 whitespace-nowrap">{n > 0 ? `${n} uso${n !== 1 ? 's' : ''}` : 'sem uso'}</span>
+                    <span className="text-xs text-fg-subtle whitespace-nowrap">{n > 0 ? `${n} uso${n !== 1 ? 's' : ''}` : 'sem uso'}</span>
                     {vocab === 'transacao' && (
-                      <span className={`text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap ${c.dre_group ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
+                      <span className={`text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap ${c.dre_group ? 'bg-canvas text-fg-muted' : 'bg-warning-bg text-warning border border-warning'}`}>
                         {c.dre_group ?? 'sem grupo DRE'}
                       </span>
                     )}
                   </div>
                   {isAdmin && (
                   <div className="flex items-center gap-1 shrink-0">
-                    <button title="Editar" onClick={() => abrirEdicao(c)} className="text-slate-400 hover:text-indigo-600 p-1"><Pencil size={15} /></button>
-                    <button title="Excluir" onClick={() => excluir(c)} className="text-slate-400 hover:text-red-600 p-1"><Trash2 size={15} /></button>
+                    <button title="Editar" onClick={() => abrirEdicao(c)} className="text-fg-subtle hover:text-brand p-1"><Pencil size={15} /></button>
+                    <button title="Excluir" onClick={() => excluir(c)} className="text-fg-subtle hover:text-expense p-1"><Trash2 size={15} /></button>
                   </div>
                   )}
                 </div>
@@ -174,7 +174,7 @@ export default function Categorias() {
                   key={i}
                   type="button"
                   onClick={() => setForm({ ...form, colorIndex: i })}
-                  className={`w-8 h-8 rounded-full transition ${form.colorIndex === i ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`}
+                  className={`w-8 h-8 rounded-full transition ${form.colorIndex === i ? 'ring-2 ring-offset-2 ring-border-strong' : ''}`}
                   style={{ background: cor.bg, border: `2px solid ${cor.border}` }}
                   title={`Cor ${i + 1}`}
                 />
@@ -188,11 +188,11 @@ export default function Categorias() {
                 <option value="">(a classificar)</option>
                 {DRE_GROUPS.map((g) => <option key={g} value={g}>{g}</option>)}
               </select>
-              <p className="text-xs text-slate-400 mt-1">Define em que linha da DRE esta categoria entra.</p>
+              <p className="text-xs text-fg-subtle mt-1">Define em que linha da DRE esta categoria entra.</p>
             </div>
           )}
           {form.id && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-fg-subtle">
               Renomear atualiza o rótulo em todas as transações/itens que usam esta categoria.
             </p>
           )}

@@ -6,7 +6,7 @@ import { useApp } from '../contexts/AppContext'
 import { fmtBRL, primeiroDiaMes, ultimoDiaMes } from '../lib/format'
 import { CAT_CHART_COLORS, corDaCategoria } from '../lib/fatura'
 import type { RelatorioCategoriaLinha } from '../lib/types'
-import { Card, PageHeader, ErroBanner, Vazio, inputCls, btnSecundario } from '../components/ui'
+import { Card, PageHeader, ErroBanner, Vazio, KPICard, KPIStrip, inputCls, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import { exportTabelaCSV, exportTabelaXLSX } from '../lib/exportTabela'
 
@@ -54,29 +54,29 @@ export default function RelatorioCategorias() {
     [linhas]
   )
 
-  const dim = (v: number) => (v ? fmtBRL(v) : <span className="text-slate-300">—</span>)
+  const dim = (v: number) => (v ? fmtBRL(v) : <span className="text-fg-subtle">—</span>)
   const cols = useMemo<DataColumn<RelatorioCategoriaLinha>[]>(() => [
     { id: 'categoria', header: 'Categoria', size: 190, cell: (l) => (
         <span className="inline-flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0" style={{ background: corDaCategoria(l.color_index).text }} />
-          <span className="font-medium text-slate-700">{l.categoria}</span>
+          <span className="font-medium text-fg-muted">{l.categoria}</span>
         </span>
-      ), footer: <span className="font-bold text-slate-800">Total</span> },
-    { id: 'dc', header: 'Desp. cartão', size: 120, align: 'right', cell: (l) => <span className="tabular-nums text-slate-600">{dim(l.despesa_cartao)}</span> },
-    { id: 'del', header: 'Desp. lançam.', size: 125, align: 'right', cell: (l) => <span className="tabular-nums text-slate-600">{dim(l.despesa_entries)}</span> },
-    { id: 'rel', header: 'Rec. lançam.', size: 120, align: 'right', cell: (l) => <span className="tabular-nums text-emerald-700">{dim(l.receita_entries)}</span> },
-    { id: 'dx', header: 'Desp. extrato', size: 120, align: 'right', cell: (l) => <span className="tabular-nums text-slate-600">{dim(l.despesa_extrato)}</span> },
-    { id: 'rx', header: 'Rec. extrato', size: 115, align: 'right', cell: (l) => <span className="tabular-nums text-emerald-700">{dim(l.receita_extrato)}</span> },
+      ), footer: <span className="font-bold text-fg">Total</span> },
+    { id: 'dc', header: 'Desp. cartão', size: 120, align: 'right', cell: (l) => <span className="tnum text-fg-muted">{dim(l.despesa_cartao)}</span> },
+    { id: 'del', header: 'Desp. lançam.', size: 125, align: 'right', cell: (l) => <span className="tnum text-fg-muted">{dim(l.despesa_entries)}</span> },
+    { id: 'rel', header: 'Rec. lançam.', size: 120, align: 'right', cell: (l) => <span className="tnum text-revenue">{dim(l.receita_entries)}</span> },
+    { id: 'dx', header: 'Desp. extrato', size: 120, align: 'right', cell: (l) => <span className="tnum text-fg-muted">{dim(l.despesa_extrato)}</span> },
+    { id: 'rx', header: 'Rec. extrato', size: 115, align: 'right', cell: (l) => <span className="tnum text-revenue">{dim(l.receita_extrato)}</span> },
     { id: 'dt', header: 'Despesa total', size: 130, align: 'right',
-      cell: (l) => <span className="tabular-nums font-semibold text-slate-800">{fmtBRL(l.despesa_total)}</span>,
-      footer: <span className="font-bold text-slate-800">{fmtBRL(totais.despesa)}</span> },
+      cell: (l) => <span className="tnum font-semibold text-fg">{fmtBRL(l.despesa_total)}</span>,
+      footer: <span className="font-bold text-fg">{fmtBRL(totais.despesa)}</span> },
     { id: 'rt', header: 'Receita total', size: 130, align: 'right',
-      cell: (l) => <span className="tabular-nums font-semibold text-emerald-700">{dim(l.receita_total)}</span>,
-      footer: <span className="font-bold text-emerald-700">{fmtBRL(totais.receita)}</span> },
+      cell: (l) => <span className="tnum font-semibold text-revenue">{dim(l.receita_total)}</span>,
+      footer: <span className="font-bold text-revenue">{fmtBRL(totais.receita)}</span> },
     { id: 'sld', header: 'Saldo', size: 130, align: 'right',
-      cell: (l) => <span className={`tabular-nums font-semibold ${l.saldo < 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmtBRL(l.saldo)}</span>,
-      footer: <span className={`font-bold ${totais.saldo < 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmtBRL(totais.saldo)}</span> },
-    { id: 'n', header: 'Nº', size: 64, align: 'right', cell: (l) => <span className="tabular-nums text-slate-400">{l.n_lanc}</span> },
+      cell: (l) => <span className={`tnum font-semibold ${l.saldo < 0 ? 'text-expense' : 'text-fg'}`}>{fmtBRL(l.saldo)}</span>,
+      footer: <span className={`font-bold ${totais.saldo < 0 ? 'text-expense' : 'text-fg'}`}>{fmtBRL(totais.saldo)}</span> },
+    { id: 'n', header: 'Nº', size: 64, align: 'right', cell: (l) => <span className="tnum text-fg-subtle">{l.n_lanc}</span> },
   ], [totais])
 
   const exportar = (tipo: 'csv' | 'xlsx') => {
@@ -89,7 +89,7 @@ export default function RelatorioCategorias() {
 
   const checkbox = (label: string, on: boolean, set: (v: boolean) => void) => (
     <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer select-none">
-      <input type="checkbox" className="accent-indigo-600" checked={on} onChange={(e) => set(e.target.checked)} /> {label}
+      <input type="checkbox" className="accent-brand" checked={on} onChange={(e) => set(e.target.checked)} /> {label}
     </label>
   )
 
@@ -137,19 +137,12 @@ export default function RelatorioCategorias() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Despesa total</p>
-          <p className="text-xl font-bold text-red-600 mt-1">{fmtBRL(totais.despesa)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Receita total</p>
-          <p className="text-xl font-bold text-emerald-600 mt-1">{fmtBRL(totais.receita)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Saldo</p>
-          <p className={`text-xl font-bold mt-1 ${totais.saldo < 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmtBRL(totais.saldo)}</p>
-        </Card>
+      <div className="mb-6">
+        <KPIStrip cols={3}>
+          <KPICard bare label="Despesa total" tom="expense" valor={fmtBRL(totais.despesa)} />
+          <KPICard bare label="Receita total" tom="revenue" valor={fmtBRL(totais.receita)} />
+          <KPICard bare label="Saldo" tom={totais.saldo < 0 ? 'expense' : 'neutro'} valor={fmtBRL(totais.saldo)} />
+        </KPIStrip>
       </div>
 
       {linhas.length === 0 ? (
@@ -160,7 +153,7 @@ export default function RelatorioCategorias() {
             <DataTable tableKey="relatorio-categorias" columns={cols} data={linhas} getRowId={(l) => l.categoria} />
           </Card>
           <Card className="p-4 min-w-72">
-            <div className="font-bold text-sm text-slate-800 mb-2">Despesa por categoria</div>
+            <div className="font-bold text-sm text-fg mb-2">Despesa por categoria</div>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={1}>
@@ -173,8 +166,8 @@ export default function RelatorioCategorias() {
               {pieData.map((p, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs">
                   <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: p.cor }} />
-                  <span className="text-slate-600 flex-1 truncate">{p.name}</span>
-                  <span className="text-slate-400 tabular-nums">{fmtBRL(p.value)}</span>
+                  <span className="text-fg-muted flex-1 truncate">{p.name}</span>
+                  <span className="text-fg-subtle tnum">{fmtBRL(p.value)}</span>
                 </div>
               ))}
             </div>

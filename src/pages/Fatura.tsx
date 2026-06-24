@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Upload, Download, Search, FileText, BarChart3, ShoppingCart } from 'lucide-react'
+import { Upload, Download, Search, FileText, BarChart3, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { useFaturaWorld } from '../hooks/useFaturaWorld'
@@ -11,7 +11,7 @@ import ExportMenu, { type TxView } from '../components/fatura/ExportMenu'
 import FaturaDashboard from '../components/fatura/FaturaDashboard'
 import PurchaseItemsTab, { type NovoItem } from '../components/fatura/PurchaseItemsTab'
 import PendingImportModal from '../components/fatura/PendingImportModal'
-import { Card, Badge, ErroBanner, btnSecundario } from '../components/ui'
+import { Card, Badge, ErroBanner, PageHeader, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import type { RowSelectionState } from '@tanstack/react-table'
 import type { Invoice, PurchaseItem } from '../lib/types'
@@ -211,24 +211,24 @@ export default function Fatura() {
   const colunas = useMemo<DataColumn<TxView>[]>(() => [
     {
       id: 'date', header: 'Data', size: 110,
-      cell: (t) => <span className="text-slate-500 text-xs whitespace-nowrap">{t.date}</span>,
-      footer: <span className="font-normal text-slate-500">{filtered.length} lançamento{filtered.length !== 1 ? 's' : ''} exibido{filtered.length !== 1 ? 's' : ''}</span>,
+      cell: (t) => <span className="text-fg-muted text-xs whitespace-nowrap">{t.date}</span>,
+      footer: <span className="font-normal text-fg-muted">{filtered.length} lançamento{filtered.length !== 1 ? 's' : ''} exibido{filtered.length !== 1 ? 's' : ''}</span>,
     },
     {
       id: 'memo', header: 'Descrição', size: 380,
-      cell: (t) => <span className="text-slate-700 font-medium">{t.memo}</span>,
+      cell: (t) => <span className="text-fg-muted font-medium">{t.memo}</span>,
     },
     {
       id: 'amount', header: 'Valor', size: 130, align: 'right',
       cell: (t) => (
-        <span className={`font-semibold tabular-nums ${t.kind === 'credit' ? 'text-emerald-600' : 'text-slate-800'}`}>{fmt(valorComSinal(t))}</span>
+        <span className={`font-semibold tnum ${t.kind === 'credit' ? 'text-revenue' : 'text-fg'}`}>{fmt(valorComSinal(t))}</span>
       ),
-      footer: <span className="font-bold text-slate-800">Total: {fmt(totalFiltered)}</span>,
+      footer: <span className="font-bold text-fg tnum">Total: {fmt(totalFiltered)}</span>,
     },
     {
       id: 'tipo', header: 'Tipo', size: 100,
       cell: (t) => (
-        <Badge cor={t.kind === 'credit' ? '#059669' : '#64748b'}>
+        <Badge tom={t.kind === 'credit' ? 'revenue' : 'muted'}>
           {t.kind === 'credit' ? 'Crédito' : 'Débito'}
         </Badge>
       ),
@@ -239,7 +239,7 @@ export default function Fatura() {
         <div className="flex items-center gap-1.5">
           <TagSelector value={t.category} categories={categorias} onChange={(cat) => setCategory(t.id, cat)} onAddCategory={onAddCategoria} readOnly={!isAdmin} />
           {t.auto && t.category && (
-            <span title="Categorizado automaticamente" className="text-[10px] text-indigo-500 bg-indigo-50 border border-indigo-200 rounded-full px-1.5 py-0.5 font-bold whitespace-nowrap">✦ auto</span>
+            <span title="Categorizado automaticamente" className="text-[10px] text-brand bg-brand-subtle border border-brand-subtle rounded-full px-1.5 py-0.5 font-bold whitespace-nowrap">✦ auto</span>
           )}
         </div>
       ),
@@ -249,43 +249,43 @@ export default function Fatura() {
   return (
     <div>
       {/* Header da fatura */}
-      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-        <div className="flex items-center gap-3 min-w-0">
-          <button onClick={() => navigate('/faturas')} className="text-slate-400 hover:text-slate-700 transition shrink-0" title="Voltar">
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <h2 className="text-2xl font-bold text-slate-800 truncate">{invoice?.name || 'Fatura'}</h2>
-            <Badge cor="#64748b">{transactions.length} lançamentos</Badge>
-            {semCategoria > 0 && <Badge cor="#c2410c">{semCategoria} sem categoria</Badge>}
+      <PageHeader
+        titulo={invoice?.name || 'Fatura'}
+        voltar={() => navigate('/faturas')}
+        meta={
+          <>
+            <Badge tom="muted">{transactions.length} lançamentos</Badge>
+            {semCategoria > 0 && <Badge tom="warning">{semCategoria} sem categoria</Badge>}
+          </>
+        }
+        acao={
+          <div className="flex items-center gap-2 shrink-0">
+            {invoice?.ofx_path && (
+              <button onClick={baixarOFX} className={btnSecundario} title="Baixar o arquivo OFX original desta fatura">
+                <Download size={16} /> Baixar OFX
+              </button>
+            )}
+            <ExportMenu transactions={transactions} filtered={filtered} filter={filter} />
+            <label className={btnSecundario + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
+              <Upload size={16} />
+              {importando ? 'Importando…' : 'Nova fatura'}
+              <input ref={fileInput} type="file" accept=".ofx" className="hidden" disabled={importando}
+                onChange={(e) => onNovoArquivo(e.target.files?.[0])} />
+            </label>
           </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {invoice?.ofx_path && (
-            <button onClick={baixarOFX} className={btnSecundario} title="Baixar o arquivo OFX original desta fatura">
-              <Download size={16} /> Baixar OFX
-            </button>
-          )}
-          <ExportMenu transactions={transactions} filtered={filtered} filter={filter} />
-          <label className={btnSecundario + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
-            <Upload size={16} />
-            {importando ? 'Importando…' : 'Nova fatura'}
-            <input ref={fileInput} type="file" accept=".ofx" className="hidden" disabled={importando}
-              onChange={(e) => onNovoArquivo(e.target.files?.[0])} />
-          </label>
-        </div>
-      </div>
+        }
+      />
 
       <ErroBanner mensagem={erro ?? erroWorld} />
 
       {/* Abas */}
-      <div className="flex border-b border-slate-200 mb-5">
+      <div className="flex border-b border-border mb-5">
         {ABAS.map(({ key, label, Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition ${
-              activeTab === key ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+              activeTab === key ? 'border-brand text-brand' : 'border-transparent text-fg-muted hover:text-fg'
             }`}
           >
             <Icon size={16} /> {label}
@@ -298,12 +298,12 @@ export default function Fatura() {
         <>
           <Card className="p-4 mb-4">
             <div className="relative max-w-sm">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar descrição..."
-                className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-control border border-border-strong bg-surface pl-9 pr-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-brand"
               />
             </div>
             <div className="flex gap-1.5 flex-wrap mt-3">
@@ -315,7 +315,7 @@ export default function Fatura() {
                   key={key}
                   onClick={() => setFilter(key)}
                   className={`px-3 py-1 rounded-full border text-xs font-semibold transition ${
-                    filter === key ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                    filter === key ? 'bg-brand-subtle text-brand border-brand-subtle' : 'border-border text-fg-muted hover:bg-surface-2'
                   }`}
                 >
                   {label}
@@ -329,7 +329,7 @@ export default function Fatura() {
                   <button
                     key={c.name}
                     onClick={() => setFilter(ativo ? 'all' : c.name)}
-                    className={`px-3 py-1 rounded-full border text-xs font-semibold transition ${ativo ? '' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                    className={`px-3 py-1 rounded-full border text-xs font-semibold transition ${ativo ? '' : 'border-border text-fg-muted hover:bg-surface-2'}`}
                     style={ativo ? { background: c.color.bg, color: c.color.text, borderColor: c.color.border } : undefined}
                   >
                     {c.name} ({count})
@@ -339,15 +339,15 @@ export default function Fatura() {
             </div>
           </Card>
           {isAdmin && selectedIds.length > 0 && (
-            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl border border-indigo-200 bg-indigo-50 flex-wrap">
-              <span className="text-sm font-semibold text-indigo-800 whitespace-nowrap">
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-card border border-brand-subtle bg-brand-subtle flex-wrap">
+              <span className="text-sm font-semibold text-brand whitespace-nowrap">
                 {selectedIds.length} selecionado{selectedIds.length !== 1 ? 's' : ''}
               </span>
-              <span className="text-sm text-slate-500 whitespace-nowrap">Mudar categoria para:</span>
+              <span className="text-sm text-fg-muted whitespace-nowrap">Mudar categoria para:</span>
               <TagSelector value={null} categories={categorias} onChange={aplicarCategoriaEmMassa} onAddCategory={onAddCategoria} />
               <button
                 onClick={() => setRowSelection({})}
-                className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-700 whitespace-nowrap"
+                className="ml-auto text-xs font-medium text-fg-muted hover:text-fg whitespace-nowrap"
               >
                 Limpar seleção
               </button>

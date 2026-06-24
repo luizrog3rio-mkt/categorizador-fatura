@@ -178,21 +178,21 @@ export default function PlanoDeContas() {
 
       <Card>
         {carregando ? (
-          <p className="text-center text-slate-400 py-10 text-sm">Carregando…</p>
+          <p className="text-center text-fg-subtle py-10 text-sm">Carregando…</p>
         ) : contasFiltradas.length === 0 ? (
           <Vazio mensagem={busca ? 'Nenhuma conta encontrada para esta busca.' : 'Nenhuma conta cadastrada. Crie a primeira no botão acima.'} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Código</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Nome</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Natureza</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Tipo</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Ativa</th>
+                <tr className="border-b border-border bg-surface-2">
+                  <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Código</th>
+                  <th className="text-left px-4 py-3 font-medium text-fg-muted">Nome</th>
+                  <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Natureza</th>
+                  <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Tipo</th>
+                  <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Ativa</th>
                   {isAdmin && (
-                    <th className="text-right px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Ações</th>
+                    <th className="text-right px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Ações</th>
                   )}
                 </tr>
               </thead>
@@ -202,15 +202,15 @@ export default function PlanoDeContas() {
                   return (
                     <tr
                       key={c.id}
-                      className={`border-b border-slate-100 last:border-0 ${isGrupo ? 'bg-slate-50' : 'hover:bg-slate-50/50'} ${!c.active ? 'opacity-50' : ''}`}
+                      className={`border-b border-border last:border-0 ${isGrupo ? 'bg-surface-2' : 'hover:bg-surface-2/50'} ${!c.active ? 'opacity-50' : ''}`}
                     >
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        <span className={isGrupo ? 'font-semibold text-slate-800' : 'pl-4 text-slate-600 text-xs'}>
+                        <span className={isGrupo ? 'font-semibold text-fg' : 'pl-4 text-fg-muted text-xs'}>
                           {c.code}
                         </span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className={isGrupo ? 'font-semibold text-slate-800' : 'pl-4 text-slate-600 text-xs'}>
+                        <span className={isGrupo ? 'font-semibold text-fg' : 'pl-4 text-fg-muted text-xs'}>
                           {c.name}
                         </span>
                       </td>
@@ -220,12 +220,12 @@ export default function PlanoDeContas() {
                         </Badge>
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isGrupo ? 'bg-slate-200 text-slate-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                        <Badge tom={isGrupo ? 'muted' : 'brand'}>
                           {isGrupo ? 'Grupo' : 'Analítica'}
-                        </span>
+                        </Badge>
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        <span className={`text-xs font-medium ${c.active ? 'text-green-600' : 'text-slate-400'}`}>
+                        <span className={`text-xs font-medium ${c.active ? 'text-revenue' : 'text-fg-subtle'}`}>
                           {c.active ? 'Sim' : 'Não'}
                         </span>
                       </td>
@@ -235,14 +235,14 @@ export default function PlanoDeContas() {
                             <button
                               title="Editar"
                               onClick={() => abrirEdicao(c)}
-                              className="text-slate-400 hover:text-indigo-600 p-1 transition"
+                              className="text-fg-subtle hover:text-brand p-1 transition"
                             >
                               <Pencil size={15} />
                             </button>
                             <button
                               title={c.active ? 'Desativar' : 'Reativar'}
                               onClick={() => desativar(c)}
-                              className={`p-1 transition ${c.active ? 'text-slate-400 hover:text-red-500' : 'text-slate-400 hover:text-green-600'}`}
+                              className={`p-1 transition ${c.active ? 'text-fg-subtle hover:text-expense' : 'text-fg-subtle hover:text-revenue'}`}
                             >
                               <PowerOff size={15} />
                             </button>
@@ -336,7 +336,7 @@ export default function PlanoDeContas() {
                 type="checkbox"
                 checked={form.is_analytical}
                 onChange={(e) => setForm({ ...form, is_analytical: e.target.checked })}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-border-strong text-brand focus:ring-brand"
               />
               Analítica (aceita lançamentos)
             </label>
@@ -346,7 +346,7 @@ export default function PlanoDeContas() {
                 type="checkbox"
                 checked={form.active}
                 onChange={(e) => setForm({ ...form, active: e.target.checked })}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-border-strong text-brand focus:ring-brand"
               />
               Ativa
             </label>

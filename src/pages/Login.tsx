@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
+import { Alert, Button, inputCls } from '../components/ui'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -17,42 +18,44 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <form onSubmit={entrar} className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm space-y-4">
+    <div className="min-h-screen flex items-center justify-center bg-canvas p-4">
+      <form
+        onSubmit={entrar}
+        className="bg-surface rounded-modal border border-border shadow-pop p-8 w-full max-w-sm space-y-4"
+      >
         <div className="text-center">
-          <div className="text-5xl mb-2">💳</div>
-          <h1 className="text-2xl font-bold text-slate-800">RB7 Financeiro</h1>
-          <p className="text-sm text-slate-500 mt-1">Importe, categorize e analise as finanças</p>
+          {/* wordmark sóbrio, alinhado à marca do Layout */}
+          <div className="mx-auto grid place-items-center w-12 h-12 rounded-control bg-brand text-white font-bold text-xl tracking-tight mb-3">
+            R
+          </div>
+          <h1 className="text-2xl font-bold text-fg">RB7 Financeiro</h1>
+          <p className="text-sm text-fg-muted mt-1">Importe, categorize e analise as finanças</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+          <label className="block text-sm font-medium text-fg-muted mb-1">E-mail</label>
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={inputCls}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
+          <label className="block text-sm font-medium text-fg-muted mb-1">Senha</label>
           <input
             type="password"
             required
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={inputCls}
           />
         </div>
-        {erro && <p className="text-sm text-red-600">{erro}</p>}
-        <button
-          type="submit"
-          disabled={enviando}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 transition"
-        >
+        {erro && <Alert tom="danger">{erro}</Alert>}
+        <Button type="submit" variante="primary" loading={enviando} className="w-full">
           {enviando ? 'Entrando…' : 'Entrar'}
-        </button>
-        <p className="text-xs text-slate-400 text-center">
+        </Button>
+        <p className="text-xs text-fg-subtle text-center">
           Contas de equipe são criadas pelo administrador.
         </p>
       </form>

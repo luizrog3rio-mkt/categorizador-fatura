@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ShoppingCart, Calendar } from 'lucide-react'
 import { fmt, formatMonth } from '../../lib/fatura'
 import type { PurchaseItem } from '../../lib/types'
-import { btnPrimario, btnSecundario } from '../ui'
+import { btnPrimario, btnSecundario, Badge } from '../ui'
 
 // Modal de pendentes (contrato #7): abre automaticamente após importar fatura
 // com pendentes existentes, todos pré-selecionados, agrupados por mês desc;
@@ -48,13 +48,13 @@ export default function PendingImportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+      <div className="absolute inset-0 bg-fg/40" onClick={onCancel} />
+      <div className="relative bg-surface rounded-modal shadow-pop w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-border">
+          <h3 className="font-semibold text-fg flex items-center gap-2">
             <ShoppingCart size={18} /> Importar compras pendentes
           </h3>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-fg-muted mt-0.5">
             Selecione quais itens incluir nesta fatura. Os não selecionados continuam pendentes.
           </p>
         </div>
@@ -67,31 +67,29 @@ export default function PendingImportModal({
               <div key={gk || 'single'} className="mb-4">
                 <label
                   onClick={() => toggleGroup(gk)}
-                  className="flex items-center gap-2 py-1.5 cursor-pointer border-b border-slate-100 mb-1"
+                  className="flex items-center gap-2 py-1.5 cursor-pointer border-b border-border mb-1"
                 >
                   <input type="checkbox" checked={allSelected} readOnly className="cursor-pointer" />
-                  <Calendar size={14} className="text-slate-400" />
-                  <span className="font-semibold text-sm text-slate-800">{formatMonth(gk || null)}</span>
-                  <span className="text-xs text-slate-400">({groupItems.length})</span>
+                  <Calendar size={14} className="text-fg-subtle" />
+                  <span className="font-semibold text-sm text-fg">{formatMonth(gk || null)}</span>
+                  <span className="text-xs text-fg-subtle">({groupItems.length})</span>
                 </label>
                 {groupItems.map((it) => (
                   <label
                     key={it.id}
-                    className="flex items-center gap-2.5 px-1.5 py-2 cursor-pointer rounded-md hover:bg-slate-50"
+                    className="flex items-center gap-2.5 px-1.5 py-2 cursor-pointer rounded-control hover:bg-surface-2"
                   >
                     <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggle(it.id)} className="cursor-pointer" />
                     {it.purchase_date && (
-                      <span className="text-xs text-slate-400 tabular-nums min-w-[70px]">
+                      <span className="text-xs text-fg-subtle tnum min-w-[70px]">
                         {it.purchase_date.split('-').reverse().join('/')}
                       </span>
                     )}
-                    <span className="flex-1 text-sm text-slate-800">{it.description}</span>
-                    {it.payment_method && <span className="text-xs text-slate-500">{it.payment_method}</span>}
-                    {it.category && (
-                      <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{it.category}</span>
-                    )}
+                    <span className="flex-1 text-sm text-fg">{it.description}</span>
+                    {it.payment_method && <span className="text-xs text-fg-muted">{it.payment_method}</span>}
+                    {it.category && <Badge tom="muted">{it.category}</Badge>}
                     {it.amount != null && (
-                      <span className="text-xs font-bold text-slate-800 tabular-nums">{fmt(Number(it.amount))}</span>
+                      <span className="text-xs font-bold text-fg tnum">{fmt(Number(it.amount))}</span>
                     )}
                   </label>
                 ))}
@@ -100,8 +98,8 @@ export default function PendingImportModal({
           })}
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-200 flex justify-between items-center">
-          <span className="text-xs text-slate-500">{selected.size} de {items.length} selecionados</span>
+        <div className="px-6 py-4 border-t border-border flex justify-between items-center">
+          <span className="text-xs text-fg-muted">{selected.size} de {items.length} selecionados</span>
           <div className="flex gap-2">
             <button onClick={onCancel} className={btnSecundario}>Pular</button>
             <button onClick={() => onConfirm([...selected])} className={btnPrimario}>Importar selecionados</button>

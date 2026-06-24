@@ -6,7 +6,7 @@ import { importarExtratoOFX } from '../lib/importarExtrato'
 import { fmtBRL, fmtData } from '../lib/format'
 import { corDaCategoria } from '../lib/fatura'
 import type { Account, Category, BankTransaction } from '../lib/types'
-import { Card, PageHeader, Badge, Vazio, ErroBanner, Modal, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { Card, PageHeader, Badge, Vazio, ErroBanner, Modal, Alert, Button, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
 // Etapa 5 — Extratos (OFX). Port do ImportarOfx.tsx do rb7 pra bank_transactions.
@@ -102,20 +102,20 @@ export default function Extrato() {
   }, [carregarTransacoes])
 
   const colunas = useMemo<DataColumn<BankTransaction>[]>(() => [
-    { id: 'date', header: 'Data', size: 110, cell: (t) => <span className="text-slate-600 whitespace-nowrap">{fmtData(t.date)}</span> },
-    { id: 'memo', header: 'Descrição', size: 360, cell: (t) => <span className="text-slate-700">{t.memo ?? '—'}</span> },
+    { id: 'date', header: 'Data', size: 110, cell: (t) => <span className="text-fg-muted whitespace-nowrap">{fmtData(t.date)}</span> },
+    { id: 'memo', header: 'Descrição', size: 360, cell: (t) => <span className="text-fg-muted">{t.memo ?? '—'}</span> },
     { id: 'amount', header: 'Valor', size: 130, align: 'right', cell: (t) => (
-      <span className={`font-semibold whitespace-nowrap ${Number(t.amount) < 0 ? 'text-red-600' : 'text-green-600'}`}>{fmtBRL(Number(t.amount))}</span>
+      <span className={`font-semibold whitespace-nowrap tnum ${Number(t.amount) < 0 ? 'text-expense' : 'text-revenue'}`}>{fmtBRL(Number(t.amount))}</span>
     ) },
     { id: 'category', header: 'Categoria', size: 220, cell: (t) => (
       t.category ? (
         <div className="flex items-center gap-2">
           <Badge cor={corDaCategoria(t.category.color_index).text}>{t.category.name}</Badge>
-          {isAdmin && <button onClick={() => categorizar(t, '')} className="text-xs text-slate-400 hover:text-red-500">×</button>}
+          {isAdmin && <button onClick={() => categorizar(t, '')} className="text-xs text-fg-subtle hover:text-expense">×</button>}
         </div>
       ) : isAdmin ? (
         <select
-          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500"
+          className="w-full rounded-control border border-border px-2 py-1 text-xs text-fg-muted"
           value=""
           onChange={(e) => { if (e.target.value) categorizar(t, e.target.value) }}
         >
@@ -160,7 +160,7 @@ export default function Extrato() {
               type="button"
               onClick={abrirLimpar}
               disabled={!contaSelecionada || transacoes.length === 0 || importando}
-              className="inline-flex items-center gap-2 bg-white border border-red-200 hover:bg-red-50 text-red-600 text-sm font-medium rounded-lg px-4 py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 bg-surface border border-border hover:bg-expense-bg text-expense text-sm font-medium rounded-control px-4 py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Trash2 size={16} />
               Limpar transações
@@ -168,12 +168,12 @@ export default function Extrato() {
           )}
         </div>
         {contas.length === 0 && (
-          <p className="text-sm text-slate-500 mt-3">
+          <p className="text-sm text-fg-muted mt-3">
             Cadastre uma conta corrente em <span className="font-medium">Contas &amp; Cartões</span> para importar extratos.
             Faturas de cartão entram pela aba <span className="font-medium">Faturas de Cartão</span>.
           </p>
         )}
-        {msg && <p className="text-sm text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2 mt-4">{msg}</p>}
+        {msg && <div className="mt-4"><Alert tom="info">{msg}</Alert></div>}
       </Card>
 
       <Card>
@@ -190,28 +190,25 @@ export default function Extrato() {
       </Card>
 
       <Modal titulo="Limpar transações" aberto={confirmarLimpar} onFechar={() => setConfirmarLimpar(false)}>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-fg-muted">
           Isso vai apagar <strong>{qtdParaLimpar ?? 0}</strong> transação(ões) da conta{' '}
           <strong>{contas.find((c) => c.id === contaSelecionada)?.name ?? '—'}</strong>. Esta ação não pode ser desfeita.
         </p>
         {conciliadasParaLimpar > 0 && (
-          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-            ⚠️ {conciliadasParaLimpar} dessas transações estão conciliadas com lançamentos. Apagá-las desfaz a conciliação.
-          </p>
+          <div className="mt-3">
+            <Alert tom="warning">
+              ⚠️ {conciliadasParaLimpar} dessas transações estão conciliadas com lançamentos. Apagá-las desfaz a conciliação.
+            </Alert>
+          </div>
         )}
         <div className="flex justify-end gap-2 mt-6">
           <button type="button" className={btnSecundario} onClick={() => setConfirmarLimpar(false)} disabled={limpando}>
             Cancelar
           </button>
-          <button
-            type="button"
-            onClick={limpar}
-            disabled={limpando}
-            className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg px-4 py-2 transition disabled:opacity-50"
-          >
+          <Button variante="danger" onClick={limpar} disabled={limpando}>
             <Trash2 size={16} />
             {limpando ? 'Limpando…' : 'Apagar tudo'}
-          </button>
+          </Button>
         </div>
       </Modal>
     </div>

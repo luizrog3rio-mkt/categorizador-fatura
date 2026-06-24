@@ -95,12 +95,12 @@ export default function DateRangePicker({ de, ate, onChange, align = 'left' }: {
     const ehLo = lo && mesmoDia(d, lo)
     const ehHi = hi && mesmoDia(d, hi)
     const noRange = !!(lo && hi && d >= lo && d <= hi)
-    let c = 'h-9 text-sm flex items-center justify-center cursor-pointer select-none '
-    if (ehLo && ehHi) c += 'bg-indigo-600 text-white font-semibold rounded-lg'
-    else if (ehLo) c += 'bg-indigo-600 text-white font-semibold rounded-l-lg'
-    else if (ehHi) c += 'bg-indigo-600 text-white font-semibold rounded-r-lg'
-    else if (noRange) c += 'bg-indigo-50 text-indigo-700'
-    else c += 'text-slate-600 hover:bg-slate-100 rounded-lg'
+    let c = 'h-9 text-sm flex items-center justify-center cursor-pointer select-none tnum '
+    if (ehLo && ehHi) c += 'bg-brand text-white font-semibold rounded-control'
+    else if (ehLo) c += 'bg-brand text-white font-semibold rounded-l-control'
+    else if (ehHi) c += 'bg-brand text-white font-semibold rounded-r-control'
+    else if (noRange) c += 'bg-brand-subtle text-brand'
+    else c += 'text-fg-muted hover:bg-canvas rounded-control'
     return c
   }
 
@@ -115,25 +115,25 @@ export default function DateRangePicker({ de, ate, onChange, align = 'left' }: {
       <button
         type="button"
         onClick={() => (aberto ? setAberto(false) : abrir())}
-        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+        className="inline-flex items-center gap-2 rounded-control border border-border-strong bg-surface px-3 py-2 text-sm hover:bg-surface-2"
       >
-        <CalendarIcon size={15} className="text-indigo-500 shrink-0" />
-        <span className={de || ate ? 'text-slate-700' : 'text-slate-400'}>{texto}</span>
-        <ChevronDown size={15} className="text-slate-400 shrink-0" />
+        <CalendarIcon size={15} className="text-brand shrink-0" />
+        <span className={de || ate ? 'text-fg-muted' : 'text-fg-subtle'}>{texto}</span>
+        <ChevronDown size={15} className="text-fg-subtle shrink-0" />
       </button>
 
       {aberto && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setAberto(false)} />
-          <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} z-40 mt-2 flex rounded-xl border border-slate-200 bg-white shadow-xl`}>
-            <div className="w-40 shrink-0 border-r border-slate-100 py-2">
-              <p className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Atalhos</p>
+          <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} z-40 mt-2 flex rounded-card border border-border bg-surface shadow-pop`}>
+            <div className="w-40 shrink-0 border-r border-border py-2">
+              <p className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Atalhos</p>
               {ATALHOS.map((a) => (
                 <button
                   key={a.label}
                   type="button"
                   onClick={() => aplicarAtalho(a.range())}
-                  className="block w-full px-4 py-1.5 text-left text-sm text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
+                  className="block w-full px-4 py-1.5 text-left text-sm text-fg-muted hover:bg-brand-subtle hover:text-brand"
                 >
                   {a.label}
                 </button>
@@ -142,18 +142,18 @@ export default function DateRangePicker({ de, ate, onChange, align = 'left' }: {
 
             <div className="w-[296px] p-3">
               <div className="flex items-center justify-between px-1 pb-2">
-                <button type="button" onClick={() => setMesView(new Date(ano, mes - 1, 1))} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <button type="button" onClick={() => setMesView(new Date(ano, mes - 1, 1))} className="rounded-control p-1 text-fg-subtle hover:bg-canvas hover:text-fg-muted">
                   <ChevronLeft size={18} />
                 </button>
-                <span className="text-sm font-semibold text-slate-700">{MESES[mes]} {ano}</span>
-                <button type="button" onClick={() => setMesView(new Date(ano, mes + 1, 1))} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <span className="text-sm font-semibold text-fg-muted">{MESES[mes]} {ano}</span>
+                <button type="button" onClick={() => setMesView(new Date(ano, mes + 1, 1))} className="rounded-control p-1 text-fg-subtle hover:bg-canvas hover:text-fg-muted">
                   <ChevronRight size={18} />
                 </button>
               </div>
 
               <div className="grid grid-cols-7" onMouseLeave={() => { if (start && !end) setHover(null) }}>
                 {DIAS.map((d) => (
-                  <span key={d} className="py-1 text-center text-[11px] font-medium text-slate-400">{d}</span>
+                  <span key={d} className="py-1 text-center text-[11px] font-medium text-fg-subtle">{d}</span>
                 ))}
                 {celulas.map((d, i) =>
                   d ? (
@@ -171,11 +171,11 @@ export default function DateRangePicker({ de, ate, onChange, align = 'left' }: {
                 )}
               </div>
 
-              <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
-                <button type="button" onClick={limpar} className="text-xs text-slate-500 hover:text-red-600">
+              <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
+                <button type="button" onClick={limpar} className="text-xs text-fg-muted hover:text-expense">
                   Limpar
                 </button>
-                <button type="button" onClick={() => setAberto(false)} className="text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                <button type="button" onClick={() => setAberto(false)} className="text-xs font-medium text-brand hover:text-brand-strong">
                   Fechar
                 </button>
               </div>

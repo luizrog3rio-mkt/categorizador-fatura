@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Plus, Pencil, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
-import { Card, PageHeader, Modal, Vazio, ErroBanner, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { Card, PageHeader, Modal, Badge, Vazio, ErroBanner, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 
 interface DreProduct {
   id: string
@@ -118,7 +118,7 @@ export default function DreProducts() {
         {produtos.length === 0 ? (
           <Vazio mensagem="Nenhum produto DRE cadastrado. Crie o primeiro no botão acima." />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {produtos.map((p, i) => (
               <div key={p.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                 <div className="flex items-center gap-3 min-w-0">
@@ -128,7 +128,7 @@ export default function DreProducts() {
                         onClick={() => mover(i, -1)}
                         disabled={i === 0}
                         title="Mover para cima"
-                        className="text-slate-300 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                        className="text-fg-subtle hover:text-fg-muted disabled:opacity-20 disabled:cursor-not-allowed"
                       >
                         <ChevronUp size={16} />
                       </button>
@@ -136,22 +136,16 @@ export default function DreProducts() {
                         onClick={() => mover(i, 1)}
                         disabled={i === produtos.length - 1}
                         title="Mover para baixo"
-                        className="text-slate-300 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                        className="text-fg-subtle hover:text-fg-muted disabled:opacity-20 disabled:cursor-not-allowed"
                       >
                         <ChevronDown size={16} />
                       </button>
                     </div>
                   )}
-                  <span className="text-xs text-slate-400 w-6 text-right shrink-0 font-mono">{p.sort_order}</span>
-                  <span className="text-sm font-medium text-slate-800 truncate">{p.name}</span>
-                  <span
-                    className={`shrink-0 inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                      p.active
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-slate-100 text-slate-500 border border-slate-200'
-                    }`}
-                  >
-                    {p.active ? 'Ativa' : 'Inativa'}
+                  <span className="text-xs text-fg-subtle w-6 text-right shrink-0 font-mono tnum">{p.sort_order}</span>
+                  <span className="text-sm font-medium text-fg truncate">{p.name}</span>
+                  <span className="shrink-0">
+                    <Badge tom={p.active ? 'revenue' : 'muted'}>{p.active ? 'Ativa' : 'Inativa'}</Badge>
                   </span>
                 </div>
                 {isAdmin && (
@@ -159,14 +153,14 @@ export default function DreProducts() {
                     <button
                       title="Editar"
                       onClick={() => abrirEdicao(p)}
-                      className="text-slate-400 hover:text-indigo-600 p-1"
+                      className="text-fg-subtle hover:text-brand p-1"
                     >
                       <Pencil size={15} />
                     </button>
                     <button
                       title="Excluir"
                       onClick={() => excluir(p)}
-                      className="text-slate-400 hover:text-red-600 p-1"
+                      className="text-fg-subtle hover:text-expense p-1"
                     >
                       <Trash2 size={15} />
                     </button>
@@ -204,7 +198,7 @@ export default function DreProducts() {
               value={form.sort_order}
               onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
             />
-            <p className="text-xs text-slate-400 mt-1">Itens com menor número aparecem primeiro.</p>
+            <p className="text-xs text-fg-subtle mt-1">Itens com menor número aparecem primeiro.</p>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -212,9 +206,9 @@ export default function DreProducts() {
               type="checkbox"
               checked={form.active}
               onChange={(e) => setForm({ ...form, active: e.target.checked })}
-              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              className="h-4 w-4 rounded border-border-strong text-brand focus:ring-brand"
             />
-            <label htmlFor="dre-product-active" className="text-sm font-medium text-slate-700 select-none">
+            <label htmlFor="dre-product-active" className="text-sm font-medium text-fg-muted select-none">
               Produto ativo
             </label>
           </div>

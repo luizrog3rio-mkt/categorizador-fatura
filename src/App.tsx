@@ -29,7 +29,7 @@ function Rotas() {
 
   if (carregando) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-slate-400">
+      <div className="min-h-screen flex items-center justify-center text-fg-subtle">
         Carregando…
       </div>
     )
@@ -43,7 +43,7 @@ function Rotas() {
         <Route
           path="/"
           element={
-            <Suspense fallback={<div className="text-slate-400 text-sm p-8">Carregando…</div>}>
+            <Suspense fallback={<div className="text-fg-subtle text-sm p-8">Carregando…</div>}>
               <Dashboard />
             </Suspense>
           }
@@ -60,7 +60,7 @@ function Rotas() {
         <Route
           path="/relatorio-categorias"
           element={
-            <Suspense fallback={<div className="text-slate-400 text-sm p-8">Carregando…</div>}>
+            <Suspense fallback={<div className="text-fg-subtle text-sm p-8">Carregando…</div>}>
               <RelatorioCategorias />
             </Suspense>
           }

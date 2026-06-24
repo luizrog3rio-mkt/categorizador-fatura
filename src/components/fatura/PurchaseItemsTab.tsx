@@ -29,8 +29,8 @@ export interface NovoItem {
   paymentMethod: string
 }
 
-const editCls = 'w-full bg-transparent border border-transparent focus:border-slate-300 rounded-md px-1.5 py-1 text-sm text-slate-700 outline-none'
-const formCls = 'rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500'
+const editCls = 'w-full bg-transparent border border-transparent focus:border-border-strong rounded-control px-1.5 py-1 text-sm text-fg-muted outline-none'
+const formCls = 'rounded-control border border-border-strong px-3 py-2 text-sm text-fg-muted focus:outline-none focus:ring-2 focus:ring-brand'
 
 export default function PurchaseItemsTab({
   items,
@@ -91,7 +91,7 @@ export default function PurchaseItemsTab({
     <div>
       {!readOnly && (
         <Card className="p-4 mb-4">
-          <div className="font-semibold text-sm text-slate-800 mb-2.5">Adicionar item de compra</div>
+          <div className="font-semibold text-sm text-fg mb-2.5">Adicionar item de compra</div>
           <div className="flex gap-2 flex-wrap items-center">
             <input
               type="date" value={purchaseDate}
@@ -126,7 +126,7 @@ export default function PurchaseItemsTab({
               <Plus size={16} /> Adicionar
             </button>
           </div>
-          <p className="flex items-center gap-1.5 mt-2.5 text-xs text-slate-400">
+          <p className="flex items-center gap-1.5 mt-2.5 text-xs text-fg-subtle">
             <Lightbulb size={13} className="shrink-0" />
             Itens aqui são anotações — não entram em totais nem no dashboard.
             {isPending && ' Ao importar uma fatura, você poderá selecionar quais itens incluir.'}
@@ -144,12 +144,12 @@ export default function PurchaseItemsTab({
         const groupItems = grouped[gk]
         return (
           <Card key={gk || 'single'} className="overflow-hidden mb-3">
-            <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-baseline">
-              <span className="flex items-center gap-1.5 font-semibold text-sm text-slate-800">
-                {isPending && <Calendar size={14} className="text-slate-400" />}
+            <div className="px-4 py-3 border-b border-border flex justify-between items-baseline">
+              <span className="flex items-center gap-1.5 font-semibold text-sm text-fg">
+                {isPending && <Calendar size={14} className="text-fg-subtle" />}
                 {isPending ? formatMonth(gk || null) : 'Itens desta fatura'}
               </span>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-fg-subtle">
                 {groupItems.length} {groupItems.length === 1 ? 'item' : 'itens'}
               </span>
             </div>
@@ -157,18 +157,18 @@ export default function PurchaseItemsTab({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200">
-                    {colVisivel('date') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-500 w-36">Data</th>}
-                    {colVisivel('description') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-500">Descrição</th>}
-                    {colVisivel('payment') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-500 w-40">Pagamento</th>}
-                    {colVisivel('amount') && <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500 w-32">Valor</th>}
-                    {colVisivel('category') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-500 w-52">Categoria</th>}
+                  <tr className="border-b border-border">
+                    {colVisivel('date') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted w-36">Data</th>}
+                    {colVisivel('description') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted">Descrição</th>}
+                    {colVisivel('payment') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted w-40">Pagamento</th>}
+                    {colVisivel('amount') && <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-fg-muted w-32">Valor</th>}
+                    {colVisivel('category') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted w-52">Categoria</th>}
                     {!readOnly && <th className="w-12" />}
                   </tr>
                 </thead>
                 <tbody>
                   {groupItems.map((it) => (
-                    <tr key={it.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                    <tr key={it.id} className="border-b border-border last:border-0 hover:bg-surface-2">
                       {colVisivel('date') && (
                         <td className="px-4 py-2 align-middle">
                           <input
@@ -185,7 +185,7 @@ export default function PurchaseItemsTab({
                             defaultValue={it.description}
                             onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.description) onUpdate(it.id, { description: v }) }}
                             disabled={readOnly}
-                            className="w-full bg-transparent border-none text-sm text-slate-800 font-medium outline-none"
+                            className="w-full bg-transparent border-none text-sm text-fg font-medium outline-none"
                           />
                         </td>
                       )}
@@ -212,7 +212,7 @@ export default function PurchaseItemsTab({
                             }}
                             placeholder="—"
                             disabled={readOnly}
-                            className={`${editCls} text-right font-semibold text-slate-800`}
+                            className={`${editCls} text-right font-semibold text-fg tnum`}
                           />
                         </td>
                       )}
@@ -231,7 +231,7 @@ export default function PurchaseItemsTab({
                         <td className="px-4 py-2 align-middle">
                           <button
                             onClick={() => onDelete(it.id)}
-                            className="text-slate-300 hover:text-red-500 p-1 rounded transition"
+                            className="text-fg-subtle hover:text-expense p-1 rounded-control transition"
                             title="Excluir"
                           >
                             <Trash2 size={15} />
@@ -248,7 +248,7 @@ export default function PurchaseItemsTab({
       })}
 
       {items.length === 0 && (
-        <Card className="py-12 px-6 text-center text-slate-400">
+        <Card className="py-12 px-6 text-center text-fg-subtle">
           <div className="flex justify-center mb-2"><ShoppingCart size={36} /></div>
           <p className="text-sm">Nenhum item lançado ainda</p>
         </Card>

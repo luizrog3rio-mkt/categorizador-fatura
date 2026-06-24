@@ -1,5 +1,56 @@
 @import "tailwindcss";
 
+/* ========================================================================
+   Design system "Razao Calma" - tokens semanticos (Tailwind 4 CSS-first).
+   Cada cor vira utilities (bg-, text-, border-); radius vira rounded-;
+   shadow vira shadow-; font vira font-.
+   ======================================================================== */
+@theme {
+  /* ── superfícies & estrutura ── */
+  --color-canvas: #f6f7f9;       /* fundo do app */
+  --color-surface: #ffffff;      /* card / painel / modal */
+  --color-surface-2: #f8fafc;    /* footer de tabela, fills sutis, zebra */
+  --color-border: #e6e8ec;       /* hairline: cards, divisores, linhas */
+  --color-border-strong: #d2d6dd;/* borda de input, total border-t-2 */
+
+  /* ── texto ── */
+  --color-fg: #0f172a;           /* texto forte / números */
+  --color-fg-muted: #475569;     /* texto secundário */
+  --color-fg-subtle: #94a3b8;    /* labels, captions, placeholder */
+
+  /* ── marca / ação (azul cobalto, não indigo) ── */
+  --color-brand: #2b53c0;        /* ação primária, foco, nav ativo, links, info */
+  --color-brand-strong: #1f3f9c; /* hover do primário */
+  --color-brand-subtle: #eef3fc; /* seleção de linha, nav hover claro */
+
+  /* ── semântica financeira (cor só com função) ── */
+  --color-revenue: #047857;      /* receita / entrada / recebido */
+  --color-revenue-bg: #ecfdf5;
+  --color-expense: #be123c;      /* despesa / saída / atraso (vinho, não vermelho cru) */
+  --color-expense-bg: #fff1f2;
+  --color-warning: #b45309;      /* pendente / alerta / sem-categoria */
+  --color-warning-bg: #fffbeb;
+  --color-muted: #64748b;        /* cancelado / neutro */
+
+  /* ── tipografia (Geist + Geist Mono p/ os números-assinatura) ── */
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", monospace;
+
+  /* ── raios ── */
+  --radius-control: 0.5rem;  /* 8px  — botões, inputs, menus, pills de filtro */
+  --radius-card: 0.75rem;    /* 12px — Card, KPICard */
+  --radius-modal: 1rem;      /* 16px — Modal */
+
+  /* ── elevação (institucional: pouca sombra) ── */
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.06);
+  --shadow-pop: 0 8px 24px rgb(15 23 42 / 0.12);
+}
+
+/* números financeiros sempre alinhados (lining + tabular) */
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply bg-canvas text-fg font-sans antialiased;
 }

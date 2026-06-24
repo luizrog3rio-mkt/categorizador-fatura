@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
-import { Card, PageHeader, ErroBanner, inputCls } from '../components/ui'
+import { Card, PageHeader, ErroBanner, Alert, inputCls } from '../components/ui'
 import { fmtBRL } from '../lib/format'
 
 interface DreCashRow {
@@ -17,9 +17,9 @@ interface DreCashRow {
 }
 
 function diffColor(value: number): string {
-  if (value > 0) return 'text-green-600'
-  if (value < 0) return 'text-red-600'
-  return 'text-gray-500'
+  if (value > 0) return 'text-revenue'
+  if (value < 0) return 'text-expense'
+  return 'text-fg-muted'
 }
 
 export default function ConciliacaoDRE() {
@@ -80,7 +80,7 @@ export default function ConciliacaoDRE() {
 
       <Card>
         <div className="flex items-center gap-3 mb-4">
-          <label className="text-sm font-medium text-gray-700">Ano</label>
+          <label className="text-sm font-medium text-fg-muted">Ano</label>
           <select
             className={inputCls + ' w-32'}
             value={ano}
@@ -95,12 +95,12 @@ export default function ConciliacaoDRE() {
         </div>
 
         {loading ? (
-          <div className="py-12 text-center text-gray-500 text-sm">Carregando...</div>
+          <div className="py-12 text-center text-fg-muted text-sm">Carregando...</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+                <tr className="border-b border-border text-xs text-fg-subtle uppercase tracking-wide">
                   <th className="py-2 px-3 text-left">Mês</th>
                   <th className="py-2 px-3 text-right">DRE Receitas</th>
                   <th className="py-2 px-3 text-right">DRE Despesas</th>
@@ -111,28 +111,28 @@ export default function ConciliacaoDRE() {
                   <th className="py-2 px-3 text-right">Diferença</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-gray-400 text-sm">
+                    <td colSpan={8} className="py-8 text-center text-fg-subtle text-sm">
                       Nenhum dado encontrado para {ano}.
                     </td>
                   </tr>
                 ) : (
                   rows.map((r) => (
-                    <tr key={r.month_num} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-2 px-3 font-medium text-gray-700">{r.month_label}</td>
-                      <td className="py-2 px-3 text-right text-green-700">{fmtBRL(r.dre_receivable)}</td>
-                      <td className="py-2 px-3 text-right text-red-600">{fmtBRL(r.dre_payable)}</td>
-                      <td className={`py-2 px-3 text-right font-medium ${diffColor(r.dre_net)}`}>
+                    <tr key={r.month_num} className="hover:bg-surface-2 transition-colors">
+                      <td className="py-2 px-3 font-medium text-fg-muted">{r.month_label}</td>
+                      <td className="py-2 px-3 text-right text-revenue tnum">{fmtBRL(r.dre_receivable)}</td>
+                      <td className="py-2 px-3 text-right text-expense tnum">{fmtBRL(r.dre_payable)}</td>
+                      <td className={`py-2 px-3 text-right font-medium tnum ${diffColor(r.dre_net)}`}>
                         {fmtBRL(r.dre_net)}
                       </td>
-                      <td className="py-2 px-3 text-right text-green-700">{fmtBRL(r.cash_receivable)}</td>
-                      <td className="py-2 px-3 text-right text-red-600">{fmtBRL(r.cash_payable)}</td>
-                      <td className={`py-2 px-3 text-right font-medium ${diffColor(r.cash_net)}`}>
+                      <td className="py-2 px-3 text-right text-revenue tnum">{fmtBRL(r.cash_receivable)}</td>
+                      <td className="py-2 px-3 text-right text-expense tnum">{fmtBRL(r.cash_payable)}</td>
+                      <td className={`py-2 px-3 text-right font-medium tnum ${diffColor(r.cash_net)}`}>
                         {fmtBRL(r.cash_net)}
                       </td>
-                      <td className={`py-2 px-3 text-right font-semibold ${diffColor(r.difference)}`}>
+                      <td className={`py-2 px-3 text-right font-semibold tnum ${diffColor(r.difference)}`}>
                         {fmtBRL(r.difference)}
                       </td>
                     </tr>
@@ -141,19 +141,19 @@ export default function ConciliacaoDRE() {
               </tbody>
               {rows.length > 0 && (
                 <tfoot>
-                  <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
-                    <td className="py-2 px-3 text-gray-700">Total</td>
-                    <td className="py-2 px-3 text-right text-green-700">{fmtBRL(totais.dre_receivable)}</td>
-                    <td className="py-2 px-3 text-right text-red-600">{fmtBRL(totais.dre_payable)}</td>
-                    <td className={`py-2 px-3 text-right ${diffColor(totais.dre_net)}`}>
+                  <tr className="border-t-2 border-border-strong bg-surface-2 font-semibold">
+                    <td className="py-2 px-3 text-fg-muted">Total</td>
+                    <td className="py-2 px-3 text-right text-revenue tnum">{fmtBRL(totais.dre_receivable)}</td>
+                    <td className="py-2 px-3 text-right text-expense tnum">{fmtBRL(totais.dre_payable)}</td>
+                    <td className={`py-2 px-3 text-right tnum ${diffColor(totais.dre_net)}`}>
                       {fmtBRL(totais.dre_net)}
                     </td>
-                    <td className="py-2 px-3 text-right text-green-700">{fmtBRL(totais.cash_receivable)}</td>
-                    <td className="py-2 px-3 text-right text-red-600">{fmtBRL(totais.cash_payable)}</td>
-                    <td className={`py-2 px-3 text-right ${diffColor(totais.cash_net)}`}>
+                    <td className="py-2 px-3 text-right text-revenue tnum">{fmtBRL(totais.cash_receivable)}</td>
+                    <td className="py-2 px-3 text-right text-expense tnum">{fmtBRL(totais.cash_payable)}</td>
+                    <td className={`py-2 px-3 text-right tnum ${diffColor(totais.cash_net)}`}>
                       {fmtBRL(totais.cash_net)}
                     </td>
-                    <td className={`py-2 px-3 text-right ${diffColor(totais.difference)}`}>
+                    <td className={`py-2 px-3 text-right tnum ${diffColor(totais.difference)}`}>
                       {fmtBRL(totais.difference)}
                     </td>
                   </tr>
@@ -164,26 +164,10 @@ export default function ConciliacaoDRE() {
         )}
       </Card>
 
-      <Card>
-        <div className="flex gap-3">
-          <div className="mt-0.5 text-blue-500 shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-1">Nota explicativa</p>
-            <p className="text-sm text-gray-600">
-              A diferença entre DRE (competência) e Caixa é esperada e não indica erro. Representa
-              receitas/despesas reconhecidas por competência mas ainda não movimentadas financeiramente.
-            </p>
-          </div>
-        </div>
-      </Card>
+      <Alert tom="info" titulo="Nota explicativa">
+        A diferença entre DRE (competência) e Caixa é esperada e não indica erro. Representa
+        receitas/despesas reconhecidas por competência mas ainda não movimentadas financeiramente.
+      </Alert>
     </div>
   )
 }

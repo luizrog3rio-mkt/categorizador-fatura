@@ -98,13 +98,13 @@ export default function Faturas() {
 
       <ErroBanner mensagem={erro ?? erroWorld} />
 
-      {loading && <div className="text-center py-10 text-slate-400 text-sm">Carregando...</div>}
+      {loading && <div className="text-center py-10 text-fg-subtle text-sm">Carregando...</div>}
 
       {!loading && invoices.length === 0 && (
-        <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl py-16 px-6 text-center">
-          <div className="flex justify-center mb-3 text-slate-300"><CreditCard size={48} /></div>
-          <p className="text-base font-bold text-slate-800 mb-1">Importe sua primeira fatura</p>
-          <p className="text-sm text-slate-500">Clique em “Importar .OFX” no topo da página</p>
+        <div className="bg-surface border-2 border-dashed border-border rounded-modal py-16 px-6 text-center">
+          <div className="flex justify-center mb-3 text-fg-subtle"><CreditCard size={48} /></div>
+          <p className="text-base font-bold text-fg mb-1">Importe sua primeira fatura</p>
+          <p className="text-sm text-fg-muted">Clique em “Importar .OFX” no topo da página</p>
         </div>
       )}
 
@@ -115,23 +115,23 @@ export default function Faturas() {
             <div
               key={inv.id}
               onClick={() => navigate(`/faturas/${inv.id}`)}
-              className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4 flex items-center gap-4 cursor-pointer transition hover:border-indigo-300 hover:shadow-md"
+              className="bg-surface rounded-card border border-border shadow-card px-5 py-4 flex items-center gap-4 cursor-pointer transition hover:border-brand-subtle hover:shadow-pop"
             >
-              <div className="w-11 h-11 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 shrink-0">
+              <div className="w-11 h-11 rounded-control bg-brand-subtle flex items-center justify-center text-brand shrink-0">
                 <FileText size={20} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm text-slate-800 truncate">{inv.name || 'Fatura importada'}</div>
-                <div className="text-xs text-slate-400">
+                <div className="font-bold text-sm text-fg truncate">{inv.name || 'Fatura importada'}</div>
+                <div className="text-xs text-fg-subtle">
                   {inv.transaction_count} lançamentos · {inv.imported_at ? new Date(inv.imported_at).toLocaleDateString('pt-BR') : '—'}
                   {cartao ? ` · ${cartao.name}` : ''}
                 </div>
               </div>
-              <div className="text-right shrink-0 font-extrabold text-base text-slate-800">{fmt(Number(inv.total ?? 0))}</div>
+              <div className="text-right shrink-0 font-extrabold text-base text-fg tnum">{fmt(Number(inv.total ?? 0))}</div>
               {isAdmin && (
                 <button
                   onClick={(e) => { e.stopPropagation(); excluir(inv) }}
-                  className="text-slate-300 hover:text-red-500 p-1.5 rounded-md transition shrink-0"
+                  className="text-fg-subtle hover:text-expense p-1.5 rounded-control transition shrink-0"
                   title="Excluir fatura"
                 >
                   <Trash2 size={16} />

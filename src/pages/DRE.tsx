@@ -42,9 +42,9 @@ function mvSub(a: MV, b: MV): MV {
 }
 
 function valCls(v: number): string {
-  if (v > 0) return 'text-emerald-600'
-  if (v < 0) return 'text-red-600'
-  return 'text-slate-400'
+  if (v > 0) return 'text-revenue'
+  if (v < 0) return 'text-expense'
+  return 'text-fg-subtle'
 }
 
 export default function DRE() {
@@ -170,7 +170,7 @@ export default function DRE() {
       <Card className="p-4 mb-4">
         <div className="flex flex-wrap items-end gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Ano</label>
+            <label className="block text-xs font-medium text-fg-muted mb-1">Ano</label>
             <select
               className={inputCls}
               value={ano}
@@ -180,7 +180,7 @@ export default function DRE() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">De</label>
+            <label className="block text-xs font-medium text-fg-muted mb-1">De</label>
             <select
               className={inputCls}
               value={mesDe}
@@ -192,7 +192,7 @@ export default function DRE() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Até</label>
+            <label className="block text-xs font-medium text-fg-muted mb-1">Até</label>
             <select
               className={inputCls}
               value={mesAte}
@@ -209,7 +209,7 @@ export default function DRE() {
       {/* Loading */}
       {carregando && (
         <Card className="p-6 flex justify-center">
-          <span className="text-sm text-slate-400">Carregando DRE…</span>
+          <span className="text-sm text-fg-subtle">Carregando DRE…</span>
         </Card>
       )}
 
@@ -230,19 +230,19 @@ export default function DRE() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b-2 border-slate-200 bg-slate-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide min-w-[220px]">
+                <tr className="border-b-2 border-border bg-surface-2">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-fg-muted uppercase tracking-wide min-w-[220px]">
                     Conta
                   </th>
                   {meses.map(m => (
                     <th
                       key={m}
-                      className="px-3 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide min-w-[90px]"
+                      className="px-3 py-3 text-right text-xs font-semibold text-fg-muted uppercase tracking-wide min-w-[90px]"
                     >
                       {MESES[m - 1]}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide min-w-[110px] border-l border-slate-200">
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-fg-muted uppercase tracking-wide min-w-[110px] border-l border-border">
                     Total
                   </th>
                 </tr>
@@ -255,21 +255,21 @@ export default function DRE() {
                     return (
                       <tr
                         key={i}
-                        className={`border-t-2 border-slate-300 ${isLucro ? 'bg-slate-100' : 'bg-slate-50'}`}
+                        className={`border-t-2 border-border-strong ${isLucro ? 'bg-canvas' : 'bg-surface-2'}`}
                       >
-                        <td className="px-4 py-2.5 font-bold text-slate-800 whitespace-nowrap">
+                        <td className="px-4 py-2.5 font-bold text-fg whitespace-nowrap">
                           {item.label}
                         </td>
                         {item.mv.months.map((v, mi) => (
                           <td
                             key={mi}
-                            className={`px-3 py-2.5 text-right font-bold tabular-nums whitespace-nowrap ${valCls(v)}`}
+                            className={`px-3 py-2.5 text-right font-bold tnum whitespace-nowrap ${valCls(v)}`}
                           >
                             {fmtBRL(v)}
                           </td>
                         ))}
                         <td
-                          className={`px-3 py-2.5 text-right font-bold tabular-nums whitespace-nowrap border-l border-slate-200 ${valCls(item.mv.total)}`}
+                          className={`px-3 py-2.5 text-right font-bold tnum whitespace-nowrap border-l border-border ${valCls(item.mv.total)}`}
                         >
                           {fmtBRL(item.mv.total)}
                         </td>
@@ -285,20 +285,20 @@ export default function DRE() {
                   return (
                     <Fragment key={i}>
                       <tr
-                        className={`border-b border-slate-100 font-semibold ${hasRows ? 'cursor-pointer hover:bg-slate-50' : ''}`}
+                        className={`border-b border-border font-semibold ${hasRows ? 'cursor-pointer hover:bg-surface-2' : ''}`}
                         onClick={() => hasRows && toggle(item.nature)}
                       >
-                        <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">
+                        <td className="px-4 py-2.5 text-fg-muted whitespace-nowrap">
                           <span className="inline-flex items-center gap-1.5">
                             {hasRows && (
                               <ChevronRight
                                 size={14}
-                                className={`text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                                className={`text-fg-subtle transition-transform ${isOpen ? 'rotate-90' : ''}`}
                               />
                             )}
                             {item.label}
                             {hasRows && (
-                              <span className="text-xs font-normal text-slate-400">
+                              <span className="text-xs font-normal text-fg-subtle">
                                 ({rows.length})
                               </span>
                             )}
@@ -307,13 +307,13 @@ export default function DRE() {
                         {item.mv.months.map((v, mi) => (
                           <td
                             key={mi}
-                            className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${valCls(v)}`}
+                            className={`px-3 py-2.5 text-right tnum whitespace-nowrap ${valCls(v)}`}
                           >
                             {fmtBRL(v)}
                           </td>
                         ))}
                         <td
-                          className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap border-l border-slate-200 ${valCls(item.mv.total)}`}
+                          className={`px-3 py-2.5 text-right tnum whitespace-nowrap border-l border-border ${valCls(item.mv.total)}`}
                         >
                           {fmtBRL(item.mv.total)}
                         </td>
@@ -325,10 +325,10 @@ export default function DRE() {
                         return (
                           <tr
                             key={ri}
-                            className={`border-b border-slate-50 text-xs ${r.is_analytical ? 'bg-white' : 'bg-slate-50/40'}`}
+                            className={`border-b border-border text-xs ${r.is_analytical ? 'bg-surface' : 'bg-surface-2/40'}`}
                           >
                             <td
-                              className={`py-1.5 pr-4 text-slate-600 truncate max-w-xs ${r.is_analytical ? 'pl-10' : 'pl-7 font-medium'}`}
+                              className={`py-1.5 pr-4 text-fg-muted truncate max-w-xs ${r.is_analytical ? 'pl-10' : 'pl-7 font-medium'}`}
                               title={r.account_name}
                             >
                               {r.account_name}
@@ -336,13 +336,13 @@ export default function DRE() {
                             {rv.months.map((v, mi) => (
                               <td
                                 key={mi}
-                                className={`px-3 py-1.5 text-right tabular-nums whitespace-nowrap ${v !== 0 ? valCls(v) : 'text-slate-300'}`}
+                                className={`px-3 py-1.5 text-right tnum whitespace-nowrap ${v !== 0 ? valCls(v) : 'text-fg-subtle'}`}
                               >
                                 {v !== 0 ? fmtBRL(v) : '—'}
                               </td>
                             ))}
                             <td
-                              className={`px-3 py-1.5 text-right tabular-nums whitespace-nowrap border-l border-slate-100 ${rv.total !== 0 ? valCls(rv.total) : 'text-slate-300'}`}
+                              className={`px-3 py-1.5 text-right tnum whitespace-nowrap border-l border-border ${rv.total !== 0 ? valCls(rv.total) : 'text-fg-subtle'}`}
                             >
                               {rv.total !== 0 ? fmtBRL(rv.total) : '—'}
                             </td>

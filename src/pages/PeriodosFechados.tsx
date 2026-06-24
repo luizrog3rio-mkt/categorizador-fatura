@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
-import { Card, PageHeader, ErroBanner, Modal, btnPrimario, btnSecundario } from '../components/ui'
+import { Card, PageHeader, ErroBanner, Modal, Badge, Alert, btnPrimario, btnSecundario } from '../components/ui'
 import { fmtData } from '../lib/format'
 
 interface ClosedPeriod {
@@ -111,53 +111,44 @@ export default function PeriodosFechados() {
       {erro && <ErroBanner mensagem={erro} />}
 
       {!empresaAtiva && !carregando && (
-        <p className="text-sm text-slate-500">Selecione uma empresa para gerenciar os períodos fechados.</p>
+        <p className="text-sm text-fg-muted">Selecione uma empresa para gerenciar os períodos fechados.</p>
       )}
 
       <Card>
         {carregando ? (
-          <p className="text-sm text-gray-500 p-4">Carregando…</p>
+          <p className="text-sm text-fg-muted p-4">Carregando…</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-fg-muted">
                   <th className="px-4 py-3 font-medium">Mês / Ano</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Fechado por / quando</th>
                   {isAdmin && <th className="px-4 py-3 font-medium text-right">Ações</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {periodos.map((periodo) => {
                   const cp = mapFechados.get(periodo)
                   const isFechado = !!cp
                   const isAtualOuFuturo = periodo >= atual
 
                   return (
-                    <tr key={periodo} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-800 capitalize">
+                    <tr key={periodo} className="hover:bg-surface-2 transition-colors">
+                      <td className="px-4 py-3 font-medium text-fg capitalize">
                         {labelPeriodo(periodo)}
                       </td>
                       <td className="px-4 py-3">
                         {isFechado ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
-                            <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                            Fechado
-                          </span>
+                          <Badge tom="expense">Fechado</Badge>
                         ) : isAtualOuFuturo ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
-                            <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
-                            Em aberto
-                          </span>
+                          <Badge tom="muted">Em aberto</Badge>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
-                            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                            Aberto
-                          </span>
+                          <Badge tom="revenue">Aberto</Badge>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">
+                      <td className="px-4 py-3 text-fg-muted">
                         {cp ? (
                           <span>
                             {cp.closed_by}
@@ -165,7 +156,7 @@ export default function PeriodosFechados() {
                             {fmtData(cp.closed_at)}
                           </span>
                         ) : (
-                          <span className="text-gray-300">—</span>
+                          <span className="text-fg-subtle">—</span>
                         )}
                       </td>
                       {isAdmin && (
@@ -213,11 +204,11 @@ export default function PeriodosFechados() {
           onFechar={() => !salvando && setModalFechar(null)}
         >
           <div className="space-y-4">
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-fg-muted">
               Deseja fechar o período{' '}
               <strong className="capitalize">{labelPeriodo(modalFechar)}</strong>?
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-fg-muted">
               Após o fechamento, novos lançamentos neste período serão bloqueados. A ação
               pode ser desfeita pelo administrador.
             </p>
@@ -249,18 +240,15 @@ export default function PeriodosFechados() {
           onFechar={() => !salvando && setModalReabrir(null)}
         >
           <div className="space-y-4">
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-fg-muted">
               Deseja reabrir o período{' '}
               <strong className="capitalize">{labelPeriodo(modalReabrir.period)}</strong>?
             </p>
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-              <p className="text-sm font-medium text-amber-800">Aviso de integridade</p>
-              <p className="mt-1 text-sm text-amber-700">
-                A reabertura de um período fechado pode comprometer a integridade contábil,
-                permitindo alterações em competências já conciliadas ou reportadas. Prossiga
-                apenas se tiver certeza.
-              </p>
-            </div>
+            <Alert tom="warning" titulo="Aviso de integridade">
+              A reabertura de um período fechado pode comprometer a integridade contábil,
+              permitindo alterações em competências já conciliadas ou reportadas. Prossiga
+              apenas se tiver certeza.
+            </Alert>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setModalReabrir(null)}
@@ -272,7 +260,7 @@ export default function PeriodosFechados() {
               <button
                 onClick={() => reabrirPeriodo(modalReabrir)}
                 disabled={salvando}
-                className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                className="rounded-control bg-warning px-4 py-2 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50"
               >
                 {salvando ? 'Processando…' : 'Reabrir mesmo assim'}
               </button>

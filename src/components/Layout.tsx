@@ -20,43 +20,89 @@ import {
   Lock,
   ArrowLeftRight,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import AtualizacaoModal from './AtualizacaoModal'
 
-const itens = [
-  { to: '/', rotulo: 'Dashboard', icone: LayoutDashboard },
-  { to: '/faturas', rotulo: 'Faturas de Cartão', icone: ReceiptText },
-  { to: '/compras', rotulo: 'Compras', icone: ShoppingBag },
-  { to: '/pagar', rotulo: 'Contas a Pagar', icone: ArrowDownCircle },
-  { to: '/receber', rotulo: 'Contas a Receber', icone: ArrowUpCircle },
-  { to: '/extrato', rotulo: 'Extratos (OFX)', icone: FileDown },
-  { to: '/conciliacao', rotulo: 'Conciliação', icone: Link2 },
-  { to: '/hotmart', rotulo: 'Hotmart', icone: ShoppingCart },
-  { to: '/contas', rotulo: 'Contas & Cartões', icone: Landmark },
-  { to: '/relatorio-categorias', rotulo: 'Relatório', icone: PieChart },
-  { to: '/dre', rotulo: 'DRE', icone: Scale },
-  { to: '/empresas', rotulo: 'Empresas', icone: Building2 },
-  { to: '/categorias', rotulo: 'Categorias', icone: Tags },
-  { to: '/plano-de-contas', rotulo: 'Plano de Contas', icone: BookOpen },
-  { to: '/produtos-dre', rotulo: 'Produtos DRE', icone: Tag },
-  { to: '/periodos-fechados', rotulo: 'Períodos Fechados', icone: Lock },
-  { to: '/conciliacao-dre', rotulo: 'Conciliação DRE', icone: ArrowLeftRight },
+type Item = { to: string; rotulo: string; icone: LucideIcon }
+type Grupo = { titulo: string; itens: Item[] }
+
+// Navegação por domínio: 18 alvos planos → 7 seções escaneáveis.
+const grupos: Grupo[] = [
+  {
+    titulo: 'Visão geral',
+    itens: [{ to: '/', rotulo: 'Dashboard', icone: LayoutDashboard }],
+  },
+  {
+    titulo: 'Cartão & Compras',
+    itens: [
+      { to: '/faturas', rotulo: 'Faturas de Cartão', icone: ReceiptText },
+      { to: '/compras', rotulo: 'Compras', icone: ShoppingBag },
+    ],
+  },
+  {
+    titulo: 'Contas & Caixa',
+    itens: [
+      { to: '/pagar', rotulo: 'Contas a Pagar', icone: ArrowDownCircle },
+      { to: '/receber', rotulo: 'Contas a Receber', icone: ArrowUpCircle },
+      { to: '/extrato', rotulo: 'Extratos (OFX)', icone: FileDown },
+      { to: '/conciliacao', rotulo: 'Conciliação', icone: Link2 },
+    ],
+  },
+  {
+    titulo: 'Receitas & Vendas',
+    itens: [{ to: '/hotmart', rotulo: 'Hotmart', icone: ShoppingCart }],
+  },
+  {
+    titulo: 'DRE & Relatórios',
+    itens: [
+      { to: '/dre', rotulo: 'DRE', icone: Scale },
+      { to: '/relatorio-categorias', rotulo: 'Relatório de Categorias', icone: PieChart },
+      { to: '/conciliacao-dre', rotulo: 'Conciliação DRE', icone: ArrowLeftRight },
+      { to: '/periodos-fechados', rotulo: 'Períodos Fechados', icone: Lock },
+    ],
+  },
+  {
+    titulo: 'Cadastros',
+    itens: [
+      { to: '/empresas', rotulo: 'Empresas', icone: Building2 },
+      { to: '/contas', rotulo: 'Contas & Cartões', icone: Landmark },
+      { to: '/categorias', rotulo: 'Categorias', icone: Tags },
+      { to: '/plano-de-contas', rotulo: 'Plano de Contas', icone: BookOpen },
+      { to: '/produtos-dre', rotulo: 'Produtos DRE', icone: Tag },
+    ],
+  },
 ]
+
+const itemCls = ({ isActive }: { isActive: boolean }) =>
+  `flex items-center gap-3 h-9 px-3 rounded-control text-sm transition ${
+    isActive ? 'bg-brand-subtle text-brand font-medium' : 'text-fg-muted hover:bg-surface-2'
+  }`
 
 export default function Layout() {
   const { perfil, isAdmin, empresas, empresaAtiva, setEmpresaAtiva, pendingCount } = useApp()
 
   return (
     <div className="min-h-screen flex">
-      <aside className="w-60 bg-slate-900 text-slate-200 flex flex-col fixed inset-y-0">
-        <div className="px-5 py-5 border-b border-slate-800">
-          <h1 className="text-lg font-bold text-white">💳 RB7 Financeiro</h1>
-          <p className="text-xs text-slate-400 mt-0.5 truncate">{perfil?.email}</p>
+      <aside className="w-64 bg-surface border-r border-border flex flex-col fixed inset-y-0">
+        {/* marca */}
+        <div className="px-4 py-4 border-b border-border">
+          <div className="flex items-center gap-2.5">
+            <div className="grid place-items-center w-8 h-8 rounded-control bg-brand text-white font-bold text-sm tracking-tight shrink-0">
+              R
+            </div>
+            <div className="leading-tight min-w-0">
+              <p className="font-bold text-fg tracking-tight">RB7 Financeiro</p>
+              <p className="text-xs text-fg-subtle truncate">{perfil?.email}</p>
+            </div>
+          </div>
         </div>
+
+        {/* seletor de empresa */}
         {empresas.length > 1 && (
-          <div className="px-4 py-3 border-b border-slate-800">
-            <label className="block text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+          <div className="px-3 py-3 border-b border-border">
+            <label className="block text-[11px] uppercase tracking-wide text-fg-subtle mb-1 px-1">
               Empresa
             </label>
             <select
@@ -64,7 +110,7 @@ export default function Layout() {
               onChange={(e) =>
                 setEmpresaAtiva(empresas.find((emp) => emp.id === e.target.value) ?? null)
               }
-              className="w-full bg-slate-800 text-sm rounded-lg px-2 py-1.5 border border-slate-700"
+              className="w-full rounded-control border border-border-strong bg-surface text-sm px-2 py-1.5 text-fg focus:outline-none focus:ring-2 focus:ring-brand"
             >
               <option value="">Consolidado (todas)</option>
               {empresas.map((e) => (
@@ -75,51 +121,59 @@ export default function Layout() {
             </select>
           </div>
         )}
-        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
-          {itens.map(({ to, rotulo, icone: Icone }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${
-                  isActive ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'
-                }`
-              }
-            >
-              <Icone size={17} />
-              <span className="flex-1">{rotulo}</span>
-              {to === '/compras' && pendingCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-bold">
-                  {pendingCount}
-                </span>
-              )}
-            </NavLink>
+
+        {/* navegação por grupos */}
+        <nav className="flex-1 px-3 py-2 overflow-y-auto">
+          {grupos.map((grupo) => (
+            <div key={grupo.titulo} className="mt-4 first:mt-1">
+              <p className="px-3 mb-1 text-[11px] font-semibold tracking-wide uppercase text-fg-subtle">
+                {grupo.titulo}
+              </p>
+              <div className="space-y-0.5">
+                {grupo.itens.map(({ to, rotulo, icone: Icone }) => (
+                  <NavLink key={to} to={to} end={to === '/'} className={itemCls}>
+                    <Icone size={18} className="shrink-0" />
+                    <span className="flex-1 truncate">{rotulo}</span>
+                    {to === '/compras' && pendingCount > 0 && (
+                      <span className="ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-brand text-white text-[11px] font-semibold tnum">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
+
+          {isAdmin && (
+            <div className="mt-4">
+              <p className="px-3 mb-1 text-[11px] font-semibold tracking-wide uppercase text-fg-subtle">
+                Admin
+              </p>
+              <NavLink to="/usuarios" className={itemCls}>
+                <Users size={18} className="shrink-0" />
+                <span className="flex-1 truncate">Usuários</span>
+              </NavLink>
+            </div>
+          )}
         </nav>
-        {isAdmin && (
-          <NavLink
-            to="/usuarios"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mx-3 mb-1 ${
-                isActive ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'
-              }`
-            }
+
+        {/* rodapé */}
+        <div className="border-t border-border">
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="flex items-center gap-3 w-full px-5 py-3 text-sm text-fg-muted hover:bg-surface-2 transition"
           >
-            <Users size={17} />
-            <span>Usuários</span>
-          </NavLink>
-        )}
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="flex items-center gap-3 px-6 py-4 text-sm text-slate-400 hover:text-white border-t border-slate-800"
-        >
-          <LogOut size={16} /> Sair
-        </button>
-        <p className="px-6 pb-3 text-[10px] text-slate-600">versão {__APP_VERSION__}</p>
+            <LogOut size={16} /> Sair
+          </button>
+          <p className="px-5 pb-2.5 text-[10px] text-fg-subtle">versão {__APP_VERSION__}</p>
+        </div>
       </aside>
-      <main className="flex-1 ml-60 p-6">
-        <Outlet />
+
+      <main className="flex-1 ml-64">
+        <div className="max-w-[1400px] mx-auto px-6 py-6">
+          <Outlet />
+        </div>
       </main>
       <AtualizacaoModal />
     </div>

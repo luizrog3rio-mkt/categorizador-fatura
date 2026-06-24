@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, primeiroDiaMes, ultimoDiaMes } from '../lib/format'
 import type { Account, AccountType, AccountBalance, AccountLedgerRow } from '../lib/types'
-import { Card, PageHeader, Modal, Vazio, ErroBanner, Badge, inputCls, btnPrimario } from '../components/ui'
+import { Card, PageHeader, Modal, Vazio, ErroBanner, Badge, inputCls, btnPrimario, type BadgeTom } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
 interface ContaComSaldo extends Account {
@@ -12,10 +12,10 @@ interface ContaComSaldo extends Account {
   fonte: 'ofx' | 'entries' | 'inicial'
 }
 
-const FONTE_LABEL: Record<ContaComSaldo['fonte'], { txt: string; cor: string }> = {
-  ofx: { txt: 'Extrato', cor: '#2563eb' },
-  entries: { txt: 'Lançamentos', cor: '#64748b' },
-  inicial: { txt: 'Só saldo inicial', cor: '#b45309' },
+const FONTE_LABEL: Record<ContaComSaldo['fonte'], { txt: string; tom: BadgeTom }> = {
+  ofx: { txt: 'Extrato', tom: 'brand' },
+  entries: { txt: 'Lançamentos', tom: 'muted' },
+  inicial: { txt: 'Só saldo inicial', tom: 'warning' },
 }
 
 const icones: Record<AccountType, typeof Landmark> = {
@@ -134,13 +134,13 @@ export default function Contas() {
   }
 
   const ledgerCols = useMemo<DataColumn<AccountLedgerRow>[]>(() => [
-    { id: 'data', header: 'Data', size: 110, cell: (r) => <span className="text-slate-600 whitespace-nowrap">{fmtData(r.data)}</span> },
-    { id: 'descricao', header: 'Descrição', size: 340, cell: (r) => <span className="text-slate-700">{r.descricao || '—'}</span> },
+    { id: 'data', header: 'Data', size: 110, cell: (r) => <span className="text-fg-muted whitespace-nowrap">{fmtData(r.data)}</span> },
+    { id: 'descricao', header: 'Descrição', size: 340, cell: (r) => <span className="text-fg-muted">{r.descricao || '—'}</span> },
     { id: 'amount', header: 'Valor', size: 130, align: 'right',
-      cell: (r) => <span className={`font-medium tabular-nums ${r.amount < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{fmtBRL(r.amount)}</span> },
+      cell: (r) => <span className={`font-medium tnum ${r.amount < 0 ? 'text-expense' : 'text-revenue'}`}>{fmtBRL(r.amount)}</span> },
     { id: 'saldo', header: 'Saldo acumulado', size: 160, align: 'right',
-      cell: (r) => <span className="font-semibold tabular-nums text-slate-800">{fmtBRL(r.saldo_acumulado)}</span>,
-      footer: ledger.length ? <span className="font-bold text-slate-800">{fmtBRL(ledger[ledger.length - 1].saldo_acumulado)}</span> : undefined },
+      cell: (r) => <span className="font-semibold tnum text-fg">{fmtBRL(r.saldo_acumulado)}</span>,
+      footer: ledger.length ? <span className="font-bold text-fg">{fmtBRL(ledger[ledger.length - 1].saldo_acumulado)}</span> : undefined },
   ], [ledger])
 
   return (
@@ -187,7 +187,7 @@ export default function Contas() {
               </div>
             )}
             {temFiltro && (
-              <button type="button" onClick={limparFiltros} className="text-sm text-slate-500 hover:text-red-600 underline pb-2">
+              <button type="button" onClick={limparFiltros} className="text-sm text-fg-muted hover:text-expense underline pb-2">
                 Limpar filtros
               </button>
             )}
@@ -205,12 +205,12 @@ export default function Contas() {
               <Card key={c.id} className={`p-5 ${!c.active ? 'opacity-50' : ''}`}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                    <div className="p-2 rounded-control bg-brand-subtle text-brand">
                       <Icone size={20} />
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-800">{c.name}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="font-semibold text-fg">{c.name}</p>
+                      <p className="text-xs text-fg-subtle">
                         {nomeEmpresa(c.company_id)} · {rotulos[c.type]}
                       </p>
                     </div>
@@ -218,28 +218,28 @@ export default function Contas() {
                   {isAdmin && (
                   <button
                     onClick={() => { setForm({ id: c.id, company_id: c.company_id, name: c.name, type: c.type, bank: c.bank ?? '', initial_balance: String(c.initial_balance), statement_closing_day: c.statement_closing_day ? String(c.statement_closing_day) : '', due_day: c.due_day ? String(c.due_day) : '', active: c.active }); setModalAberto(true) }}
-                    className="text-slate-300 hover:text-indigo-600"
+                    className="text-fg-subtle hover:text-brand"
                   >
                     <Pencil size={15} />
                   </button>
                   )}
                 </div>
-                <p className={`text-2xl font-bold mt-4 ${c.saldo < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                <p className={`text-2xl font-bold mt-4 tnum ${c.saldo < 0 ? 'text-expense' : 'text-revenue'}`}>
                   {fmtBRL(c.saldo)}
                 </p>
                 <div className="flex items-center justify-between mt-2">
-                  <Badge cor={FONTE_LABEL[c.fonte].cor}>{FONTE_LABEL[c.fonte].txt}</Badge>
-                  <button onClick={() => abrirExtrato(c)} className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                  <Badge tom={FONTE_LABEL[c.fonte].tom}>{FONTE_LABEL[c.fonte].txt}</Badge>
+                  <button onClick={() => abrirExtrato(c)} className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:text-brand-strong">
                     <Receipt size={13} /> Ver extrato
                   </button>
                 </div>
                 {c.type === 'inter_company' && (
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-fg-subtle mt-1">
                     Saldo do empréstimo entre empresas (consultável)
                   </p>
                 )}
                 {c.type === 'credit_card' && (
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-fg-subtle mt-1">
                     {c.statement_closing_day || c.due_day
                       ? `Fecha dia ${c.statement_closing_day ?? '—'} · vence dia ${c.due_day ?? '—'}`
                       : 'Fechamento/vencimento não cadastrados'}
@@ -315,8 +315,8 @@ export default function Contas() {
           </div>
           {ledgerConta && (
             <div className="ml-auto text-right">
-              <p className="text-xs text-slate-400 uppercase">Saldo atual</p>
-              <p className={`text-lg font-bold ${ledgerConta.saldo < 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmtBRL(ledgerConta.saldo)}</p>
+              <p className="text-xs text-fg-subtle uppercase">Saldo atual</p>
+              <p className={`text-lg font-bold tnum ${ledgerConta.saldo < 0 ? 'text-expense' : 'text-revenue'}`}>{fmtBRL(ledgerConta.saldo)}</p>
             </div>
           )}
         </div>

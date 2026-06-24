@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, Ban, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
-import { Card, PageHeader, Modal, ErroBanner, inputCls, btnPrimario } from '../components/ui'
+import { Card, PageHeader, Modal, Badge, Vazio, ErroBanner, inputCls, btnPrimario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
 interface UsuarioAdmin {
@@ -102,19 +102,19 @@ export default function Usuarios() {
 
   const colunas = useMemo<DataColumn<UsuarioAdmin>[]>(() => [
     { id: 'email', header: 'E-mail', size: 260, cell: (u) => (
-      <span className="font-medium text-slate-800">
+      <span className="font-medium text-fg">
         {u.email}
-        {ehEu(u.id) && <span className="ml-2 text-xs text-slate-400">(você)</span>}
+        {ehEu(u.id) && <span className="ml-2 text-xs text-fg-subtle">(você)</span>}
       </span>
     ) },
     { id: 'role', header: 'Papel', size: 150, cell: (u) => (
       ehEu(u.id) ? (
-        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">Admin</span>
+        <Badge tom="brand">Admin</Badge>
       ) : (
         <select
           value={u.role}
           onChange={(e) => mudarRole(u.id, e.target.value as 'admin' | 'viewer')}
-          className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium bg-white cursor-pointer"
+          className="rounded-control border border-border px-2 py-1 text-xs font-medium bg-surface cursor-pointer"
         >
           <option value="admin">Admin</option>
           <option value="viewer">Visualizador</option>
@@ -122,12 +122,10 @@ export default function Usuarios() {
       )
     ) },
     { id: 'status', header: 'Status', size: 120, cell: (u) => (
-      <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${u.banned ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-        {u.banned ? 'Desativado' : 'Ativo'}
-      </span>
+      <Badge tom={u.banned ? 'expense' : 'revenue'}>{u.banned ? 'Desativado' : 'Ativo'}</Badge>
     ) },
     { id: 'last_sign_in_at', header: 'Último acesso', size: 140, cell: (u) => (
-      <span className="text-slate-500 text-xs">{u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('pt-BR') : '—'}</span>
+      <span className="text-fg-muted text-xs">{u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('pt-BR') : '—'}</span>
     ) },
     { id: 'acoes', header: '', label: 'Ações', size: 100, align: 'right', enableHiding: false, cell: (u) => (
       !ehEu(u.id) ? (
@@ -135,11 +133,11 @@ export default function Usuarios() {
           <button
             title={u.banned ? 'Reativar acesso' : 'Desativar acesso'}
             onClick={() => toggleBan(u)}
-            className={u.banned ? 'text-green-500 hover:text-green-700' : 'text-slate-400 hover:text-amber-600'}
+            className={u.banned ? 'text-revenue hover:brightness-110' : 'text-fg-subtle hover:text-warning'}
           >
             {u.banned ? <CheckCircle size={16} /> : <Ban size={16} />}
           </button>
-          <button title="Excluir conta" onClick={() => excluir(u)} className="text-slate-400 hover:text-red-600">
+          <button title="Excluir conta" onClick={() => excluir(u)} className="text-fg-subtle hover:text-expense">
             <Trash2 size={16} />
           </button>
         </div>
@@ -163,9 +161,9 @@ export default function Usuarios() {
 
       <Card>
         {loading ? (
-          <p className="text-center text-slate-400 py-10 text-sm">Carregando…</p>
+          <Vazio mensagem="Carregando…" />
         ) : usuarios.length === 0 ? (
-          <p className="text-center text-slate-400 py-10 text-sm">Nenhum usuário encontrado.</p>
+          <Vazio mensagem="Nenhum usuário encontrado." />
         ) : (
           <DataTable
             tableKey="usuarios"
@@ -200,7 +198,7 @@ export default function Usuarios() {
               <button
                 type="button"
                 onClick={() => setMostrarSenha((v) => !v)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg-muted"
                 tabIndex={-1}
               >
                 {mostrarSenha ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -218,7 +216,7 @@ export default function Usuarios() {
               <option value="viewer">Visualizador — só leitura</option>
             </select>
           </div>
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
+          {erro && <p className="text-sm text-expense">{erro}</p>}
           <button
             onClick={criar}
             disabled={salvando || !form.email || !form.password}

@@ -5,7 +5,7 @@ import { useApp } from '../contexts/AppContext'
 import { parseHotmartCSV } from '../lib/hotmart'
 import { fmtBRL, fmtData } from '../lib/format'
 import type { HotmartSale } from '../lib/types'
-import { Card, PageHeader, Vazio, ErroBanner, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { Card, PageHeader, Vazio, ErroBanner, KPICard, Alert, Badge, type BadgeTom, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import DateRangePicker from '../components/DateRangePicker'
 
@@ -15,13 +15,13 @@ import DateRangePicker from '../components/DateRangePicker'
 // refletem). status mantém valores PT dos relatórios Hotmart.
 // Status vem da API em inglês maiúsculo (COMPLETE/APPROVED/REFUNDED/...) e do
 // CSV em PT — bucketiza por regex cobrindo os dois idiomas. Rótulo PT amigável.
-function classeStatus(s: string): string {
-  if (/complet|approv|aprovad|conclu/i.test(s)) return 'bg-green-100 text-green-700'
-  if (/refund|reembols|estorn/i.test(s)) return 'bg-amber-100 text-amber-700'
-  if (/chargeback/i.test(s)) return 'bg-red-100 text-red-700'
-  if (/cancel/i.test(s)) return 'bg-red-100 text-red-700'
-  if (/expir|atras|overdue|waiting|billet|printed|pending/i.test(s)) return 'bg-orange-100 text-orange-700'
-  return 'bg-slate-100 text-slate-600'
+function tomStatus(s: string): BadgeTom {
+  if (/complet|approv|aprovad|conclu/i.test(s)) return 'revenue'
+  if (/refund|reembols|estorn/i.test(s)) return 'warning'
+  if (/chargeback/i.test(s)) return 'expense'
+  if (/cancel/i.test(s)) return 'expense'
+  if (/expir|atras|overdue|waiting|billet|printed|pending/i.test(s)) return 'warning'
+  return 'muted'
 }
 
 function rotuloStatus(s: string): string {
@@ -35,11 +35,7 @@ function rotuloStatus(s: string): string {
 }
 
 function StatusHotmart({ status }: { status: string }) {
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${classeStatus(status)}`}>
-      {rotuloStatus(status)}
-    </span>
-  )
+  return <Badge tom={tomStatus(status)}>{rotuloStatus(status)}</Badge>
 }
 
 export default function Hotmart() {
@@ -135,25 +131,25 @@ export default function Hotmart() {
 
   // colunas da tabela (reordenáveis/redimensionáveis/ocultáveis via DataTable)
   const colunas = useMemo<DataColumn<HotmartSale>[]>(() => [
-    { id: 'sale_date', header: 'Data', size: 100, cell: (v) => <span className="whitespace-nowrap text-slate-600">{fmtData(v.sale_date)}</span> },
+    { id: 'sale_date', header: 'Data', size: 100, cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.sale_date)}</span> },
     { id: 'product', header: 'Produto', size: 220, cell: (v) => (
-      <span className="text-slate-800">
+      <span className="text-fg">
         {v.product}
         {v.currency && v.currency !== 'BRL' && (
-          <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 align-middle">{v.currency}</span>
+          <span className="ml-1.5 text-[10px] font-bold text-warning bg-warning-bg border border-border rounded-control px-1 py-0.5 align-middle">{v.currency}</span>
         )}
       </span>
     ) },
-    { id: 'transaction_code', header: 'Transação', size: 130, cell: (v) => <span className="text-xs text-slate-400">{v.transaction_code}</span> },
-    { id: 'total_amount', header: 'Valor Total', size: 120, align: 'right', cell: (v) => fmtBRL(Number(v.total_amount)) },
-    { id: 'gross_amount', header: 'Bruto', size: 110, align: 'right', cell: (v) => fmtBRL(Number(v.gross_amount)) },
-    { id: 'hotmart_fee', header: 'Taxa', size: 100, align: 'right', cell: (v) => <span className="text-red-600">{fmtBRL(Number(v.hotmart_fee))}</span> },
-    { id: 'fee_percentage', header: '% Hotmart', size: 100, align: 'right', cell: (v) => <span className="text-slate-500 whitespace-nowrap">{v.fee_percentage != null ? `${Number(v.fee_percentage)}%` : '—'}</span> },
-    { id: 'afiliados', header: 'Afil./Coprod.', size: 120, align: 'right', cell: (v) => <span className="text-orange-600">{fmtBRL(Number(v.affiliate_commission) + Number(v.coproduction_commission))}</span> },
-    { id: 'net_amount', header: 'Líquido', size: 120, align: 'right', cell: (v) => <span className="font-semibold text-green-700">{fmtBRL(Number(v.net_amount))}</span> },
-    { id: 'release_date', header: 'Liberação', size: 110, cell: (v) => <span className="whitespace-nowrap text-slate-600">{fmtData(v.release_date)}</span> },
-    { id: 'payment_method', header: 'Pagamento', size: 130, cell: (v) => <span className="text-xs text-slate-600 whitespace-nowrap">{v.payment_method ?? '—'}</span> },
-    { id: 'installments', header: 'Parcelas', size: 90, align: 'center', cell: (v) => <span className="text-slate-600 whitespace-nowrap">{v.installments == null ? '—' : v.installments <= 1 ? 'À vista' : `${v.installments}x`}</span> },
+    { id: 'transaction_code', header: 'Transação', size: 130, cell: (v) => <span className="text-xs text-fg-subtle tnum">{v.transaction_code}</span> },
+    { id: 'total_amount', header: 'Valor Total', size: 120, align: 'right', cell: (v) => <span className="tnum">{fmtBRL(Number(v.total_amount))}</span> },
+    { id: 'gross_amount', header: 'Bruto', size: 110, align: 'right', cell: (v) => <span className="tnum">{fmtBRL(Number(v.gross_amount))}</span> },
+    { id: 'hotmart_fee', header: 'Taxa', size: 100, align: 'right', cell: (v) => <span className="text-expense tnum">{fmtBRL(Number(v.hotmart_fee))}</span> },
+    { id: 'fee_percentage', header: '% Hotmart', size: 100, align: 'right', cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.fee_percentage != null ? `${Number(v.fee_percentage)}%` : '—'}</span> },
+    { id: 'afiliados', header: 'Afil./Coprod.', size: 120, align: 'right', cell: (v) => <span className="text-warning tnum">{fmtBRL(Number(v.affiliate_commission) + Number(v.coproduction_commission))}</span> },
+    { id: 'net_amount', header: 'Líquido', size: 120, align: 'right', cell: (v) => <span className="font-semibold text-revenue tnum">{fmtBRL(Number(v.net_amount))}</span> },
+    { id: 'release_date', header: 'Liberação', size: 110, cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.release_date)}</span> },
+    { id: 'payment_method', header: 'Pagamento', size: 130, cell: (v) => <span className="text-xs text-fg-muted whitespace-nowrap">{v.payment_method ?? '—'}</span> },
+    { id: 'installments', header: 'Parcelas', size: 90, align: 'center', cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.installments == null ? '—' : v.installments <= 1 ? 'À vista' : `${v.installments}x`}</span> },
     { id: 'status', header: 'Status', size: 120, cell: (v) => <StatusHotmart status={v.status} /> },
   ], [])
 
@@ -196,41 +192,28 @@ export default function Hotmart() {
             <DateRangePicker de={dataDe} ate={dataAte} align="right" onChange={(d, a) => { setDataDe(d); setDataAte(a) }} />
           </div>
         </div>
-        {msg && <p className="text-sm text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2 mt-4">{msg}</p>}
+        {msg && <div className="mt-4"><Alert tom="info">{msg}</Alert></div>}
       </Card>
 
+      {/* 6 KPIs (mais que o teto de 5 do KPIStrip) → grid bespoke com KPICard */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-2">
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Vendas</p>
-          <p className="text-xl font-bold mt-1">{totais.qtd}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Valor Total</p>
-          <p className="text-xl font-bold text-slate-700 mt-1">{fmtBRL(totais.total)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Bruto</p>
-          <p className="text-xl font-bold mt-1">{fmtBRL(totais.bruto)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Taxas Hotmart</p>
-          <p className="text-xl font-bold text-red-600 mt-1">{fmtBRL(totais.taxas)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Afiliados/Coprod.</p>
-          <p className="text-xl font-bold text-orange-600 mt-1">{fmtBRL(totais.afiliados)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Líquido</p>
-          <p className="text-xl font-bold text-green-600 mt-1">{fmtBRL(totais.liquido)}</p>
-        </Card>
+        <KPICard label="Vendas" valor={totais.qtd} />
+        <KPICard label="Valor Total" valor={fmtBRL(totais.total)} />
+        <KPICard label="Bruto" valor={fmtBRL(totais.bruto)} />
+        <KPICard label="Taxas Hotmart" valor={fmtBRL(totais.taxas)} tom="expense" />
+        <KPICard label="Afiliados/Coprod." valor={fmtBRL(totais.afiliados)} tom="warning" />
+        <KPICard label="Líquido" valor={fmtBRL(totais.liquido)} tom="revenue" />
       </div>
-      <p className="text-xs text-slate-400 mb-6">
+      <p className={`text-xs text-fg-subtle ${totais.foraMoeda > 0 ? 'mb-3' : 'mb-6'}`}>
         Valor Total = pago pelos compradores (com juros de parcelamento) · Bruto = preço dos produtos (sem juros) · Líquido = bruto − taxas.
-        {totais.foraMoeda > 0 && (
-          <span className="text-amber-600"> · {totais.foraMoeda} venda{totais.foraMoeda !== 1 ? 's' : ''} em outra moeda não {totais.foraMoeda !== 1 ? 'incluídas' : 'incluída'} nos totais (R$).</span>
-        )}
       </p>
+      {totais.foraMoeda > 0 && (
+        <div className="mb-6">
+          <Alert tom="warning">
+            {totais.foraMoeda} venda{totais.foraMoeda !== 1 ? 's' : ''} em outra moeda não {totais.foraMoeda !== 1 ? 'incluídas' : 'incluída'} nos totais (R$).
+          </Alert>
+        </div>
+      )}
 
       <Card>
         {vendas.length === 0 ? (
@@ -244,7 +227,7 @@ export default function Hotmart() {
               getRowId={(v) => v.id}
             />
             {totais.qtd > vendas.length && (
-              <p className="text-xs text-slate-400 text-center py-3 border-t border-slate-100">
+              <p className="text-xs text-fg-subtle text-center py-3 border-t border-border">
                 Mostrando as {vendas.length} vendas mais recentes. Os totais acima consideram todas as {totais.qtd} aprovadas do período. Use o filtro de período para ver outros intervalos.
               </p>
             )}

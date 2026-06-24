@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData } from '../lib/format'
 import type { Account } from '../lib/types'
-import { Card, PageHeader, ErroBanner, Vazio, Badge, inputCls, btnPrimario } from '../components/ui'
+import { Card, PageHeader, ErroBanner, Vazio, Badge, KPICard, KPIStrip, Button, inputCls } from '../components/ui'
 
 // Conciliação bancária — casa linhas do extrato (bank_transactions) com contas a
 // pagar/receber (entries) via as RPCs reconcile_*. Inerte até importar OFX numa
@@ -95,35 +95,30 @@ export default function Conciliacao() {
                 </select>
               </div>
               {isAdmin && (
-                <button onClick={sugerir} disabled={!summary || summary.pendentes === 0} className={btnPrimario + (!summary || summary.pendentes === 0 ? ' opacity-40 pointer-events-none' : '')}>
+                <Button variante="primary" onClick={sugerir} disabled={!summary || summary.pendentes === 0}>
                   <Sparkles size={16} /> Sugerir matches
-                </button>
+                </Button>
               )}
             </div>
           </Card>
 
           {summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-              {[
-                { l: 'Linhas no extrato', v: String(summary.total) },
-                { l: 'Conciliadas', v: String(summary.conciliadas) },
-                { l: 'Pendentes', v: String(summary.pendentes) },
-                { l: 'Valor pendente', v: fmtBRL(Number(summary.valor_pendente)) },
-              ].map(({ l, v }) => (
-                <Card key={l} className="p-4">
-                  <p className="text-xs text-slate-500 uppercase">{l}</p>
-                  <p className="text-lg font-bold text-slate-800 mt-1">{v}</p>
-                </Card>
-              ))}
+            <div className="mb-6">
+              <KPIStrip cols={4}>
+                <KPICard bare label="Linhas no extrato" valor={summary.total} />
+                <KPICard bare label="Conciliadas" tom="revenue" valor={summary.conciliadas} />
+                <KPICard bare label="Pendentes" tom="warning" valor={summary.pendentes} />
+                <KPICard bare label="Valor pendente" tom="warning" valor={fmtBRL(Number(summary.valor_pendente))} />
+              </KPIStrip>
             </div>
           )}
 
           {sugestoes.length > 0 && (
             <Card className="mb-6 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 font-bold text-sm text-slate-800">Sugestões de conciliação ({sugestoes.length})</div>
+              <div className="px-4 py-3 border-b border-border font-bold text-sm text-fg">Sugestões de conciliação ({sugestoes.length})</div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-slate-500 uppercase border-b border-slate-100">
+                  <tr className="text-xs text-fg-muted uppercase border-b border-border">
                     <th className="text-left px-4 py-2">Extrato</th>
                     <th className="text-right px-4 py-2">Valor</th>
                     <th className="text-left px-4 py-2">Lançamento</th>
@@ -134,15 +129,15 @@ export default function Conciliacao() {
                 </thead>
                 <tbody>
                   {sugestoes.map((s) => (
-                    <tr key={`${s.bank_tx_id}-${s.entry_id}`} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="px-4 py-2.5 text-slate-600"><span className="text-xs text-slate-400">{fmtData(s.bank_date)}</span> {s.bank_memo}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(Number(s.bank_amount))}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{s.entry_desc}</td>
-                      <td className="px-4 py-2.5 text-right text-slate-500 text-xs">{fmtData(s.entry_due)}</td>
-                      <td className="px-4 py-2.5 text-right text-slate-400 text-xs">{s.diff_days}</td>
+                    <tr key={`${s.bank_tx_id}-${s.entry_id}`} className="border-b border-border hover:bg-surface-2">
+                      <td className="px-4 py-2.5 text-fg-muted"><span className="text-xs text-fg-subtle">{fmtData(s.bank_date)}</span> {s.bank_memo}</td>
+                      <td className="px-4 py-2.5 text-right tnum">{fmtBRL(Number(s.bank_amount))}</td>
+                      <td className="px-4 py-2.5 text-fg-muted">{s.entry_desc}</td>
+                      <td className="px-4 py-2.5 text-right text-fg-muted text-xs">{fmtData(s.entry_due)}</td>
+                      <td className="px-4 py-2.5 text-right text-fg-subtle text-xs">{s.diff_days}</td>
                       <td className="px-4 py-2.5 text-right">
                         {isAdmin && (
-                          <button onClick={() => conciliar(s.bank_tx_id, s.entry_id)} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+                          <button onClick={() => conciliar(s.bank_tx_id, s.entry_id)} className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:text-brand-strong">
                             <Link2 size={13} /> Conciliar
                           </button>
                         )}
@@ -155,25 +150,25 @@ export default function Conciliacao() {
           )}
 
           <Card className="overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 font-bold text-sm text-slate-800">Linhas do extrato</div>
+            <div className="px-4 py-3 border-b border-border font-bold text-sm text-fg">Linhas do extrato</div>
             {linhas.length === 0 ? (
               <Vazio mensagem="Sem linhas de extrato nesta conta. Importe um OFX na tela Extratos (OFX) para começar." />
             ) : (
               <table className="w-full text-sm">
                 <tbody>
                   {linhas.map((l) => (
-                    <tr key={l.id} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="px-4 py-2.5 text-xs text-slate-400 whitespace-nowrap w-24">{fmtData(l.date)}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{l.memo ?? '—'}</td>
-                      <td className={`px-4 py-2.5 text-right tabular-nums w-32 ${Number(l.amount) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{fmtBRL(Number(l.amount))}</td>
+                    <tr key={l.id} className="border-b border-border hover:bg-surface-2">
+                      <td className="px-4 py-2.5 text-xs text-fg-subtle whitespace-nowrap w-24">{fmtData(l.date)}</td>
+                      <td className="px-4 py-2.5 text-fg-muted">{l.memo ?? '—'}</td>
+                      <td className={`px-4 py-2.5 text-right tnum w-32 ${Number(l.amount) < 0 ? 'text-expense' : 'text-revenue'}`}>{fmtBRL(Number(l.amount))}</td>
                       <td className="px-4 py-2.5 text-right w-40">
                         {l.entry_id ? (
                           <span className="inline-flex items-center gap-2 justify-end">
-                            <Badge cor="#059669">Conciliado</Badge>
-                            {isAdmin && <button title="Desfazer" onClick={() => desfazer(l.id)} className="text-slate-300 hover:text-red-500"><X size={14} /></button>}
+                            <Badge tom="revenue">Conciliado</Badge>
+                            {isAdmin && <button title="Desfazer" onClick={() => desfazer(l.id)} className="text-fg-subtle hover:text-expense"><X size={14} /></button>}
                           </span>
                         ) : (
-                          <Badge cor="#b45309">Pendente</Badge>
+                          <Badge tom="warning">Pendente</Badge>
                         )}
                       </td>
                     </tr>

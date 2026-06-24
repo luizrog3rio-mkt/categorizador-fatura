@@ -9,20 +9,27 @@ import { fmtBRL, fmtData, hoje } from '../lib/format'
 import { vendaAprovada } from '../lib/hotmart'
 import { CAT_CHART_COLORS, fmt, valorComSinal } from '../lib/fatura'
 import type { Entry, HotmartSale, Invoice } from '../lib/types'
-import { Card, PageHeader, StatusBadge, ErroBanner } from '../components/ui'
+import { Card, PageHeader, StatusBadge, ErroBanner, KPICard, KPIStrip } from '../components/ui'
 
 interface MesAgg { mes: string; receber: number; pagar: number }
 interface CatAgg { nome: string; valor: number; cor: string }
 interface TxLite { amount: number; category: string | null; kind: 'debit' | 'credit' }
 interface CatRow { name: string; color_index: number }
 
-// Etapa 7 — Dashboard HÍBRIDO. Topo: cartão de crédito (dados reais das
-// faturas/transações vivas). Base: financeiro do rb7 (a pagar/receber/Hotmart
-// de entries+hotmart_sales — preenche conforme o uso).
+// Cores literais p/ recharts (não aceita classes Tailwind) — espelham os tokens.
+const C = { revenue: '#047857', expense: '#be123c', brand: '#2b53c0', grid: '#e6e8ec', subtle: '#94a3b8' }
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle mb-3">{children}</h3>
+}
+
+// Dashboard "Razão Calma". Hero: Resultado do mês (assinatura) + A liberar
+// (Hotmart). Personalidade nos números; cor só com função.
 export default function Dashboard() {
   const { empresaAtiva } = useApp()
   const [lancamentos, setLancamentos] = useState<Entry[]>([])
   const [vendas, setVendas] = useState<HotmartSale[]>([])
+  const [hotmartMesNet, setHotmartMesNet] = useState(0)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [txs, setTxs] = useState<TxLite[]>([])
   const [categorias, setCategorias] = useState<CatRow[]>([])
@@ -52,6 +59,18 @@ export default function Dashboard() {
     if (e2) erros.push('hotmart: ' + e2.message)
     setVendas((vs as HotmartSale[]) ?? [])
 
+    // ── Hotmart líquido do MÊS via RPC (agregado no banco — exato a qualquer
+    //    volume; o sum client-side trunca em 1000 linhas do PostgREST) ──
+    const agora = new Date()
+    const mIni = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-01`
+    const mUlt = new Date(agora.getFullYear(), agora.getMonth() + 1, 0)
+    const mFim = `${mUlt.getFullYear()}-${String(mUlt.getMonth() + 1).padStart(2, '0')}-${String(mUlt.getDate()).padStart(2, '0')}`
+    const { data: ht, error: e6 } = await supabase.rpc('hotmart_totals', {
+      p_company: empresaAtiva?.id ?? null, p_start: mIni, p_end: mFim,
+    })
+    if (e6) erros.push('hotmart totais: ' + e6.message)
+    setHotmartMesNet(Number(ht?.[0]?.liquido ?? 0))
+
     // ── cartão: dados reais (faturas/transações vivas) ──
     const { data: invs, error: e3 } = await supabase.from('invoices').select('*').order('imported_at', { ascending: false })
     if (e3) erros.push('faturas: ' + e3.message)
@@ -69,6 +88,8 @@ export default function Dashboard() {
   useEffect(() => { carregar() }, [carregar])
 
   const mesAtual = hoje().slice(0, 7)
+  const mesLabel = new Date(+mesAtual.slice(0, 4), +mesAtual.slice(5, 7) - 1, 1)
+    .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
   // ── cartão de crédito (real) ──────────────────────────────────────────────
   const cartao = useMemo(() => {
@@ -76,7 +97,7 @@ export default function Dashboard() {
     const semCategoria = txs.filter((t) => !t.category).length
     const corDe = (nome: string) => {
       const idx = categorias.findIndex((c) => c.name === nome)
-      return idx >= 0 ? CAT_CHART_COLORS[idx % CAT_CHART_COLORS.length] : '#94a3b8'
+      return idx >= 0 ? CAT_CHART_COLORS[idx % CAT_CHART_COLORS.length] : C.subtle
     }
     const m = new Map<string, number>()
     for (const t of txs) {
@@ -84,7 +105,7 @@ export default function Dashboard() {
       m.set(nome, (m.get(nome) ?? 0) + valorComSinal(t))
     }
     const porCategoria: CatAgg[] = [...m.entries()]
-      .map(([nome, valor]) => ({ nome, valor, cor: nome === 'Sem categoria' ? '#94a3b8' : corDe(nome) }))
+      .map(([nome, valor]) => ({ nome, valor, cor: nome === 'Sem categoria' ? C.subtle : corDe(nome) }))
       .sort((a, b) => b.valor - a.valor)
     const porFatura = invoices
       .map((i) => ({ nome: (i.name ?? 'Fatura').slice(0, 16), total: Number(i.total ?? 0) }))
@@ -98,10 +119,15 @@ export default function Dashboard() {
     const aReceber = doMes.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
     const aPagar = doMes.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
     const atrasados = lancamentos.filter((l) => (l.status === 'to_pay' || l.status === 'pending') && l.due_date < hoje()).reduce((s, l) => s + Number(l.amount), 0)
-    const hotmartMes = vendas.filter((v) => v.sale_date.startsWith(mesAtual) && vendaAprovada(v.status)).reduce((s, v) => s + Number(v.net_amount), 0)
     const aLiberar = vendas.filter((v) => v.release_date && v.release_date >= hoje() && vendaAprovada(v.status)).reduce((s, v) => s + Number(v.net_amount), 0)
-    return { aReceber, aPagar, atrasados, hotmartMes, aLiberar }
+    return { aReceber, aPagar, atrasados, aLiberar }
   }, [lancamentos, vendas, mesAtual])
+
+  // ── hero: resultado projetado do mês (entradas − saídas) ──
+  const entradas = hotmartMesNet + kpis.aReceber
+  const saidas = kpis.aPagar
+  const resultado = entradas - saidas
+  const positivo = resultado >= 0
 
   const fluxoMensal: MesAgg[] = useMemo(() => {
     const m = new Map<string, MesAgg>()
@@ -123,37 +149,114 @@ export default function Dashboard() {
   const temFinanceiro = lancamentos.length > 0 || vendas.length > 0
 
   return (
-    <div>
+    <div className="space-y-8">
       <PageHeader titulo="Dashboard" subtitulo={empresaAtiva ? empresaAtiva.name : 'Visão consolidada'} />
 
       <ErroBanner mensagem={erro} />
 
-      {/* ── Cartão de crédito (dados reais) ── */}
-      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-3">💳 Cartão de crédito</h3>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Total das faturas</p>
-          <p className="text-lg font-bold text-slate-800 mt-1">{fmt(cartao.totalFaturas)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Faturas</p>
-          <p className="text-lg font-bold text-slate-800 mt-1">{cartao.qtdFaturas}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Transações</p>
-          <p className="text-lg font-bold text-slate-800 mt-1">{cartao.qtdTx}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Sem categoria</p>
-          <p className={`text-lg font-bold mt-1 ${cartao.semCategoria > 0 ? 'text-amber-600' : 'text-green-600'}`}>{cartao.semCategoria}</p>
-        </Card>
-      </div>
+      {/* ══ HERO — assinatura: resultado do mês + a liberar (Hotmart) ══ */}
+      <Card className="p-6">
+        <div className="grid gap-6 md:grid-cols-[1.5fr_1fr]">
+          <div className="flex gap-4">
+            <div className={`w-1.5 shrink-0 rounded-full ${positivo ? 'bg-revenue' : 'bg-expense'}`} />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+                Resultado do mês · <span className="capitalize">{mesLabel}</span>
+              </p>
+              <p className={`mt-1 font-mono font-semibold tracking-tight tnum text-4xl sm:text-5xl ${positivo ? 'text-revenue' : 'text-expense'}`}>
+                {positivo ? '+' : '−'}{fmtBRL(Math.abs(resultado))}
+              </p>
+              <p className="mt-2 text-xs text-fg-subtle tnum">
+                Entradas <span className="text-revenue font-medium">{fmtBRL(entradas)}</span>
+                {'  ·  '}
+                Saídas <span className="text-expense font-medium">{fmtBRL(saidas)}</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col justify-center md:border-l md:border-border md:pl-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">A liberar · Hotmart</p>
+            <p className="mt-1 font-mono font-semibold tracking-tight tnum text-3xl text-brand">
+              {fmtBRL(kpis.aLiberar)}
+            </p>
+            <p className="mt-1 text-xs text-fg-subtle">previsibilidade de saque</p>
+          </div>
+        </div>
+      </Card>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+      {/* ══ Contas a pagar & receber ══ */}
+      <section>
+        <Eyebrow>Contas a pagar &amp; receber</Eyebrow>
+        <KPIStrip cols={4}>
+          <KPICard bare label="A receber (mês)" valor={fmtBRL(kpis.aReceber)} tom="revenue" />
+          <KPICard bare label="A pagar (mês)" valor={fmtBRL(kpis.aPagar)} tom="expense" />
+          <KPICard bare label="Atrasados" valor={fmtBRL(kpis.atrasados)} tom={kpis.atrasados > 0 ? 'expense' : 'neutro'} />
+          <KPICard bare label="Hotmart líquido (mês)" valor={fmtBRL(hotmartMesNet)} tom="revenue" />
+        </KPIStrip>
+      </section>
+
+      {temFinanceiro && (
+        <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <Card className="p-5">
+            <h3 className="font-semibold text-fg mb-4">Fluxo de caixa por vencimento</h3>
+            {fluxoMensal.length === 0 ? (
+              <p className="text-sm text-fg-subtle py-8 text-center">Sem dados ainda.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={fluxoMensal}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.grid} />
+                  <XAxis dataKey="mes" fontSize={12} stroke={C.subtle} />
+                  <YAxis fontSize={11} stroke={C.subtle} tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
+                  <Tooltip formatter={(v) => fmtBRL(Number(v))} />
+                  <Legend />
+                  <Bar dataKey="receber" name="A receber" fill={C.revenue} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="pagar" name="A pagar" fill={C.expense} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+
+          <Card className="p-5">
+            <h3 className="font-semibold text-fg mb-4">Próximos vencimentos</h3>
+            {proximos.length === 0 ? (
+              <p className="text-sm text-fg-subtle py-4 text-center">Nada vencendo em breve.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {proximos.map((l) => (
+                  <li key={l.id} className="flex items-center justify-between py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-fg truncate">{l.description}</p>
+                      <p className="text-xs text-fg-subtle tnum">{fmtData(l.due_date)}</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className={`text-sm font-semibold tnum ${l.type === 'payable' ? 'text-expense' : 'text-revenue'}`}>
+                        {l.type === 'payable' ? '−' : '+'}{fmtBRL(Number(l.amount))}
+                      </span>
+                      <StatusBadge status={l.status} tipo={l.type} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </section>
+      )}
+
+      {/* ══ Cartão de crédito ══ */}
+      <section>
+        <Eyebrow>Cartão de crédito</Eyebrow>
+        <KPIStrip cols={4}>
+          <KPICard bare label="Total das faturas" valor={fmt(cartao.totalFaturas)} />
+          <KPICard bare label="Faturas" valor={cartao.qtdFaturas} />
+          <KPICard bare label="Transações" valor={cartao.qtdTx} />
+          <KPICard bare label="Sem categoria" valor={cartao.semCategoria} tom={cartao.semCategoria > 0 ? 'warning' : 'revenue'} />
+        </KPIStrip>
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card className="p-5">
-          <h3 className="font-semibold text-slate-700 mb-4">Gasto de cartão por categoria</h3>
+          <h3 className="font-semibold text-fg mb-4">Gasto de cartão por categoria</h3>
           {cartao.porCategoria.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">Importe uma fatura para ver o gasto por categoria.</p>
+            <p className="text-sm text-fg-subtle py-8 text-center">Importe uma fatura para ver o gasto por categoria.</p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
@@ -168,98 +271,27 @@ export default function Dashboard() {
         </Card>
 
         <Card className="p-5">
-          <h3 className="font-semibold text-slate-700 mb-4">Gasto por fatura</h3>
+          <h3 className="font-semibold text-fg mb-4">Gasto por fatura</h3>
           {cartao.porFatura.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">Nenhuma fatura importada ainda.</p>
+            <p className="text-sm text-fg-subtle py-8 text-center">Nenhuma fatura importada ainda.</p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={cartao.porFatura}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="nome" fontSize={11} />
-                <YAxis fontSize={11} tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
+                <CartesianGrid strokeDasharray="3 3" stroke={C.grid} />
+                <XAxis dataKey="nome" fontSize={11} stroke={C.subtle} />
+                <YAxis fontSize={11} stroke={C.subtle} tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
                 <Tooltip formatter={(v) => fmtBRL(Number(v))} />
-                <Bar dataKey="total" name="Total da fatura" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" name="Total da fatura" fill={C.brand} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </Card>
-      </div>
+      </section>
 
-      {/* ── Financeiro (entries + hotmart) ── */}
-      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-3">📊 Contas a pagar &amp; receber</h3>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">A receber (mês)</p>
-          <p className="text-lg font-bold text-green-600 mt-1">{fmtBRL(kpis.aReceber)}</p>
+      {!temFinanceiro && (
+        <Card className="p-8 text-center text-fg-subtle text-sm">
+          Cadastre lançamentos em <span className="font-medium text-fg-muted">Contas a Pagar/Receber</span> e importe vendas na <span className="font-medium text-fg-muted">Hotmart</span> — o fluxo de caixa e os próximos vencimentos aparecem aqui.
         </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">A pagar (mês)</p>
-          <p className="text-lg font-bold text-amber-600 mt-1">{fmtBRL(kpis.aPagar)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Atrasados</p>
-          <p className="text-lg font-bold text-red-600 mt-1">{fmtBRL(kpis.atrasados)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Hotmart líquido (mês)</p>
-          <p className="text-lg font-bold text-emerald-600 mt-1">{fmtBRL(kpis.hotmartMes)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Hotmart a liberar</p>
-          <p className="text-lg font-bold text-indigo-600 mt-1">{fmtBRL(kpis.aLiberar)}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">previsibilidade de saque</p>
-        </Card>
-      </div>
-
-      {!temFinanceiro ? (
-        <Card className="p-8 text-center text-slate-400 text-sm">
-          Cadastre lançamentos em <span className="font-medium">Contas a Pagar/Receber</span> e importe vendas na <span className="font-medium">Hotmart</span> — o fluxo de caixa e os próximos vencimentos aparecem aqui.
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <Card className="p-5">
-            <h3 className="font-semibold text-slate-700 mb-4">Fluxo de caixa por vencimento</h3>
-            {fluxoMensal.length === 0 ? (
-              <p className="text-sm text-slate-400 py-8 text-center">Sem dados ainda.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={fluxoMensal}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="mes" fontSize={12} />
-                  <YAxis fontSize={11} tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
-                  <Tooltip formatter={(v) => fmtBRL(Number(v))} />
-                  <Legend />
-                  <Bar dataKey="receber" name="A receber" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="pagar" name="A pagar" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-
-          <Card className="p-5">
-            <h3 className="font-semibold text-slate-700 mb-4">Próximos vencimentos</h3>
-            {proximos.length === 0 ? (
-              <p className="text-sm text-slate-400 py-4 text-center">Nada vencendo em breve.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {proximos.map((l) => (
-                  <li key={l.id} className="flex items-center justify-between py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{l.description}</p>
-                      <p className="text-xs text-slate-400">{fmtData(l.due_date)}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-sm font-semibold ${l.type === 'payable' ? 'text-red-600' : 'text-green-600'}`}>
-                        {l.type === 'payable' ? '-' : '+'}{fmtBRL(Number(l.amount))}
-                      </span>
-                      <StatusBadge status={l.status} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        </div>
       )}
     </div>
   )

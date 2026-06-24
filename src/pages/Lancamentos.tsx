@@ -6,7 +6,7 @@ import { fmtBRL, fmtData, hoje } from '../lib/format'
 import { corDaCategoria } from '../lib/fatura'
 import type { Account, Category, Entry, EntryType, EntryStatus } from '../lib/types'
 import type { ChartOfAccount, DreProduct } from '../lib/types'
-import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, KPICard, KPIStrip, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import type { RowSelectionState } from '@tanstack/react-table'
 import DateRangePicker from '../components/DateRangePicker'
@@ -589,35 +589,35 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const colunas = useMemo<DataColumn<Entry>[]>(() => [
     { id: 'description', header: 'Descrição', size: 240, cell: (l) => (
       <div>
-        <p className="font-medium text-slate-800 flex items-center gap-1">
+        <p className="font-medium text-fg flex items-center gap-1">
           {l.description}
-          {l.is_recurring && <span title="Recorrente"><Repeat size={13} className="text-indigo-400 shrink-0" /></span>}
+          {l.is_recurring && <span title="Recorrente"><Repeat size={13} className="text-brand shrink-0" /></span>}
         </p>
-        {l.counterparty && <p className="text-xs text-slate-400">{l.counterparty}</p>}
+        {l.counterparty && <p className="text-xs text-fg-subtle">{l.counterparty}</p>}
       </div>
     ), footer: 'Total' },
     ...(empresas.length > 1 ? [{
       id: 'empresa', header: 'Empresa', size: 140, cell: (l: Entry) => {
         const emp = empresas.find((e) => e.id === l.company_id)
-        return emp ? <span className="text-slate-600">{emp.name}</span> : <span className="text-slate-300">—</span>
+        return emp ? <span className="text-fg-muted">{emp.name}</span> : <span className="text-fg-subtle">—</span>
       },
     } satisfies DataColumn<Entry>] : []),
     { id: 'category', header: 'Categoria', size: 150, cell: (l) => (l.category ? <Badge cor={corDaCategoria(l.category.color_index).text}>{l.category.name}</Badge> : '—') },
     { id: 'chart_of_account', header: 'Conta DRE', size: 160, cell: (l) =>
       l.chart_of_account
-        ? <span className="text-xs text-slate-500 font-mono">{l.chart_of_account.code} – {l.chart_of_account.name}</span>
-        : <span className="text-slate-300">—</span>
+        ? <span className="text-xs text-fg-muted font-mono">{l.chart_of_account.code} – {l.chart_of_account.name}</span>
+        : <span className="text-fg-subtle">—</span>
     },
-    { id: 'issue_date', header: 'Emissão', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.issue_date)}</span> },
-    { id: 'due_date', header: 'Vencimento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.due_date)}</span> },
-    { id: 'payment_date', header: 'Pagamento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.payment_date)}</span> },
+    { id: 'issue_date', header: 'Emissão', size: 110, cell: (l) => <span className="text-fg-muted tnum">{fmtData(l.issue_date)}</span> },
+    { id: 'due_date', header: 'Vencimento', size: 110, cell: (l) => <span className="text-fg-muted tnum">{fmtData(l.due_date)}</span> },
+    { id: 'payment_date', header: 'Pagamento', size: 110, cell: (l) => <span className="text-fg-muted tnum">{fmtData(l.payment_date)}</span> },
     { id: 'amount', header: 'Valor', size: 120, align: 'right', cell: (l) => {
       const temEncargo = Number(l.interest_amount) + Number(l.fine_amount) + Number(l.discount_amount) !== 0
       return (
         <div>
-          <span className="font-semibold">{fmtBRL(Number(l.amount))}</span>
+          <span className="font-semibold tnum">{fmtBRL(Number(l.amount))}</span>
           {temEncargo && (
-            <p className="text-xs text-slate-400" title="Juros + multa − desconto">
+            <p className="text-xs text-fg-subtle tnum" title="Juros + multa − desconto">
               {ehPagar ? 'pago' : 'receb.'} {fmtBRL(valorPago(l))}
             </p>
           )}
@@ -626,39 +626,39 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     }, footer: fmtBRL(totalValor) },
     { id: 'interest', header: 'Juros', size: 100, align: 'right', cell: (l) =>
       Number(l.interest_amount)
-        ? <span className="text-slate-600">{fmtBRL(Number(l.interest_amount))}</span>
-        : <span className="text-slate-300">—</span>
+        ? <span className="text-fg-muted tnum">{fmtBRL(Number(l.interest_amount))}</span>
+        : <span className="text-fg-subtle">—</span>
     },
     { id: 'fine', header: 'Multa', size: 100, align: 'right', cell: (l) =>
       Number(l.fine_amount)
-        ? <span className="text-slate-600">{fmtBRL(Number(l.fine_amount))}</span>
-        : <span className="text-slate-300">—</span>
+        ? <span className="text-fg-muted tnum">{fmtBRL(Number(l.fine_amount))}</span>
+        : <span className="text-fg-subtle">—</span>
     },
     { id: 'discount', header: 'Desconto', size: 100, align: 'right', cell: (l) =>
       Number(l.discount_amount)
-        ? <span className="text-slate-600">{fmtBRL(Number(l.discount_amount))}</span>
-        : <span className="text-slate-300">—</span>
+        ? <span className="text-fg-muted tnum">{fmtBRL(Number(l.discount_amount))}</span>
+        : <span className="text-fg-subtle">—</span>
     },
     { id: 'status', header: 'Status', size: 130, cell: (l) => <StatusBadge status={l.status} tipo={tipo} /> },
     { id: 'acoes', header: '', label: 'Ações', size: 120, align: 'right', enableHiding: false, cell: (l) => (
       <div className="flex gap-2 justify-end">
         {isAdmin && l.status === 'to_pay' && (
-          <button title="Enviar para pagamento" onClick={() => enviarParaPagamento(l)} className="text-blue-500 hover:text-blue-700">
+          <button title="Enviar para pagamento" onClick={() => enviarParaPagamento(l)} className="text-brand hover:text-brand-strong">
             <ArrowRight size={17} />
           </button>
         )}
         {isAdmin && l.status === 'pending' && (
-          <button title={ehPagar ? 'Marcar como pago' : 'Marcar como recebido'} onClick={() => marcarPago(l)} className="text-green-600 hover:text-green-800">
+          <button title={ehPagar ? 'Marcar como pago' : 'Marcar como recebido'} onClick={() => marcarPago(l)} className="text-revenue hover:brightness-90">
             <CheckCircle2 size={17} />
           </button>
         )}
         {isAdmin && (
-          <button title="Editar" onClick={() => abrirEdicao(l)} className="text-slate-400 hover:text-indigo-600">
+          <button title="Editar" onClick={() => abrirEdicao(l)} className="text-fg-subtle hover:text-brand">
             <Pencil size={16} />
           </button>
         )}
         {isAdmin && (
-          <button title="Excluir" onClick={() => excluir(l)} className="text-slate-400 hover:text-red-600">
+          <button title="Excluir" onClick={() => excluir(l)} className="text-fg-subtle hover:text-expense">
             <Trash2 size={16} />
           </button>
         )}
@@ -687,19 +687,12 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
 
       <ErroBanner mensagem={erro} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">{ehPagar ? 'A pagar' : 'A receber'}</p>
-          <p className="text-xl font-bold text-blue-600 mt-1">{fmtBRL(totais.aPagar)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Pendente</p>
-          <p className="text-xl font-bold text-amber-600 mt-1">{fmtBRL(totais.pendente)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">{ehPagar ? 'Pago' : 'Recebido'}</p>
-          <p className="text-xl font-bold text-green-600 mt-1">{fmtBRL(totais.pago)}</p>
-        </Card>
+      <div className="mb-6">
+        <KPIStrip cols={3}>
+          <KPICard bare tom="expense" label={ehPagar ? 'A pagar' : 'A receber'} valor={fmtBRL(totais.aPagar)} />
+          <KPICard bare tom="warning" label="Pendente" valor={fmtBRL(totais.pendente)} />
+          <KPICard bare tom="revenue" label={ehPagar ? 'Pago' : 'Recebido'} valor={fmtBRL(totais.pago)} />
+        </KPIStrip>
       </div>
 
       <Card className="p-4 mb-4">
@@ -707,7 +700,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
           <div className="w-64">
             <label className="block text-sm font-medium mb-1">Buscar</label>
             <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
               <input
                 className={inputCls + ' pl-9'}
                 placeholder={`Descrição ou ${ehPagar ? 'fornecedor' : 'cliente'}…`}
@@ -748,7 +741,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             </div>
           )}
           {temFiltro && (
-            <button type="button" onClick={limparFiltros} className="text-sm text-slate-500 hover:text-red-600 underline pb-2">
+            <button type="button" onClick={limparFiltros} className="text-sm text-fg-muted hover:text-expense underline pb-2">
               Limpar filtros
             </button>
           )}
@@ -756,16 +749,16 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       </Card>
 
       {isAdmin && selectedIds.length > 0 && (
-        <div className="flex items-center gap-3 mb-4 p-3 rounded-xl border border-indigo-200 bg-indigo-50 flex-wrap">
-          <span className="text-sm font-semibold text-indigo-800 whitespace-nowrap">
+        <div className="flex items-center gap-3 mb-4 p-3 rounded-card border border-brand-subtle bg-brand-subtle flex-wrap">
+          <span className="text-sm font-semibold text-brand whitespace-nowrap">
             {selectedIds.length} selecionado{selectedIds.length !== 1 ? 's' : ''}
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">Categoria:</span>
+            <span className="text-sm text-fg-muted">Categoria:</span>
             <select
               value=""
               onChange={(e) => { const v = e.target.value; if (v) aplicarCategoriaEmMassa(v === '__none__' ? null : v) }}
-              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-control border border-border-strong px-2 py-1.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand"
             >
               <option value="" disabled>Escolher…</option>
               <option value="__none__">Sem categoria</option>
@@ -773,11 +766,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">Status:</span>
+            <span className="text-sm text-fg-muted">Status:</span>
             <select
               value=""
               onChange={(e) => { const v = e.target.value as EntryStatus | ''; if (v) aplicarStatusEmMassa(v) }}
-              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-control border border-border-strong px-2 py-1.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand"
             >
               <option value="" disabled>Escolher…</option>
               <option value="to_pay">{ehPagar ? 'A pagar' : 'A receber'}</option>
@@ -786,7 +779,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <option value="cancelled">Cancelado</option>
             </select>
           </div>
-          <button onClick={() => setRowSelection({})} className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-700 whitespace-nowrap">
+          <button onClick={() => setRowSelection({})} className="ml-auto text-xs font-medium text-fg-muted hover:text-fg whitespace-nowrap">
             Limpar seleção
           </button>
         </div>
@@ -836,7 +829,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             <div>
               <label className="block text-sm font-medium mb-1">Data de Competência</label>
               <input type="date" className={inputCls} value={form.competency_date} onChange={(e) => setForm({ ...form, competency_date: e.target.value })} />
-              <p className="text-xs text-slate-400 mt-0.5">Usada na DRE. Se vazia, usa a data de emissão.</p>
+              <p className="text-xs text-fg-subtle mt-0.5">Usada na DRE. Se vazia, usa a data de emissão.</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Vencimento *</label>
@@ -891,25 +884,25 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <input className={inputCls} value={form.counterparty} onChange={(e) => setForm({ ...form, counterparty: e.target.value })} />
             </div>
             <div className="col-span-2">
-              <p className="text-sm font-medium mb-1">Encargos e desconto <span className="font-normal text-slate-400">(no pagamento)</span></p>
+              <p className="text-sm font-medium mb-1">Encargos e desconto <span className="font-normal text-fg-subtle">(no pagamento)</span></p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Juros (R$)</label>
+                  <label className="block text-xs text-fg-muted mb-1">Juros (R$)</label>
                   <input inputMode="decimal" className={inputCls} value={form.interest} onChange={(e) => setForm({ ...form, interest: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Multa (R$)</label>
+                  <label className="block text-xs text-fg-muted mb-1">Multa (R$)</label>
                   <input inputMode="decimal" className={inputCls} value={form.fine} onChange={(e) => setForm({ ...form, fine: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Desconto (R$)</label>
+                  <label className="block text-xs text-fg-muted mb-1">Desconto (R$)</label>
                   <input inputMode="decimal" className={inputCls} value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
                 </div>
               </div>
               {(num(form.interest) || num(form.fine) || num(form.discount)) ? (
-                <p className="text-xs text-slate-500 mt-1.5">
+                <p className="text-xs text-fg-muted mt-1.5">
                   {ehPagar ? 'Valor a pagar' : 'Valor a receber'}:{' '}
-                  <span className="font-semibold text-slate-700">
+                  <span className="font-semibold text-fg tnum">
                     {fmtBRL(num(form.amount) + num(form.interest) + num(form.fine) - num(form.discount))}
                   </span>
                 </p>
@@ -923,12 +916,12 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  className="h-4 w-4 rounded border-border-strong text-brand focus:ring-brand"
                   checked={form.is_recurring}
                   onChange={(e) => setForm({ ...form, is_recurring: e.target.checked })}
                 />
                 <span className="text-sm font-medium flex items-center gap-1.5">
-                  <Repeat size={14} className="text-indigo-500" />
+                  <Repeat size={14} className="text-brand" />
                   Recorrente — cria automaticamente o próximo mês ao pagar
                 </span>
               </label>
@@ -943,15 +936,15 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       {/* Modal: importar planilha */}
       <Modal titulo="Importar Lançamentos" aberto={importAberto} onFechar={fecharImport}>
         <div className="space-y-4">
-          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 leading-relaxed">
-            <p className="font-semibold text-slate-800 mb-1">Colunas reconhecidas no cabeçalho (case insensitive):</p>
-            <p><span className="font-medium text-slate-700">Obrigatórias:</span> Descrição · Valor · Vencimento</p>
-            <p><span className="font-medium text-slate-700">Opcionais:</span> Emissão · {ehPagar ? 'Fornecedor' : 'Cliente'} · Categoria · Conta · Observações · Status · Recorrente · Juros · Multa · Desconto</p>
-            <p className="mt-1.5 text-slate-400">Datas: DD/MM/AAAA ou AAAA-MM-DD · Valores: vírgula ou ponto decimal · Recorrente: sim/não</p>
+          <div className="rounded-card bg-surface-2 border border-border p-3 text-xs text-fg-muted leading-relaxed">
+            <p className="font-semibold text-fg mb-1">Colunas reconhecidas no cabeçalho (case insensitive):</p>
+            <p><span className="font-medium text-fg">Obrigatórias:</span> Descrição · Valor · Vencimento</p>
+            <p><span className="font-medium text-fg">Opcionais:</span> Emissão · {ehPagar ? 'Fornecedor' : 'Cliente'} · Categoria · Conta · Observações · Status · Recorrente · Juros · Multa · Desconto</p>
+            <p className="mt-1.5 text-fg-subtle">Datas: DD/MM/AAAA ou AAAA-MM-DD · Valores: vírgula ou ponto decimal · Recorrente: sim/não</p>
           </div>
           <div className="flex items-center justify-between">
             <label className="block text-sm font-medium">Arquivo (.xlsx ou .csv)</label>
-            <button type="button" onClick={downloadTemplate} className="text-xs text-indigo-600 hover:text-indigo-800 underline">
+            <button type="button" onClick={downloadTemplate} className="text-xs text-brand hover:text-brand-strong underline">
               Baixar modelo CSV
             </button>
           </div>
@@ -962,26 +955,26 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             className={inputCls}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) processarArquivo(f) }}
           />
-          {importErro && <p className="text-sm text-red-600">{importErro}</p>}
+          {importErro && <p className="text-sm text-expense">{importErro}</p>}
           {importLinhas.length > 0 && (
             <>
-              <p className="text-sm text-slate-600">
-                <span className="font-semibold text-slate-800">{importValidas}</span> linha{importValidas !== 1 ? 's' : ''} válida{importValidas !== 1 ? 's' : ''} encontrada{importValidas !== 1 ? 's' : ''}
+              <p className="text-sm text-fg-muted">
+                <span className="font-semibold text-fg">{importValidas}</span> linha{importValidas !== 1 ? 's' : ''} válida{importValidas !== 1 ? 's' : ''} encontrada{importValidas !== 1 ? 's' : ''}
               </p>
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <div className="overflow-x-auto rounded-card border border-border">
                 <table className="text-xs min-w-full">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                  <thead className="bg-surface-2 border-b border-border">
                     <tr>
                       {importHeaders.map((h, i) => (
-                        <th key={i} className="px-2 py-1.5 text-left font-medium text-slate-600 whitespace-nowrap">{h}</th>
+                        <th key={i} className="px-2 py-1.5 text-left font-medium text-fg-muted whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-border">
                     {importLinhas.slice(0, 5).map((row, i) => (
                       <tr key={i}>
                         {importHeaders.map((_, j) => (
-                          <td key={j} className="px-2 py-1.5 text-slate-700 whitespace-nowrap">{row[j] ?? ''}</td>
+                          <td key={j} className="px-2 py-1.5 text-fg whitespace-nowrap">{row[j] ?? ''}</td>
                         ))}
                       </tr>
                     ))}
@@ -989,7 +982,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
                 </table>
               </div>
               {importLinhas.length > 5 && (
-                <p className="text-xs text-slate-400">… e mais {importLinhas.length - 5} linha{importLinhas.length - 5 !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-fg-subtle">… e mais {importLinhas.length - 5} linha{importLinhas.length - 5 !== 1 ? 's' : ''}</p>
               )}
               <div className="flex gap-3 pt-1">
                 <button

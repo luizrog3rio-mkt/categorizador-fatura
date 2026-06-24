@@ -73,15 +73,15 @@ export default function Empresas() {
   }, [carregar, recarregarEmpresas])
 
   const colunas = useMemo<DataColumn<Company>[]>(() => [
-    { id: 'name', header: 'Empresa', size: 300, cell: (c) => <span className="font-medium text-slate-800">{c.name}</span> },
-    { id: 'cnpj', header: 'CNPJ', size: 200, cell: (c) => <span className="text-slate-600">{c.cnpj || '—'}</span> },
-    { id: 'contas', header: 'Contas', size: 90, align: 'right', cell: (c) => <span className="text-slate-600">{contagem[c.id] ?? 0}</span> },
-    { id: 'created_at', header: 'Criada em', size: 130, cell: (c) => <span className="text-slate-500 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('pt-BR') : '—'}</span> },
+    { id: 'name', header: 'Empresa', size: 300, cell: (c) => <span className="font-medium text-fg">{c.name}</span> },
+    { id: 'cnpj', header: 'CNPJ', size: 200, cell: (c) => <span className="text-fg-muted">{c.cnpj || '—'}</span> },
+    { id: 'contas', header: 'Contas', size: 90, align: 'right', cell: (c) => <span className="text-fg-muted tnum">{contagem[c.id] ?? 0}</span> },
+    { id: 'created_at', header: 'Criada em', size: 130, cell: (c) => <span className="text-fg-muted text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('pt-BR') : '—'}</span> },
     { id: 'acoes', header: '', label: 'Ações', size: 100, align: 'right', enableHiding: false, cell: (c) => (
       isAdmin ? (
         <div className="flex gap-2 justify-end">
-          <button title="Editar" onClick={() => abrirEdicao(c)} className="text-slate-400 hover:text-indigo-600"><Pencil size={16} /></button>
-          <button title="Excluir" onClick={() => excluir(c)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></button>
+          <button title="Editar" onClick={() => abrirEdicao(c)} className="text-fg-subtle hover:text-brand"><Pencil size={16} /></button>
+          <button title="Excluir" onClick={() => excluir(c)} className="text-fg-subtle hover:text-expense"><Trash2 size={16} /></button>
         </div>
       ) : null
     ) },

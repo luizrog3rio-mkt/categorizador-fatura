@@ -126,19 +126,19 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
       <div className="flex justify-end mb-2">
         <ColunasMenu table={table} columns={columns} onReset={prefs.reset} />
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           modifiers={[restrictToHorizontalAxis]}
           onDragEnd={handleDragEnd}
         >
-          <table className="table-fixed border-collapse text-sm" style={{ width: table.getTotalSize(), minWidth: '100%' }}>
+          <table className="table-fixed border-collapse text-sm tnum" style={{ width: table.getTotalSize(), minWidth: '100%' }}>
             <thead>
               {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id} className="border-b border-slate-200">
+                <tr key={hg.id} className="border-b border-border">
                   {enableSelection && (
-                    <th className="bg-white px-3 py-3 align-middle" style={{ width: 44 }}>
+                    <th className="bg-surface px-3 py-2.5 align-middle" style={{ width: 44 }}>
                       <IndeterminateCheckbox
                         checked={table.getIsAllRowsSelected()}
                         indeterminate={table.getIsSomeRowsSelected()}
@@ -161,7 +161,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
             </thead>
             <tbody>
               {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className={`border-b border-slate-100 ${row.getIsSelected() ? 'bg-indigo-50/60' : 'hover:bg-slate-50'}`}>
+                <tr key={row.id} className={`border-b border-border last:border-0 ${row.getIsSelected() ? 'bg-brand-subtle' : 'hover:bg-surface-2'}`}>
                   {enableSelection && (
                     <td className="px-3 py-2.5 align-middle" style={{ width: 44 }}>
                       <IndeterminateCheckbox
@@ -184,7 +184,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
               ))}
               {table.getRowModel().rows.length === 0 && (
                 <tr>
-                  <td colSpan={table.getVisibleLeafColumns().length + (enableSelection ? 1 : 0)} className="text-center py-10 text-slate-400 text-sm">
+                  <td colSpan={table.getVisibleLeafColumns().length + (enableSelection ? 1 : 0)} className="text-center py-10 text-fg-subtle text-sm">
                     {empty ?? 'Nada por aqui.'}
                   </td>
                 </tr>
@@ -192,7 +192,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
             </tbody>
             {temFooter && table.getRowModel().rows.length > 0 && (
               <tfoot>
-                <tr className="border-t-2 border-slate-200 bg-slate-50">
+                <tr className="border-t-2 border-border-strong bg-surface-2">
                   {enableSelection && <td style={{ width: 44 }} />}
                   {table.getVisibleLeafColumns().map((col) => {
                     const dc = colMap.get(col.id)
@@ -200,7 +200,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
                       <td
                         key={col.id}
                         style={{ width: col.getSize() }}
-                        className={`px-4 py-2.5 align-middle font-semibold text-slate-800 ${alignClasse(dc?.align)}`}
+                        className={`px-4 py-2.5 align-middle font-semibold text-fg ${alignClasse(dc?.align)}`}
                       >
                         {dc?.footer}
                       </td>
@@ -234,7 +234,7 @@ function IndeterminateCheckbox({ checked, indeterminate, onChange, disabled }: {
       checked={checked}
       disabled={disabled}
       onChange={onChange}
-      className="cursor-pointer accent-indigo-600 align-middle disabled:cursor-not-allowed disabled:opacity-40"
+      className="cursor-pointer accent-brand align-middle disabled:cursor-not-allowed disabled:opacity-40"
     />
   )
 }
@@ -253,7 +253,7 @@ function CabecalhoCelula<T>({ header, align, podeReordenar }: { header: Header<T
   }
   const just = align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'
   return (
-    <th ref={setNodeRef} style={style} className="relative bg-white px-4 py-3 text-xs font-medium uppercase tracking-wide text-slate-500 select-none">
+    <th ref={setNodeRef} style={style} className="relative bg-surface px-4 h-10 text-xs font-medium uppercase tracking-wide text-fg-subtle select-none">
       <div
         className={`flex items-center gap-1 ${just} ${alignClasse(align)} ${podeReordenar ? 'cursor-grab active:cursor-grabbing' : ''}`}
         {...(podeReordenar ? { ...attributes, ...listeners } : {})}
@@ -265,7 +265,7 @@ function CabecalhoCelula<T>({ header, align, podeReordenar }: { header: Header<T
           onMouseDown={header.getResizeHandler()}
           onTouchStart={header.getResizeHandler()}
           onClick={(e) => e.stopPropagation()}
-          className={`absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-indigo-300 ${header.column.getIsResizing() ? 'bg-indigo-400' : ''}`}
+          className={`absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-brand/40 ${header.column.getIsResizing() ? 'bg-brand' : ''}`}
           aria-hidden
         />
       )}
@@ -287,7 +287,7 @@ function ColunasMenu<T>({ table, columns, onReset }: { table: TanTable<T>; colum
     <div className="relative">
       <button
         onClick={() => setAberto((a) => !a)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+        className="inline-flex items-center gap-1.5 rounded-control border border-border px-2.5 py-1.5 text-xs font-medium text-fg-muted hover:text-fg hover:bg-surface-2"
         title="Organizar colunas"
       >
         <SlidersHorizontal size={14} /> Colunas
@@ -295,19 +295,19 @@ function ColunasMenu<T>({ table, columns, onReset }: { table: TanTable<T>; colum
       {aberto && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setAberto(false)} />
-          <div className="absolute right-0 mt-1 z-20 w-60 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-            <p className="px-2 py-1 text-xs text-slate-400">Mostrar colunas</p>
+          <div className="absolute right-0 mt-1 z-20 w-60 rounded-control border border-border bg-surface p-2 shadow-pop">
+            <p className="px-2 py-1 text-xs text-fg-subtle">Mostrar colunas</p>
             <div className="max-h-72 overflow-y-auto">
               {ocultaveis.map((col) => (
-                <label key={col.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50">
-                  <input type="checkbox" checked={col.getIsVisible()} onChange={col.getToggleVisibilityHandler()} />
+                <label key={col.id} className="flex cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 text-sm hover:bg-surface-2">
+                  <input type="checkbox" className="accent-brand" checked={col.getIsVisible()} onChange={col.getToggleVisibilityHandler()} />
                   <span className="truncate">{rotulo(col.id)}</span>
                 </label>
               ))}
             </div>
             <button
               onClick={() => { onReset(); setAberto(false) }}
-              className="mt-1 w-full border-t border-slate-100 px-2 py-1.5 text-left text-xs text-slate-500 hover:text-indigo-600"
+              className="mt-1 w-full border-t border-border px-2 py-1.5 text-left text-xs text-fg-subtle hover:text-brand"
             >
               Restaurar padrão
             </button>
