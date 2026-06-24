@@ -24,6 +24,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
+import { prefetchPage } from '../lib/routePrefetch'
 import AtualizacaoModal from './AtualizacaoModal'
 
 type Item = { to: string; rotulo: string; icone: LucideIcon }
@@ -132,7 +133,14 @@ export default function Layout() {
               </p>
               <div className="space-y-0.5">
                 {grupo.itens.map(({ to, rotulo, icone: Icone }) => (
-                  <NavLink key={to} to={to} end={to === '/'} className={itemCls}>
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={to === '/'}
+                    className={itemCls}
+                    onMouseEnter={() => prefetchPage(to)}
+                    onFocus={() => prefetchPage(to)}
+                  >
                     <Icone size={18} className="shrink-0" />
                     <span className="flex-1 truncate">{rotulo}</span>
                     {to === '/compras' && pendingCount > 0 && (
@@ -151,7 +159,12 @@ export default function Layout() {
               <p className="px-3 mb-1 text-[11px] font-semibold tracking-wide uppercase text-fg-subtle">
                 Admin
               </p>
-              <NavLink to="/usuarios" className={itemCls}>
+              <NavLink
+                to="/usuarios"
+                className={itemCls}
+                onMouseEnter={() => prefetchPage('/usuarios')}
+                onFocus={() => prefetchPage('/usuarios')}
+              >
                 <Users size={18} className="shrink-0" />
                 <span className="flex-1 truncate">Usuários</span>
               </NavLink>
