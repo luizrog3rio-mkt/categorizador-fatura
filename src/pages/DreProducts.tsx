@@ -6,7 +6,7 @@ import { Card, PageHeader, Modal, Badge, Vazio, ErroBanner, inputCls, btnPrimari
 
 interface DreProduct {
   id: string
-  company_id: string
+  company_id: string | null
   name: string
   active: boolean
   sort_order: number
@@ -23,21 +23,22 @@ interface FormState {
 const formVazio = (): FormState => ({ name: '', sort_order: '0', active: true })
 
 export default function DreProducts() {
-  const { isAdmin, empresaAtiva } = useApp()
+  const { isAdmin } = useApp()
   const [produtos, setProdutos] = useState<DreProduct[]>([])
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState<FormState>(formVazio())
 
+  // Produtos da DRE são uma taxonomia GLOBAL (compartilhada entre empresas) —
+  // usados como colunas na DRE por produto e no de-para do Hotmart. Não filtra
+  // por empresa (senão some ao selecionar uma específica, já que o seed é global).
   const carregar = useCallback(async () => {
     setErro(null)
-    let q = supabase.from('dre_products').select('*').order('sort_order')
-    if (empresaAtiva) q = q.eq('company_id', empresaAtiva.id)
-    const { data, error } = await q
+    const { data, error } = await supabase.from('dre_products').select('*').order('sort_order')
     if (error) { setErro('Erro ao carregar produtos DRE: ' + error.message); return }
     setProdutos((data as DreProduct[]) ?? [])
-  }, [empresaAtiva])
+  }, [])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -66,13 +67,8 @@ export default function DreProducts() {
         .eq('id', form.id)
       if (error) { setErro('Erro ao salvar: ' + error.message); setSalvando(false); return }
     } else {
-      const ins: Record<string, unknown> = {
-        name: nome,
-        sort_order: sortOrder,
-        active: form.active,
-      }
-      if (empresaAtiva) ins.company_id = empresaAtiva.id
-      const { error } = await supabase.from('dre_products').insert(ins)
+      // cria GLOBAL (company_id null) — taxonomia compartilhada
+      const { error } = await supabase.from('dre_products').insert({ name: nome, sort_order: sortOrder, active: form.active })
       if (error) { setErro('Erro ao criar: ' + error.message); setSalvando(false); return }
     }
     setSalvando(false)
