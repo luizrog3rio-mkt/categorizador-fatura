@@ -8,7 +8,7 @@ import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
 import { CAT_CHART_COLORS, fmt, valorComSinal } from '../lib/fatura'
 import type { Entry, HotmartSale, Invoice } from '../lib/types'
-import { Card, PageHeader, StatusBadge, ErroBanner, KPICard, KPIStrip } from '../components/ui'
+import { Card, PageHeader, StatusBadge, ErroBanner, KPICard, KPIStrip, DeltaTag } from '../components/ui'
 
 interface MesAgg { mes: string; receber: number; pagar: number }
 interface CatAgg { nome: string; valor: number; cor: string }
@@ -29,6 +29,7 @@ export default function Dashboard() {
   const [lancamentos, setLancamentos] = useState<Entry[]>([])
   const [vendas, setVendas] = useState<HotmartSale[]>([])
   const [hotmartMesNet, setHotmartMesNet] = useState(0)
+  const [hotmartPrevNet, setHotmartPrevNet] = useState(0)
   const [aLiberar, setALiberar] = useState(0)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [txs, setTxs] = useState<TxLite[]>([])
@@ -71,6 +72,17 @@ export default function Dashboard() {
     if (e6) erros.push('hotmart totais: ' + e6.message)
     setHotmartMesNet(Number(ht?.[0]?.liquido ?? 0))
 
+    // ── Hotmart líquido do MÊS ANTERIOR (base do delta mês-a-mês) ──
+    const pPrev = new Date(agora.getFullYear(), agora.getMonth() - 1, 1)
+    const pIni = `${pPrev.getFullYear()}-${String(pPrev.getMonth() + 1).padStart(2, '0')}-01`
+    const pUlt = new Date(pPrev.getFullYear(), pPrev.getMonth() + 1, 0)
+    const pFim = `${pUlt.getFullYear()}-${String(pUlt.getMonth() + 1).padStart(2, '0')}-${String(pUlt.getDate()).padStart(2, '0')}`
+    const { data: htp, error: e8 } = await supabase.rpc('hotmart_totals', {
+      p_company: empresaAtiva?.id ?? null, p_start: pIni, p_end: pFim,
+    })
+    if (e8) erros.push('hotmart mês anterior: ' + e8.message)
+    setHotmartPrevNet(Number(htp?.[0]?.liquido ?? 0))
+
     // ── Hotmart a liberar (release_date futura) via RPC — agregado no banco ──
     const { data: al, error: e7 } = await supabase.rpc('hotmart_a_liberar', {
       p_company: empresaAtiva?.id ?? null,
@@ -97,6 +109,12 @@ export default function Dashboard() {
   const mesAtual = hoje().slice(0, 7)
   const mesLabel = new Date(+mesAtual.slice(0, 4), +mesAtual.slice(5, 7) - 1, 1)
     .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const mesAnterior = (() => {
+    const d = new Date(+mesAtual.slice(0, 4), +mesAtual.slice(5, 7) - 2, 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })()
+  // variação % vs mês anterior; undefined quando não há base (anterior = 0)
+  const delta = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : undefined)
 
   // ── cartão de crédito (real) ──────────────────────────────────────────────
   const cartao = useMemo(() => {
@@ -126,14 +144,20 @@ export default function Dashboard() {
     const aReceber = doMes.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
     const aPagar = doMes.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
     const atrasados = lancamentos.filter((l) => (l.status === 'to_pay' || l.status === 'pending') && l.due_date < hoje()).reduce((s, l) => s + Number(l.amount), 0)
-    return { aReceber, aPagar, atrasados }
-  }, [lancamentos, mesAtual])
+    // mês anterior (mesma base "em aberto") p/ o delta de A receber / A pagar
+    const doMesAnt = lancamentos.filter((l) => l.due_date.startsWith(mesAnterior))
+    const aReceberAnt = doMesAnt.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
+    const aPagarAnt = doMesAnt.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
+    return { aReceber, aPagar, atrasados, aReceberAnt, aPagarAnt }
+  }, [lancamentos, mesAtual, mesAnterior])
 
   // ── hero: resultado projetado do mês (entradas − saídas) ──
   const entradas = hotmartMesNet + kpis.aReceber
   const saidas = kpis.aPagar
   const resultado = entradas - saidas
   const positivo = resultado >= 0
+  const resultadoAnt = hotmartPrevNet + kpis.aReceberAnt - kpis.aPagarAnt
+  const resultadoDelta = resultadoAnt !== 0 ? ((resultado - resultadoAnt) / Math.abs(resultadoAnt)) * 100 : undefined
 
   const fluxoMensal: MesAgg[] = useMemo(() => {
     const m = new Map<string, MesAgg>()
@@ -177,6 +201,9 @@ export default function Dashboard() {
                 {'  ·  '}
                 Saídas <span className="text-expense font-medium">{fmtBRL(saidas)}</span>
               </p>
+              {resultadoDelta != null && Number.isFinite(resultadoDelta) && (
+                <p className="mt-2"><DeltaTag pct={resultadoDelta} goodWhen="up" /></p>
+              )}
             </div>
           </div>
           <div className="flex flex-col justify-center md:border-l md:border-border md:pl-6">
@@ -193,10 +220,10 @@ export default function Dashboard() {
       <section>
         <Eyebrow>Contas a pagar &amp; receber</Eyebrow>
         <KPIStrip cols={4}>
-          <KPICard bare label="A receber (mês)" valor={fmtBRL(kpis.aReceber)} tom="revenue" />
-          <KPICard bare label="A pagar (mês)" valor={fmtBRL(kpis.aPagar)} tom="expense" />
+          <KPICard bare label="A receber (mês)" valor={fmtBRL(kpis.aReceber)} tom="revenue" delta={delta(kpis.aReceber, kpis.aReceberAnt)} goodWhen="up" />
+          <KPICard bare label="A pagar (mês)" valor={fmtBRL(kpis.aPagar)} tom="expense" delta={delta(kpis.aPagar, kpis.aPagarAnt)} goodWhen="down" />
           <KPICard bare label="Atrasados" valor={fmtBRL(kpis.atrasados)} tom={kpis.atrasados > 0 ? 'expense' : 'neutro'} />
-          <KPICard bare label="Hotmart líquido (mês)" valor={fmtBRL(hotmartMesNet)} tom="revenue" />
+          <KPICard bare label="Hotmart líquido (mês)" valor={fmtBRL(hotmartMesNet)} tom="revenue" delta={delta(hotmartMesNet, hotmartPrevNet)} goodWhen="up" />
         </KPIStrip>
       </section>
 

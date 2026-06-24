@@ -123,24 +123,58 @@ const tomValor = {
 } as const
 export type KpiTom = keyof typeof tomValor
 
+// Variação % vs período anterior. goodWhen = a direção "boa" (receita sobe = bom;
+// despesa sobe = ruim) → verde quando bom, vinho quando ruim, neutro quando ~0.
+export function DeltaTag({
+  pct,
+  goodWhen = 'up',
+  caption = 'vs mês anterior',
+}: {
+  pct: number
+  goodWhen?: 'up' | 'down'
+  caption?: string
+}) {
+  const arred = Math.round(pct * 10) / 10
+  const dir = arred > 0 ? 'up' : arred < 0 ? 'down' : 'flat'
+  const cor = dir === 'flat' ? 'text-fg-subtle' : dir === goodWhen ? 'text-revenue' : 'text-expense'
+  const seta = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '→'
+  return (
+    <span className="inline-flex items-baseline gap-1 text-xs tnum">
+      <span className={cor}>
+        {seta} {Math.abs(arred).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+      </span>
+      <span className="text-fg-subtle">{caption}</span>
+    </span>
+  )
+}
+
 export function KPICard({
   label,
   valor,
   tom = 'neutro',
   caption,
+  delta,
+  goodWhen,
   bare = false,
 }: {
   label: string
   valor: ReactNode
   tom?: KpiTom
   caption?: string
+  delta?: number | null // % vs período anterior; só renderiza quando finito
+  goodWhen?: 'up' | 'down'
   bare?: boolean
 }) {
+  const temDelta = delta != null && Number.isFinite(delta)
   return (
     <div className={`bg-surface p-4 ${bare ? '' : 'rounded-card border border-border shadow-card'}`}>
       <p className="text-xs font-medium text-fg-subtle">{label}</p>
       <p className={`mt-1 text-2xl font-semibold tracking-tight tnum ${tomValor[tom]}`}>{valor}</p>
-      {caption && <p className="mt-0.5 text-xs text-fg-subtle">{caption}</p>}
+      {temDelta ? (
+        <p className="mt-1"><DeltaTag pct={delta as number} goodWhen={goodWhen} /></p>
+      ) : caption ? (
+        <p className="mt-0.5 text-xs text-fg-subtle">{caption}</p>
+      ) : null}
     </div>
   )
 }
