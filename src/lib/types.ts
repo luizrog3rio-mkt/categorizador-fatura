@@ -6,7 +6,7 @@ export type EntryType = 'payable' | 'receivable'
 // 'cancelled' = cancelado
 // (o valor 'overdue' continua no enum do banco por restrição do Postgres,
 //  mas não é mais usado no fluxo — entradas antigas foram migradas para 'to_pay')
-export type EntryStatus = 'to_pay' | 'pending' | 'paid' | 'cancelled'
+export type EntryStatus = 'to_pay' | 'pending' | 'paid' | 'cancelled' | 'refunded'
 export type AccountType = 'checking' | 'credit_card' | 'inter_company'
 
 // ── Tabelas novas (EN) ───────────────────────────────────────────────────────
@@ -100,9 +100,18 @@ export interface Entry {
   created_by: string | null
   created_at: string
   updated_at: string
+  competency_date?: string | null
+  chart_of_account_id?: string | null
+  dre_product_id?: string | null
+  refund_of_entry_id?: string | null
+  parent_entry_id?: string | null
+  appropriation_month?: number | null
+  appropriation_total_months?: number | null
   // embeds opcionais (select com join)
   category?: Category | null
   account?: Account | null
+  chart_of_account?: ChartOfAccount | null
+  dre_product?: DreProduct | null
 }
 
 export interface BankTransaction {
@@ -216,4 +225,78 @@ export interface PurchaseCategory {
   name: string
   color_index: number
   created_at: string | null
+}
+
+export interface ChartOfAccount {
+  id: string
+  code: string
+  name: string
+  parent_id: string | null
+  nature: 'revenue' | 'deduction' | 'variable_cost' | 'fixed_cost' | 'financial' | 'depreciation' | 'tax'
+  is_analytical: boolean
+  sort_order: number
+  active: boolean
+  parent?: ChartOfAccount | null
+}
+
+export interface DreProduct {
+  id: string
+  company_id: string | null
+  name: string
+  active: boolean
+  sort_order: number
+  created_at: string
+}
+
+export interface EntryInstallment {
+  id: string
+  entry_id: string
+  installment_number: number
+  due_date: string
+  amount: number
+  payment_date: string | null
+  status: EntryStatus
+  created_at: string
+}
+
+export interface ClosedPeriod {
+  id: string
+  company_id: string
+  period: string
+  closed_at: string
+  closed_by: string | null
+}
+
+export interface EntryAuditLog {
+  id: string
+  entry_id: string
+  changed_by: string | null
+  changed_at: string
+  field_name: string
+  old_value: string | null
+  new_value: string | null
+}
+
+export interface DreRow {
+  account_code: string
+  account_name: string
+  parent_code: string | null
+  nature: ChartOfAccount['nature']
+  is_analytical: boolean
+  sort_order: number
+  m1: number; m2: number; m3: number; m4: number; m5: number; m6: number
+  m7: number; m8: number; m9: number; m10: number; m11: number; m12: number
+  total: number
+}
+
+export interface DreCashRow {
+  month_num: number
+  month_label: string
+  dre_receivable: number
+  dre_payable: number
+  cash_receivable: number
+  cash_payable: number
+  dre_net: number
+  cash_net: number
+  difference: number
 }

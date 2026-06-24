@@ -5,6 +5,7 @@ import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
 import { corDaCategoria } from '../lib/fatura'
 import type { Account, Category, Entry, EntryType, EntryStatus } from '../lib/types'
+import type { ChartOfAccount, DreProduct, ClosedPeriod } from '../lib/types'
 import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import type { RowSelectionState } from '@tanstack/react-table'
@@ -30,6 +31,11 @@ interface FormState {
   interest: string
   fine: string
   discount: string
+  competency_date: string
+  chart_of_account_id: string
+  dre_product_id: string
+  refund_of_entry_id: string
+  installments: number
   issue_date: string
   due_date: string
   payment_date: string
@@ -51,6 +57,11 @@ const formVazio = (companyId: string): FormState => ({
   interest: '',
   fine: '',
   discount: '',
+  competency_date: hoje(),
+  chart_of_account_id: '',
+  dre_product_id: '',
+  refund_of_entry_id: '',
+  installments: 1,
   issue_date: hoje(),
   due_date: hoje(),
   payment_date: '',
@@ -156,6 +167,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [chartAccounts, setChartAccounts] = useState<ChartOfAccount[]>([])
+  const [dreProducts, setDreProducts] = useState<DreProduct[]>([])
+  const [closedPeriods, setClosedPeriods] = useState<string[]>([])
 
   // import
   const [importAberto, setImportAberto] = useState(false)
@@ -169,7 +183,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     setErro(null)
     let q = supabase
       .from('entries')
-      .select('*, category:categories(*), account:accounts!account_id(*)')
+      .select('*, category:categories(*), account:accounts!account_id(*), chart_of_account:chart_of_accounts(*), dre_product:dre_products(*)')
       .eq('type', tipo)
       .order('due_date')
     // empresa: filtro local da tela tem precedência sobre o escopo global
@@ -191,6 +205,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     // categorias vivas (compartilhadas entre pagar/receber, por design)
     supabase.from('categories').select('*').order('name').then(({ data }) => setCategorias(data ?? []))
     supabase.from('accounts').select('*').eq('active', true).order('name').then(({ data }) => setContas(data ?? []))
+    supabase.from('chart_of_accounts').select('*').eq('active', true).eq('is_analytical', true).order('code').then(({ data }) => setChartAccounts(data ?? []))
+    supabase.from('dre_products').select('*').eq('active', true).order('sort_order').then(({ data }) => setDreProducts(data ?? []))
+    supabase.from('closed_periods').select('period').then(({ data }) => setClosedPeriods((data ?? []).map(d => d.period)))
   }, [])
 
   const abrirNovo = () => {
@@ -209,6 +226,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       interest: l.interest_amount ? String(l.interest_amount) : '',
       fine: l.fine_amount ? String(l.fine_amount) : '',
       discount: l.discount_amount ? String(l.discount_amount) : '',
+      competency_date: l.competency_date ?? '',
+      chart_of_account_id: l.chart_of_account_id ?? '',
+      dre_product_id: l.dre_product_id ?? '',
+      refund_of_entry_id: l.refund_of_entry_id ?? '',
+      installments: 1,
       issue_date: l.issue_date ?? '',
       due_date: l.due_date,
       payment_date: l.payment_date ?? '',
@@ -267,6 +289,12 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     e.preventDefault()
     setSalvando(true)
     setErro(null)
+    const competencyMonth = (form.competency_date || form.issue_date || form.due_date).substring(0, 7)
+    if (closedPeriods.includes(competencyMonth)) {
+      setErro('Período ' + competencyMonth + ' está fechado. Reabra o período antes de lançar.')
+      setSalvando(false)
+      return
+    }
     const status = form.status
     const payment_date = status === 'paid' && !form.payment_date ? hoje() : form.payment_date || null
     // dia-âncora da recorrência: novo lançamento ou alteração do vencimento
@@ -286,6 +314,10 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       interest_amount: num(form.interest),
       fine_amount: num(form.fine),
       discount_amount: num(form.discount),
+      competency_date: form.competency_date || null,
+      chart_of_account_id: form.chart_of_account_id || null,
+      dre_product_id: form.dre_product_id || null,
+      refund_of_entry_id: form.refund_of_entry_id || null,
       issue_date: form.issue_date || null,
       due_date: form.due_date,
       payment_date,
@@ -571,6 +603,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       },
     } satisfies DataColumn<Entry>] : []),
     { id: 'category', header: 'Categoria', size: 150, cell: (l) => (l.category ? <Badge cor={corDaCategoria(l.category.color_index).text}>{l.category.name}</Badge> : '—') },
+    { id: 'chart_of_account', header: 'Conta DRE', size: 160, cell: (l) =>
+      l.chart_of_account
+        ? <span className="text-xs text-slate-500 font-mono">{l.chart_of_account.code} – {l.chart_of_account.name}</span>
+        : <span className="text-slate-300">—</span>
+    },
     { id: 'issue_date', header: 'Emissão', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.issue_date)}</span> },
     { id: 'due_date', header: 'Vencimento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.due_date)}</span> },
     { id: 'payment_date', header: 'Pagamento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.payment_date)}</span> },
@@ -797,6 +834,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <input type="date" className={inputCls} value={form.issue_date} onChange={(e) => setForm({ ...form, issue_date: e.target.value })} />
             </div>
             <div>
+              <label className="block text-sm font-medium mb-1">Data de Competência</label>
+              <input type="date" className={inputCls} value={form.competency_date} onChange={(e) => setForm({ ...form, competency_date: e.target.value })} />
+              <p className="text-xs text-slate-400 mt-0.5">Usada na DRE. Se vazia, usa a data de emissão.</p>
+            </div>
+            <div>
               <label className="block text-sm font-medium mb-1">Vencimento *</label>
               <input type="date" required className={inputCls} value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
             </div>
@@ -811,6 +853,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
                 <option value="pending">Pendente</option>
                 <option value="paid">{ehPagar ? 'Pago' : 'Recebido'}</option>
                 <option value="cancelled">Cancelado</option>
+                <option value="refunded">Estornado</option>
               </select>
             </div>
             <div>
@@ -818,6 +861,20 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <select className={inputCls} value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}>
                 <option value="">Sem categoria</option>
                 {categorias.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Conta do Plano de Contas</label>
+              <select className={inputCls} value={form.chart_of_account_id} onChange={(e) => setForm({ ...form, chart_of_account_id: e.target.value })}>
+                <option value="">Sem conta DRE</option>
+                {chartAccounts.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Produto / Centro de Custo</label>
+              <select className={inputCls} value={form.dre_product_id} onChange={(e) => setForm({ ...form, dre_product_id: e.target.value })}>
+                <option value="">Nenhum</option>
+                {dreProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div>

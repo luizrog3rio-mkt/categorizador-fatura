@@ -421,6 +421,34 @@ existem.
 | `20260623135902` | entries_charges_discount | Juros, multa e desconto nos lançamentos (pagar **e** receber). 3 colunas `entries.interest_amount/fine_amount/discount_amount` (`numeric(14,2) not null default 0`, CHECK `>= 0`; aditivas → backfill trivial, RLS de equipe já cobre). **Valor pago/recebido = amount + juros + multa − desconto** (sinal de caixa pelo `type`, como o amount). Recria 3 RPCs (hardening preservado): `account_balances`/`account_ledger` passam a usar o valor com encargos no movimento da entry PAGA (saldo fecha com o extrato); `dre_competencia` ganha aporte ao bloco **Resultado Financeiro** (payable juros/multa +, desconto −; receivable é o espelho), sem dupla contagem do amount original. **NÃO** toca `relatorio_categorias` (gasto por categoria = valor de face) nem as RPCs de conciliação (casar o delta extrato−entry nos encargos = follow-up). Frontend: 3 campos no form de lançamento (pagar/receber) + sublinha "pago" na coluna Valor + card Pago/Recebido no caixa real + colunas opcionais Juros/Multa/Desconto no import. Smoke pós-apply ✅ (rollback forçado): delta de saldo −1060,00; DRE RF +60,00. Advisors: nada novo. |
 | `20260622174210` | reconciliation | Conciliação bancária (passo 4/4 — o último). Liga extrato (`bank_transactions`) a contas a pagar/receber (`entries`) via o hook `bank_transactions.entry_id` que já existia desde a Fase 1c (nunca exercido). Colunas: `bank_transactions.reconciled_at/reconciled_by`, `entries.paid_via_reconciliation`; **unique index parcial** em `entry_id` (1:1 estrito). 4 RPCs (hardening hotmart_totals): `reconciliation_suggest` (casa por conta+valor-com-sinal+tipo+data±tolerância), `reconcile_entry` (liga + **bootstrap do account_id** + marca pago só se não era pago, p/ desfazer seguro), `unreconcile_entry` (reverte só o que a conciliação marcou via `paid_via_reconciliation`), `reconciliation_summary`. **Inerte até importar OFX** (bank_transactions vazia hoje). Fora do v1: caso fatura-de-cartão (invoice_account_id) e N:1. |
 
+---
+
+# Migration pendente — aguarda revisão e apply do Luiz
+
+## `20260624000001_dre_plano_contas.sql` — DRE completa por plano de contas
+
+> **Status: PENDENTE — arquivo gerado, SQL revisado, aguarda `apply_migration`.**
+> Rito: apply_migration → list_migrations dá o version real → renomear arquivo → anotar APLICADA aqui.
+
+O que faz (numa única transação, exceto o `ADD VALUE` inicial):
+
+1. `ALTER TYPE public.entry_status ADD VALUE IF NOT EXISTS 'refunded'` — adiciona status de estorno ao enum existente.
+2. Cria `public.chart_of_accounts` + seed completo do plano de contas para infoprodutor (40 contas): grupos 1–6 (Receitas, Custos Variáveis, Despesas Fixas, Financeiras, Depreciação, Impostos s/ Lucro) + contas analíticas 1.1.01–6.1.02. RLS `USING(true) WITH CHECK(true)` para authenticated.
+3. Cria `public.dre_products` + seed (12 produtos/centros de custo: Mentoria Individual, Apruma, Trampolim, Colheita, Cursos, Ebooks, Livros, Recorrência, Palestras, Publicidade, Não Rateado, Outras). RLS idem.
+4. Adiciona 7 colunas a `public.entries`: `competency_date date` (data de competência para DRE; usa `issue_date` quando NULL), `chart_of_account_id uuid FK`, `dre_product_id uuid FK`, `refund_of_entry_id uuid FK` (vínculo de estorno), `parent_entry_id uuid FK` (série de apropriação temporal), `appropriation_month int`, `appropriation_total_months int`. + 3 índices.
+5. Cria `public.entry_installments` — parcelas de caixa de uma venda única (entry_id FK CASCADE, installment_number, due_date, amount, payment_date, status). RLS idem.
+6. Cria `public.closed_periods` — trava mensal por empresa (company_id FK CASCADE, period 'YYYY-MM' com regex check, UNIQUE(company_id, period), closed_by FK SET NULL). RLS: SELECT + INSERT + DELETE para authenticated.
+7. Cria `public.entry_audit_log` — log de alterações em entries (entry_id FK CASCADE, changed_by FK SET NULL, field_name, old_value, new_value). RLS: só SELECT para authenticated (INSERT via trigger SECURITY DEFINER). Trigger `entry_audit_log_tg` AFTER UPDATE em entries loga alterações em: status, amount, competency_date, due_date, chart_of_account_id, dre_product_id, description, counterparty.
+8. RPC `public.dre_by_competency(p_company_id, p_year, p_month_from=1, p_month_to=12)` — pivot anual por conta contábil: retorna todas as contas ativas com colunas m1..m12 (soma dos entries por mês de competência); grupos retornam zeros, frontend soma filhos. Filtra `status NOT IN ('cancelled','refunded')`, separa receivable (revenue/deduction) de payable (demais). SET search_path=''; SECURITY DEFINER; GRANT a authenticated.
+9. RPC `public.dre_cash_reconciliation(p_company_id, p_year)` — 12 linhas fixas comparando DRE (competência = COALESCE(competency_date, issue_date)) vs caixa (payment_date) por mês; retorna dre_receivable, dre_payable, cash_receivable, cash_payable, dre_net, cash_net, difference. SET search_path=''; SECURITY DEFINER; GRANT a authenticated.
+
+Smoke test a fazer pós-apply:
+- `SELECT count(*) FROM chart_of_accounts` = 40; `SELECT count(*) FROM dre_products` = 12
+- Abrir Contas a Pagar, criar lançamento com Data de Competência + Conta DRE + Produto → salvar → verificar na tabela
+- Abrir DRE (nova versão por plano de contas) → conferir linha Receita Bruta e subtotais
+- Abrir Conciliação DRE → ano atual → ver 12 linhas
+- Abrir Plano de Contas, Produtos DRE, Períodos Fechados → carregam sem erro
+
 Infra fora do histórico de migrations: Edge Function **`hotmart-sync`**
 (deployada no projeto Supabase; fonte versionada em
 `supabase/functions/hotmart-sync/index.ts`; verify_jwt=false; modos

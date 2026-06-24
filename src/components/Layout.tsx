@@ -15,6 +15,10 @@ import {
   Scale,
   Link2,
   LogOut,
+  BookOpen,
+  Tag,
+  Lock,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
@@ -34,6 +38,10 @@ const itens = [
   { to: '/dre', rotulo: 'DRE', icone: Scale },
   { to: '/empresas', rotulo: 'Empresas', icone: Building2 },
   { to: '/categorias', rotulo: 'Categorias', icone: Tags },
+  { to: '/plano-de-contas', rotulo: 'Plano de Contas', icone: BookOpen },
+  { to: '/produtos-dre', rotulo: 'Produtos DRE', icone: Tag },
+  { to: '/periodos-fechados', rotulo: 'Períodos Fechados', icone: Lock },
+  { to: '/conciliacao-dre', rotulo: 'Conciliação DRE', icone: ArrowLeftRight },
 ]
 
 export default function Layout() {
