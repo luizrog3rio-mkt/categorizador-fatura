@@ -69,7 +69,7 @@ interface DataTableProps<T> {
   onRowSelectionChange?: OnChangeFn<RowSelectionState>
 }
 
-const SEL_W = 44 // largura da coluna de checkbox
+const SEL_W = 52 // largura da coluna de checkbox (centralizado)
 const FLEX_MIN = 64 // largura mínima de uma coluna de texto no modo fit
 
 const alignClasse = (a?: string) =>
@@ -220,7 +220,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
                 {table.getHeaderGroups().map((hg) => (
                   <tr key={hg.id} className="border-b border-border">
                     {enableSelection && (
-                      <th className={`bg-surface ${padX} py-2.5 align-middle`} style={{ width: wcss(SEL_W) }}>
+                      <th className={`bg-surface ${padX} py-2.5 align-middle text-center`} style={{ width: wcss(SEL_W) }}>
                         <IndeterminateCheckbox
                           checked={table.getIsAllRowsSelected()}
                           indeterminate={table.getIsSomeRowsSelected()}
@@ -248,7 +248,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
                 {table.getRowModel().rows.map((row) => (
                   <tr key={row.id} className={`border-b border-border last:border-0 ${row.getIsSelected() ? 'bg-brand-subtle' : 'hover:bg-surface-2'}`}>
                     {enableSelection && (
-                      <td className={`${padX} py-2.5 align-middle`} style={{ width: wcss(SEL_W) }}>
+                      <td className={`${padX} py-2.5 align-middle text-center`} style={{ width: wcss(SEL_W) }}>
                         <IndeterminateCheckbox
                           checked={row.getIsSelected()}
                           disabled={!row.getCanSelect()}

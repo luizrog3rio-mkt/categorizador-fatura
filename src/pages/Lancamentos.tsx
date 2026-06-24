@@ -651,8 +651,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         ? <span className="text-fg-muted tnum">{fmtBRL(Number(l.discount_amount))}</span>
         : <span className="text-fg-subtle">—</span>
     },
-    { id: 'status', header: 'Status', size: 130, cell: (l) => <StatusBadge status={l.status} tipo={tipo} /> },
-    { id: 'acoes', header: '', label: 'Ações', size: 120, align: 'right', enableHiding: false, cell: (l) => (
+    { id: 'status', header: 'Status', size: 104, align: 'right', cell: (l) => <StatusBadge status={l.status} tipo={tipo} /> },
+    { id: 'acoes', header: '', label: 'Ações', size: 96, align: 'right', enableHiding: false, cell: (l) => (
       <div className="flex gap-2 justify-end">
         {isAdmin && l.status === 'to_pay' && (
           <button title="Enviar para pagamento" onClick={() => enviarParaPagamento(l)} className="text-brand hover:text-brand-strong">
