@@ -564,6 +564,12 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         {l.counterparty && <p className="text-xs text-slate-400">{l.counterparty}</p>}
       </div>
     ), footer: 'Total' },
+    ...(empresas.length > 1 ? [{
+      id: 'empresa', header: 'Empresa', size: 140, cell: (l: Entry) => {
+        const emp = empresas.find((e) => e.id === l.company_id)
+        return emp ? <span className="text-slate-600">{emp.name}</span> : <span className="text-slate-300">—</span>
+      },
+    } satisfies DataColumn<Entry>] : []),
     { id: 'category', header: 'Categoria', size: 150, cell: (l) => (l.category ? <Badge cor={corDaCategoria(l.category.color_index).text}>{l.category.name}</Badge> : '—') },
     { id: 'issue_date', header: 'Emissão', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.issue_date)}</span> },
     { id: 'due_date', header: 'Vencimento', size: 110, cell: (l) => <span className="text-slate-600">{fmtData(l.due_date)}</span> },
@@ -581,6 +587,21 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         </div>
       )
     }, footer: fmtBRL(totalValor) },
+    { id: 'interest', header: 'Juros', size: 100, align: 'right', cell: (l) =>
+      Number(l.interest_amount)
+        ? <span className="text-slate-600">{fmtBRL(Number(l.interest_amount))}</span>
+        : <span className="text-slate-300">—</span>
+    },
+    { id: 'fine', header: 'Multa', size: 100, align: 'right', cell: (l) =>
+      Number(l.fine_amount)
+        ? <span className="text-slate-600">{fmtBRL(Number(l.fine_amount))}</span>
+        : <span className="text-slate-300">—</span>
+    },
+    { id: 'discount', header: 'Desconto', size: 100, align: 'right', cell: (l) =>
+      Number(l.discount_amount)
+        ? <span className="text-slate-600">{fmtBRL(Number(l.discount_amount))}</span>
+        : <span className="text-slate-300">—</span>
+    },
     { id: 'status', header: 'Status', size: 130, cell: (l) => <StatusBadge status={l.status} tipo={tipo} /> },
     { id: 'acoes', header: '', label: 'Ações', size: 120, align: 'right', enableHiding: false, cell: (l) => (
       <div className="flex gap-2 justify-end">
@@ -606,7 +627,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         )}
       </div>
     ) },
-  ], [isAdmin, ehPagar, tipo, totalValor, enviarParaPagamento, marcarPago, abrirEdicao, excluir])
+  ], [isAdmin, ehPagar, tipo, totalValor, empresas, enviarParaPagamento, marcarPago, abrirEdicao, excluir])
 
   return (
     <div>
