@@ -68,7 +68,7 @@ export default function PlanoDeContas() {
     const { data, error } = await supabase
       .from('chart_of_accounts')
       .select('*, parent:chart_of_accounts!parent_id(code,name)')
-      .order('code')
+      .order('sort_order')
     if (error) {
       setErro('Erro ao carregar plano de contas: ' + error.message)
       setCarregando(false)

@@ -205,7 +205,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     // categorias vivas (compartilhadas entre pagar/receber, por design)
     supabase.from('categories').select('*').order('name').then(({ data }) => setCategorias(data ?? []))
     supabase.from('accounts').select('*').eq('active', true).order('name').then(({ data }) => setContas(data ?? []))
-    supabase.from('chart_of_accounts').select('*').eq('active', true).eq('is_analytical', true).order('code').then(({ data }) => setChartAccounts(data ?? []))
+    supabase.from('chart_of_accounts').select('*').eq('active', true).eq('is_analytical', true).order('sort_order').then(({ data }) => setChartAccounts(data ?? []))
     supabase.from('dre_products').select('*').eq('active', true).order('sort_order').then(({ data }) => setDreProducts(data ?? []))
     supabase.from('closed_periods').select('period').then(({ data }) => setClosedPeriods((data ?? []).map(d => d.period)))
   }, [])
