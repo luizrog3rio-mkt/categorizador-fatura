@@ -39,9 +39,14 @@ interface FormState {
   parent_id: string
   nature: Nature
   is_analytical: boolean
+  rateio_por_produto: boolean
   sort_order: string
   active: boolean
 }
+
+// Default de rateio por produto: tudo "acima da margem" rateia (receita/dedução/
+// custo variável); estrutura (despesa fixa/financeiro/depreciação/imposto) não.
+const rateioPadrao = (n: Nature) => n === 'revenue' || n === 'deduction' || n === 'variable_cost'
 
 const FORM_VAZIO: FormState = {
   code: '',
@@ -49,6 +54,7 @@ const FORM_VAZIO: FormState = {
   parent_id: '',
   nature: 'revenue',
   is_analytical: true,
+  rateio_por_produto: true,
   sort_order: '0',
   active: true,
 }
@@ -95,6 +101,7 @@ export default function PlanoDeContas() {
       parent_id: c.parent_id ?? '',
       nature: c.nature,
       is_analytical: c.is_analytical,
+      rateio_por_produto: c.rateio_por_produto ?? rateioPadrao(c.nature),
       sort_order: String(c.sort_order),
       active: c.active,
     })
@@ -110,6 +117,7 @@ export default function PlanoDeContas() {
       parent_id: form.parent_id || null,
       nature: form.nature,
       is_analytical: form.is_analytical,
+      rateio_por_produto: form.rateio_por_produto,
       sort_order: Number(form.sort_order) || 0,
       active: form.active,
     }
@@ -190,6 +198,7 @@ export default function PlanoDeContas() {
                   <th className="text-left px-4 py-3 font-medium text-fg-muted">Nome</th>
                   <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Natureza</th>
                   <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Tipo</th>
+                  <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Rateio p/ produto</th>
                   <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Ativa</th>
                   {isAdmin && (
                     <th className="text-right px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Ações</th>
@@ -222,6 +231,11 @@ export default function PlanoDeContas() {
                       <td className="px-4 py-2.5 whitespace-nowrap">
                         <Badge tom={isGrupo ? 'muted' : 'brand'}>
                           {isGrupo ? 'Grupo' : 'Analítica'}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <Badge tom={c.rateio_por_produto ? 'revenue' : 'muted'}>
+                          {c.rateio_por_produto ? 'Sim' : 'Não'}
                         </Badge>
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
@@ -322,7 +336,7 @@ export default function PlanoDeContas() {
             <select
               className={inputCls}
               value={form.nature}
-              onChange={(e) => setForm({ ...form, nature: e.target.value as Nature })}
+              onChange={(e) => { const nv = e.target.value as Nature; setForm({ ...form, nature: nv, rateio_por_produto: rateioPadrao(nv) }) }}
             >
               {(Object.entries(NATURE_LABELS) as [Nature, string][]).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
@@ -330,7 +344,7 @@ export default function PlanoDeContas() {
             </select>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-x-6 gap-y-2 flex-wrap">
             <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
               <input
                 type="checkbox"
@@ -344,6 +358,16 @@ export default function PlanoDeContas() {
             <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
               <input
                 type="checkbox"
+                checked={form.rateio_por_produto}
+                onChange={(e) => setForm({ ...form, rateio_por_produto: e.target.checked })}
+                className="rounded border-border-strong text-brand focus:ring-brand"
+              />
+              Rateia por produto
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+              <input
+                type="checkbox"
                 checked={form.active}
                 onChange={(e) => setForm({ ...form, active: e.target.checked })}
                 className="rounded border-border-strong text-brand focus:ring-brand"
@@ -351,6 +375,9 @@ export default function PlanoDeContas() {
               Ativa
             </label>
           </div>
+          <p className="text-xs text-fg-subtle -mt-2">
+            "Rateia por produto" = a conta aparece por produto na DRE por Produto (receita/dedução/custo variável). Estrutura (despesas fixas/financeiro/impostos) fica na coluna Total.
+          </p>
 
           <div className="flex gap-3 pt-1">
             <button type="submit" className={btnPrimario + ' flex-1 justify-center'}>
