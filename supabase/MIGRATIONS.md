@@ -423,12 +423,9 @@ existem.
 
 ---
 
-# Migration pendente — aguarda revisão e apply do Luiz
+## `20260624115030_dre_plano_contas.sql` — DRE completa por plano de contas
 
-## `20260624000001_dre_plano_contas.sql` — DRE completa por plano de contas
-
-> **Status: PENDENTE — arquivo gerado, SQL revisado, aguarda `apply_migration`.**
-> Rito: apply_migration → list_migrations dá o version real → renomear arquivo → anotar APLICADA aqui.
+> **Status: APLICADA em 2026-06-24 via MCP `apply_migration` (aprovada pelo Luiz).**
 
 O que faz (numa única transação, exceto o `ADD VALUE` inicial):
 
