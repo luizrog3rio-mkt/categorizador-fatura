@@ -19,6 +19,7 @@ interface PrefsConfig {
   order?: ColumnOrderState
   sizing?: ColumnSizingState
   visibility?: VisibilityState
+  fit?: boolean // true = ajustar colunas à largura; false = largura natural + scroll
 }
 
 const lsKey = (tableKey: string) => `tprefs:${tableKey}`
@@ -47,6 +48,8 @@ export interface ColumnPrefs {
   onColumnOrderChange: OnChangeFn<ColumnOrderState>
   onColumnSizingChange: OnChangeFn<ColumnSizingState>
   onColumnVisibilityChange: OnChangeFn<VisibilityState>
+  fitWidth: boolean
+  setFitWidth: (v: boolean) => void
   loaded: boolean
   reset: () => void
 }
@@ -59,12 +62,14 @@ export function useColumnPrefs(tableKey: string): ColumnPrefs {
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(inicial?.order ?? [])
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(inicial?.sizing ?? {})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(inicial?.visibility ?? {})
+  const [fitWidth, setFitWidthState] = useState<boolean>(inicial?.fit ?? true)
   const [loaded, setLoaded] = useState(false)
 
   // refs sempre atuais pra montar o config no save sem fechar sobre estado velho
   const orderRef = useRef(columnOrder)
   const sizingRef = useRef(columnSizing)
   const visRef = useRef(columnVisibility)
+  const fitRef = useRef(fitWidth)
   const loadedRef = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -90,6 +95,7 @@ export function useColumnPrefs(tableKey: string): ColumnPrefs {
           if (cfg.order) { setColumnOrder(cfg.order); orderRef.current = cfg.order }
           if (cfg.sizing) { setColumnSizing(cfg.sizing); sizingRef.current = cfg.sizing }
           if (cfg.visibility) { setColumnVisibility(cfg.visibility); visRef.current = cfg.visibility }
+          if (typeof cfg.fit === 'boolean') { setFitWidthState(cfg.fit); fitRef.current = cfg.fit }
           writeLocal(tableKey, cfg)
         }
         setLoaded(true)
@@ -105,6 +111,7 @@ export function useColumnPrefs(tableKey: string): ColumnPrefs {
       order: orderRef.current,
       sizing: sizingRef.current,
       visibility: visRef.current,
+      fit: fitRef.current,
     }
     writeLocal(tableKey, cfg)
     if (!userId) return
@@ -150,10 +157,17 @@ export function useColumnPrefs(tableKey: string): ColumnPrefs {
     })
   }, [agendarSave])
 
+  const setFitWidth = useCallback((v: boolean) => {
+    setFitWidthState(v)
+    fitRef.current = v
+    agendarSave()
+  }, [agendarSave])
+
   const reset = useCallback(() => {
     setColumnOrder([]); orderRef.current = []
     setColumnSizing({}); sizingRef.current = {}
     setColumnVisibility({}); visRef.current = {}
+    setFitWidthState(true); fitRef.current = true
     try { localStorage.removeItem(lsKey(tableKey)) } catch { /* ignora */ }
     if (userId) {
       supabase.from('user_table_prefs').delete().eq('table_key', tableKey).then(() => {})
@@ -167,6 +181,8 @@ export function useColumnPrefs(tableKey: string): ColumnPrefs {
     onColumnOrderChange,
     onColumnSizingChange,
     onColumnVisibilityChange,
+    fitWidth,
+    setFitWidth,
     loaded,
     reset,
   }

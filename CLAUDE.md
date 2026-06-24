@@ -149,4 +149,10 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   (`PurchaseItemsTab`) NÃO usa o DataTable** — tem edição inline on-blur, então
   fica num `<table>` Tailwind com SÓ o menu "esconder coluna"
   (`src/components/ColumnVisibilityMenu.tsx`, agora em Tailwind, reusa o
-  `columnVisibility` do `useColumnPrefs`).
+  `columnVisibility` do `useColumnPrefs`). **Largura tem 2 modos** (botão na
+  barra, preferência `fit` salva no `useColumnPrefs`): "Ajustar à largura"
+  (default) cabe tudo na tela — colunas de número/data ficam no tamanho natural
+  (NUNCA truncam) e só as de TEXTO encolhem/truncam; se nem assim couber, cai pro
+  scroll. "Largura natural" usa os tamanhos px e a rodinha vertical do mouse rola
+  na horizontal (sem shift) + sombra na borda. A heurística texto-vs-rígida é
+  "alinhada à esquerda E size≥140"; a página pode forçar via `DataColumn.grow`.
