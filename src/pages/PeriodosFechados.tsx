@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../contexts/AppContext'
 import { Card, PageHeader, ErroBanner, Modal, btnPrimario, btnSecundario } from '../components/ui'
 import { fmtData } from '../lib/format'
 
@@ -102,7 +102,7 @@ export default function PeriodosFechados() {
 
   return (
     <div className="p-6 space-y-6">
-      <PageHeader title="Períodos Fechados" subtitle="Controle de competências encerradas para lançamentos" />
+      <PageHeader titulo="Períodos Fechados" subtitulo="Controle de competências encerradas para lançamentos" />
 
       {erro && <ErroBanner mensagem={erro} />}
 
@@ -201,7 +201,8 @@ export default function PeriodosFechados() {
       {modalFechar && (
         <Modal
           titulo="Fechar período"
-          onClose={() => !salvando && setModalFechar(null)}
+          aberto={!!modalFechar}
+          onFechar={() => !salvando && setModalFechar(null)}
         >
           <div className="space-y-4">
             <p className="text-sm text-gray-700">
@@ -236,7 +237,8 @@ export default function PeriodosFechados() {
       {modalReabrir && (
         <Modal
           titulo="Reabrir período"
-          onClose={() => !salvando && setModalReabrir(null)}
+          aberto={!!modalReabrir}
+          onFechar={() => !salvando && setModalReabrir(null)}
         >
           <div className="space-y-4">
             <p className="text-sm text-gray-700">

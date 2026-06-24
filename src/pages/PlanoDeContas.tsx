@@ -28,7 +28,7 @@ const NATURE_COLORS: Record<Nature, string> = {
   tax: '#8b5cf6',
 }
 
-interface ChartRow extends ChartOfAccount {
+interface ChartRow extends Omit<ChartOfAccount, 'parent'> {
   parent?: { code: string; name: string } | null
 }
 

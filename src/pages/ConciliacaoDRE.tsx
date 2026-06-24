@@ -74,7 +74,7 @@ export default function ConciliacaoDRE() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Conciliação DRE × Caixa" />
+      <PageHeader titulo="Conciliação DRE × Caixa" />
 
       {erro && <ErroBanner mensagem={erro} />}
 
