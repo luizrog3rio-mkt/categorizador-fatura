@@ -3,29 +3,30 @@ import { RefreshCw } from 'lucide-react'
 import { Button } from './ui'
 
 // Avisa quando saiu um deploy novo (a SPA segura o bundle antigo até dar F5).
-// Compara os assets hasheados do /index.html do servidor com os que estão
-// rodando agora; se mudaram, mostra um MODAL central com botão Atualizar. Só em
-// produção (em dev o index não tem /assets/ hasheado). ?previewUpdate=1 força
-// o modal pra dar pra ver o visual.
+// Compara o <script> de ENTRADA hasheado (/assets/index-HASH.js) do /index.html
+// do servidor com o que está rodando agora; se mudou, mostra um MODAL central
+// com botão Atualizar. Só em produção (em dev o index não tem /assets/ hasheado).
+// ?previewUpdate=1 força o modal pra dar pra ver o visual.
+//
+// Por que SÓ o script de entrada (e não todos os assets): ao navegar/prefetch a
+// SPA injeta <link rel="modulepreload"> dos chunks lazy, que o index.html NÃO
+// lista — comparar o conjunto inteiro dava falso-positivo e o popup voltava o
+// tempo todo. O index-HASH.js é re-hasheado a cada mudança de código (o caminho
+// dos chunks lazy vive no código da entrada), então é a impressão digital exata
+// da versão.
 
 const INTERVALO_MS = 60_000
 
-// assets (js/css hasheados) referenciados num HTML — marcador da versão
-function assetsDoHtml(html: string): string {
-  const urls = [...html.matchAll(/\/assets\/[\w.-]+\.(?:js|css)/g)].map((m) => m[0])
-  return [...new Set(urls)].sort().join('|')
+// o <script type="module"> de entrada referenciado num HTML (marcador da versão)
+function scriptDeEntrada(html: string): string {
+  const m = html.match(/<script[^>]+src="(\/assets\/[\w.-]+\.js)"/)
+  return m ? m[1] : ''
 }
 
-// assets que ESTE documento (a versão rodando) carregou
-function assetsRodando(): string {
-  const els = [
-    ...document.querySelectorAll('script[src]'),
-    ...document.querySelectorAll('link[href]'),
-  ]
-  const urls = els
-    .map((e) => e.getAttribute('src') || e.getAttribute('href') || '')
-    .filter((u) => u.includes('/assets/'))
-  return [...new Set(urls)].sort().join('|')
+// o <script> de entrada que ESTE documento (a versão rodando) carregou
+function scriptRodando(): string {
+  const el = document.querySelector('script[type="module"][src*="/assets/"]')
+  return el?.getAttribute('src') ?? ''
 }
 
 export default function AtualizacaoModal() {
@@ -35,7 +36,7 @@ export default function AtualizacaoModal() {
 
   useEffect(() => {
     if (!import.meta.env.PROD || forcar) return
-    const atual = assetsRodando()
+    const atual = scriptRodando()
     let achou = false
 
     const checar = async () => {
@@ -43,7 +44,7 @@ export default function AtualizacaoModal() {
       try {
         const res = await fetch('/index.html', { cache: 'no-store' })
         if (!res.ok) return
-        const servidor = assetsDoHtml(await res.text())
+        const servidor = scriptDeEntrada(await res.text())
         if (servidor && atual && servidor !== atual) {
           achou = true
           setNovaVersao(true)
