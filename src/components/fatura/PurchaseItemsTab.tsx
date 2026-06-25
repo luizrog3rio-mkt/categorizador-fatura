@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Plus, Trash2, ShoppingCart, Calendar, Lightbulb } from 'lucide-react'
-import TagSelector from './TagSelector'
-import { currentMonth, formatMonth, type CatUI } from '../../lib/fatura'
+import { currentMonth, formatMonth } from '../../lib/fatura'
 import type { PurchaseItem } from '../../lib/types'
 import { Card, btnPrimario } from '../ui'
 import ColumnVisibilityMenu, { type ColMeta } from '../ColumnVisibilityMenu'
@@ -13,17 +12,16 @@ const PI_COLS: ColMeta[] = [
   { id: 'description', label: 'Descrição' },
   { id: 'payment', label: 'Pagamento' },
   { id: 'amount', label: 'Valor' },
-  { id: 'category', label: 'Categoria' },
 ]
 
 // Anotações de compra (contrato #8: não entram em totais; valor opcional; edição
 // inline por blur; exclusão de ITEM sem confirm). isPending=true = view global de
 // pendentes agrupada por mês. Padronizado no design system (Card + Tailwind).
+// A categoria dos itens foi removida em 2026-06-25.
 
 export interface NovoItem {
   description: string
   amount: string
-  category: string | null
   month: string | null
   purchaseDate: string
   paymentMethod: string
@@ -34,26 +32,21 @@ const formCls = 'rounded-control border border-border-strong px-3 py-2 text-sm t
 
 export default function PurchaseItemsTab({
   items,
-  categories,
   onAdd,
   onUpdate,
   onDelete,
-  onAddCategory,
   isPending,
   readOnly = false,
 }: {
   items: PurchaseItem[]
-  categories: CatUI[]
   onAdd: (item: NovoItem) => void
   onUpdate: (id: string, fields: Partial<PurchaseItem>) => void
   onDelete: (id: string) => void
-  onAddCategory: (name: string) => void
   isPending: boolean
   readOnly?: boolean
 }) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
-  const [category, setCategory] = useState<string | null>(null)
   const [purchaseDate, setPurchaseDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
 
@@ -68,13 +61,12 @@ export default function PurchaseItemsTab({
     onAdd({
       description: desc,
       amount,
-      category,
       // mês de competência derivado da data da compra (campo único); sem data, usa o mês atual
       month: isPending ? (purchaseDate ? purchaseDate.slice(0, 7) : currentMonth()) : null,
       purchaseDate,
       paymentMethod,
     })
-    setDescription(''); setAmount(''); setCategory(null)
+    setDescription(''); setAmount('')
     setPurchaseDate(''); setPaymentMethod('')
   }
 
@@ -121,7 +113,6 @@ export default function PurchaseItemsTab({
               type="number" step="0.01" placeholder="Valor (opcional)"
               className={`${formCls} w-36`}
             />
-            <TagSelector value={category} categories={categories} onChange={setCategory} onAddCategory={onAddCategory} />
             <button onClick={handleAdd} disabled={!description.trim()} className={btnPrimario}>
               <Plus size={16} /> Adicionar
             </button>
@@ -162,7 +153,6 @@ export default function PurchaseItemsTab({
                     {colVisivel('description') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted">Descrição</th>}
                     {colVisivel('payment') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted w-40">Pagamento</th>}
                     {colVisivel('amount') && <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-fg-muted w-32">Valor</th>}
-                    {colVisivel('category') && <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted w-52">Categoria</th>}
                     {!readOnly && <th className="w-12" />}
                   </tr>
                 </thead>
@@ -213,17 +203,6 @@ export default function PurchaseItemsTab({
                             placeholder="—"
                             disabled={readOnly}
                             className={`${editCls} text-right font-semibold text-fg tnum`}
-                          />
-                        </td>
-                      )}
-                      {colVisivel('category') && (
-                        <td className="px-4 py-2 align-middle">
-                          <TagSelector
-                            value={it.category}
-                            categories={categories}
-                            onChange={(cat) => onUpdate(it.id, { category: cat })}
-                            onAddCategory={onAddCategory}
-                            readOnly={readOnly}
                           />
                         </td>
                       )}

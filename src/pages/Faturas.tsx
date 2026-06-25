@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Upload, Trash2, FileText, CreditCard } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
-import { useFaturaWorld } from '../hooks/useFaturaWorld'
 import { importarFaturaOFX } from '../lib/importarFatura'
 import { fmt } from '../lib/fatura'
 import { PageHeader, ErroBanner, Modal, btnPrimario, inputCls } from '../components/ui'
@@ -15,7 +14,6 @@ import type { Account, Invoice } from '../lib/types'
 // exclusão com o window.confirm de texto exato (contrato #8).
 export default function Faturas() {
   const { session, isAdmin } = useApp()
-  const { regras, erro: erroWorld } = useFaturaWorld()
   const navigate = useNavigate()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,7 +48,7 @@ export default function Faturas() {
     if (!session) return
     setImportando(true)
     setErro(null)
-    const { ok, erro: e } = await importarFaturaOFX(file, regras, session.user.id, accountId)
+    const { ok, erro: e } = await importarFaturaOFX(file, session.user.id, accountId)
     setImportando(false)
     if (e) { setErro(e); return }
     if (ok) {
@@ -96,7 +94,7 @@ export default function Faturas() {
         }
       />
 
-      <ErroBanner mensagem={erro ?? erroWorld} />
+      <ErroBanner mensagem={erro} />
 
       {loading && <div className="text-center py-10 text-fg-subtle text-sm">Carregando...</div>}
 

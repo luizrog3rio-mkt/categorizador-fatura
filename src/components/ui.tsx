@@ -180,8 +180,8 @@ export function KPICard({
 }
 
 // Faixa de KPIs que lê como bloco único (gap-px revela a borda entre cards)
-export function KPIStrip({ children, cols = 4 }: { children: ReactNode; cols?: 3 | 4 | 5 }) {
-  const colCls = cols === 5 ? 'lg:grid-cols-5' : cols === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
+export function KPIStrip({ children, cols = 4 }: { children: ReactNode; cols?: 2 | 3 | 4 | 5 }) {
+  const colCls = cols === 5 ? 'lg:grid-cols-5' : cols === 3 ? 'lg:grid-cols-3' : cols === 2 ? 'lg:grid-cols-2' : 'lg:grid-cols-4'
   return (
     <div className={`grid grid-cols-2 ${colCls} gap-px bg-border rounded-card overflow-hidden border border-border shadow-card`}>
       {children}

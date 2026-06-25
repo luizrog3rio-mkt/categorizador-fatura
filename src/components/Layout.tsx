@@ -9,10 +9,8 @@ import {
   Landmark,
   FileDown,
   ShoppingCart,
-  Tags,
   Building2,
   Users,
-  PieChart,
   Scale,
   Link2,
   LogOut,
@@ -65,7 +63,6 @@ const grupos: Grupo[] = [
     itens: [
       { to: '/dre', rotulo: 'DRE', icone: Scale },
       { to: '/dre-produto', rotulo: 'DRE por Produto', icone: Scale },
-      { to: '/relatorio-categorias', rotulo: 'Relatório de Categorias', icone: PieChart },
       { to: '/conciliacao-dre', rotulo: 'Conciliação DRE', icone: ArrowLeftRight },
       { to: '/periodos-fechados', rotulo: 'Períodos Fechados', icone: Lock },
     ],
@@ -75,7 +72,6 @@ const grupos: Grupo[] = [
     itens: [
       { to: '/empresas', rotulo: 'Empresas', icone: Building2 },
       { to: '/contas', rotulo: 'Contas & Cartões', icone: Landmark },
-      { to: '/categorias', rotulo: 'Categorias', icone: Tags },
       { to: '/plano-de-contas', rotulo: 'Plano de Contas', icone: BookOpen },
       { to: '/produtos-dre', rotulo: 'Produtos DRE', icone: Tag },
     ],

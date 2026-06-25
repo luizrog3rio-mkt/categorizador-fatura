@@ -3,24 +3,21 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Upload, Download, Search, FileText, BarChart3, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
-import { useFaturaWorld } from '../hooks/useFaturaWorld'
 import { importarFaturaOFX } from '../lib/importarFatura'
 import { fmt, valorComSinal } from '../lib/fatura'
-import TagSelector from '../components/fatura/TagSelector'
 import ExportMenu, { type TxView } from '../components/fatura/ExportMenu'
 import FaturaDashboard from '../components/fatura/FaturaDashboard'
 import PurchaseItemsTab, { type NovoItem } from '../components/fatura/PurchaseItemsTab'
 import PendingImportModal from '../components/fatura/PendingImportModal'
 import { Card, Badge, ErroBanner, PageHeader, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
-import type { RowSelectionState } from '@tanstack/react-table'
 import type { Invoice, PurchaseItem } from '../lib/types'
 
-// Página da fatura — padronizada no design system (PageHeader-like + Card +
-// DataTable + componentes compartilhados). As 3 abas (Lançamentos / Dashboard /
-// Compras), busca, pílulas de filtro por categoria (só com count>0, contrato
-// #13), badge "✦ auto" (contrato #4), total no rodapé, export (contrato #9) e
-// modal de pendentes pós-import (contrato #7) seguem idênticos no comportamento.
+// Página da fatura — 3 abas (Lançamentos / Dashboard / Compras), busca por
+// descrição, total no rodapé, export (contrato #9) e modal de pendentes
+// pós-import (contrato #7). A categorização (coluna, filtro por categoria,
+// auto, ação em massa) foi removida em 2026-06-25 — a classificação financeira
+// vive no Plano de Contas / DRE.
 type Aba = 'lancamentos' | 'dashboard' | 'compras'
 
 const ABAS: { key: Aba; label: string; Icon: typeof FileText }[] = [
@@ -32,7 +29,6 @@ const ABAS: { key: Aba; label: string; Icon: typeof FileText }[] = [
 export default function Fatura() {
   const { id } = useParams<{ id: string }>()
   const { session, isAdmin, recarregarPendentes } = useApp()
-  const { categorias, purchaseCategorias, regras, erro: erroWorld, addCategoria, addPurchaseCategoria } = useFaturaWorld()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -45,11 +41,9 @@ export default function Fatura() {
       : null
   )
   const [activeTab, setActiveTab] = useState<Aba>('lancamentos')
-  const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const fileInput = useRef<HTMLInputElement>(null)
 
   const carregar = useCallback(async () => {
@@ -70,8 +64,6 @@ export default function Fatura() {
         date: t.date,
         memo: t.memo,
         amount: Number(t.amount),
-        category: t.category,
-        auto: !!t.auto_categorized,
         kind: (t.kind ?? 'debit') as 'debit' | 'credit',
       }))
     )
@@ -94,17 +86,6 @@ export default function Fatura() {
   }, [])
 
   // ── ações ──────────────────────────────────────────────────────────────────
-  const setCategory = useCallback(async (txId: string, cat: string | null) => {
-    setTransactions((prev) => prev.map((t) => (t.id === txId ? { ...t, category: cat } : t)))
-    const { error } = await supabase.from('transactions').update({ category: cat }).eq('id', txId)
-    if (error) setErro('Erro ao salvar categoria: ' + error.message)
-  }, [])
-
-  // addCategoria do hook não é estável; ref mantém a memo de colunas lint-clean
-  const addCategoriaRef = useRef(addCategoria)
-  useEffect(() => { addCategoriaRef.current = addCategoria }, [addCategoria])
-  const onAddCategoria = useCallback((name: string) => addCategoriaRef.current(name), [])
-
   const addItem = async (item: NovoItem) => {
     if (!session) return
     const { data, error } = await supabase
@@ -114,7 +95,6 @@ export default function Fatura() {
         invoice_id: id,
         description: item.description,
         amount: item.amount === '' || item.amount == null ? null : Number(item.amount),
-        category: item.category || null,
         month: item.month || null,
         purchase_date: item.purchaseDate || null,
         payment_method: item.paymentMethod || null,
@@ -158,7 +138,7 @@ export default function Fatura() {
   const onNovoArquivo = async (file: File | undefined | null) => {
     if (!file || !session) return
     setImportando(true)
-    const { ok, erro: e } = await importarFaturaOFX(file, regras, session.user.id, invoice?.account_id ?? null)
+    const { ok, erro: e } = await importarFaturaOFX(file, session.user.id, invoice?.account_id ?? null)
     setImportando(false)
     if (fileInput.current) fileInput.current.value = ''
     if (e) { setErro(e); return }
@@ -181,32 +161,8 @@ export default function Fatura() {
   }
 
   // ── derivados ──────────────────────────────────────────────────────────────
-  const filtered = transactions.filter((t) => {
-    const matchSearch = t.memo.toLowerCase().includes(search.toLowerCase())
-    const matchFilter = filter === 'all' || (filter === 'sem' && !t.category) || t.category === filter
-    return matchSearch && matchFilter
-  })
+  const filtered = transactions.filter((t) => t.memo.toLowerCase().includes(search.toLowerCase()))
   const totalFiltered = filtered.reduce((s, t) => s + valorComSinal(t), 0)
-  const semCategoria = transactions.filter((t) => !t.category).length
-
-  // seleção em massa: só conta os marcados que ESTÃO visíveis (respeita o filtro)
-  const filteredIds = new Set(filtered.map((t) => t.id))
-  const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id] && filteredIds.has(id))
-
-  const aplicarCategoriaEmMassa = async (cat: string | null) => {
-    if (selectedIds.length === 0) return
-    const alvo = new Set(selectedIds)
-    setTransactions((prev) => prev.map((t) => (alvo.has(t.id) ? { ...t, category: cat } : t)))
-    setRowSelection({})
-    const { error } = await supabase.from('transactions').update({ category: cat }).in('id', selectedIds)
-    if (error) setErro('Erro ao alterar categorias em massa: ' + error.message)
-  }
-
-  const handleDashFilterClick = (cat: string) => {
-    setFilter(cat === 'Sem categoria' ? 'sem' : cat)
-    setSearch('')
-    setActiveTab('lancamentos')
-  }
 
   const colunas = useMemo<DataColumn<TxView>[]>(() => [
     {
@@ -233,18 +189,7 @@ export default function Fatura() {
         </Badge>
       ),
     },
-    {
-      id: 'category', header: 'Categoria', size: 240,
-      cell: (t) => (
-        <div className="flex items-center gap-1.5">
-          <TagSelector value={t.category} categories={categorias} onChange={(cat) => setCategory(t.id, cat)} onAddCategory={onAddCategoria} readOnly={!isAdmin} />
-          {t.auto && t.category && (
-            <span title="Categorizado automaticamente" className="text-[10px] text-brand bg-brand-subtle border border-brand-subtle rounded-full px-1.5 py-0.5 font-bold whitespace-nowrap">✦ auto</span>
-          )}
-        </div>
-      ),
-    },
-  ], [filtered.length, totalFiltered, categorias, isAdmin, setCategory, onAddCategoria])
+  ], [filtered.length, totalFiltered])
 
   return (
     <div>
@@ -252,12 +197,7 @@ export default function Fatura() {
       <PageHeader
         titulo={invoice?.name || 'Fatura'}
         voltar={() => navigate('/faturas')}
-        meta={
-          <>
-            <Badge tom="muted">{transactions.length} lançamentos</Badge>
-            {semCategoria > 0 && <Badge tom="warning">{semCategoria} sem categoria</Badge>}
-          </>
-        }
+        meta={<Badge tom="muted">{transactions.length} lançamentos</Badge>}
         acao={
           <div className="flex items-center gap-2 shrink-0">
             {invoice?.ofx_path && (
@@ -265,7 +205,7 @@ export default function Fatura() {
                 <Download size={16} /> Baixar OFX
               </button>
             )}
-            <ExportMenu transactions={transactions} filtered={filtered} filter={filter} />
+            <ExportMenu transactions={transactions} filtered={filtered} filter={search ? 'search' : 'all'} />
             <label className={btnSecundario + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
               <Upload size={16} />
               {importando ? 'Importando…' : 'Nova fatura'}
@@ -276,7 +216,7 @@ export default function Fatura() {
         }
       />
 
-      <ErroBanner mensagem={erro ?? erroWorld} />
+      <ErroBanner mensagem={erro} />
 
       {/* Abas */}
       <div className="flex border-b border-border mb-5">
@@ -306,53 +246,7 @@ export default function Fatura() {
                 className="w-full rounded-control border border-border-strong bg-surface pl-9 pr-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-brand"
               />
             </div>
-            <div className="flex gap-1.5 flex-wrap mt-3">
-              {[
-                { key: 'all', label: `Todos (${transactions.length})` },
-                { key: 'sem', label: `Sem categoria (${semCategoria})` },
-              ].map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setFilter(key)}
-                  className={`px-3 py-1 rounded-full border text-xs font-semibold transition ${
-                    filter === key ? 'bg-brand-subtle text-brand border-brand-subtle' : 'border-border text-fg-muted hover:bg-surface-2'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-              {categorias.map((c) => {
-                const count = transactions.filter((t) => t.category === c.name).length
-                if (!count) return null
-                const ativo = filter === c.name
-                return (
-                  <button
-                    key={c.name}
-                    onClick={() => setFilter(ativo ? 'all' : c.name)}
-                    className={`px-3 py-1 rounded-full border text-xs font-semibold transition ${ativo ? '' : 'border-border text-fg-muted hover:bg-surface-2'}`}
-                    style={ativo ? { background: c.color.bg, color: c.color.text, borderColor: c.color.border } : undefined}
-                  >
-                    {c.name} ({count})
-                  </button>
-                )
-              })}
-            </div>
           </Card>
-          {isAdmin && selectedIds.length > 0 && (
-            <div className="flex items-center gap-3 mb-4 p-3 rounded-card border border-brand-subtle bg-brand-subtle flex-wrap">
-              <span className="text-sm font-semibold text-brand whitespace-nowrap">
-                {selectedIds.length} selecionado{selectedIds.length !== 1 ? 's' : ''}
-              </span>
-              <span className="text-sm text-fg-muted whitespace-nowrap">Mudar categoria para:</span>
-              <TagSelector value={null} categories={categorias} onChange={aplicarCategoriaEmMassa} onAddCategory={onAddCategoria} />
-              <button
-                onClick={() => setRowSelection({})}
-                className="ml-auto text-xs font-medium text-fg-muted hover:text-fg whitespace-nowrap"
-              >
-                Limpar seleção
-              </button>
-            </div>
-          )}
           <Card className="p-3">
             <DataTable
               tableKey="fatura-lancamentos"
@@ -360,9 +254,6 @@ export default function Fatura() {
               data={filtered}
               getRowId={(t) => t.id}
               empty="Nenhum lançamento encontrado."
-              enableSelection={isAdmin}
-              rowSelection={rowSelection}
-              onRowSelectionChange={setRowSelection}
             />
           </Card>
         </>
@@ -370,18 +261,16 @@ export default function Fatura() {
 
       {/* Aba: Dashboard */}
       {activeTab === 'dashboard' && (
-        <FaturaDashboard transactions={transactions} categories={categorias} onFilterClick={handleDashFilterClick} />
+        <FaturaDashboard transactions={transactions} />
       )}
 
       {/* Aba: Compras */}
       {activeTab === 'compras' && (
         <PurchaseItemsTab
           items={purchaseItems}
-          categories={purchaseCategorias}
           onAdd={addItem}
           onUpdate={updateItem}
           onDelete={deleteItem}
-          onAddCategory={addPurchaseCategoria}
           isPending={false}
           readOnly={!isAdmin}
         />

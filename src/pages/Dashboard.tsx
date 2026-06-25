@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  PieChart, Pie, Cell, Legend,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
-import { CAT_CHART_COLORS, fmt, valorComSinal } from '../lib/fatura'
+import { fmt } from '../lib/fatura'
 import type { Entry, HotmartSale, Invoice } from '../lib/types'
 import { Card, PageHeader, StatusBadge, ErroBanner, KPICard, KPIStrip, DeltaTag } from '../components/ui'
 
 interface MesAgg { mes: string; receber: number; pagar: number }
-interface CatAgg { nome: string; valor: number; cor: string }
-interface TxLite { amount: number; category: string | null; kind: 'debit' | 'credit' }
-interface CatRow { name: string; color_index: number }
+interface TxLite { amount: number; kind: 'debit' | 'credit' }
 
 // Cores literais p/ recharts (não aceita classes Tailwind) — espelham os tokens.
 const C = { revenue: '#047857', expense: '#be123c', brand: '#2b53c0', grid: '#e6e8ec', subtle: '#94a3b8' }
@@ -33,7 +30,6 @@ export default function Dashboard() {
   const [aLiberar, setALiberar] = useState(0)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [txs, setTxs] = useState<TxLite[]>([])
-  const [categorias, setCategorias] = useState<CatRow[]>([])
   const [erro, setErro] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
@@ -94,12 +90,9 @@ export default function Dashboard() {
     const { data: invs, error: e3 } = await supabase.from('invoices').select('*').order('imported_at', { ascending: false })
     if (e3) erros.push('faturas: ' + e3.message)
     setInvoices(invs ?? [])
-    const { data: tx, error: e4 } = await supabase.from('transactions').select('amount, category, kind')
+    const { data: tx, error: e4 } = await supabase.from('transactions').select('amount, kind')
     if (e4) erros.push('transações: ' + e4.message)
     setTxs((tx as TxLite[]) ?? [])
-    const { data: cats, error: e5 } = await supabase.from('categories').select('name, color_index').order('created_at')
-    if (e5) erros.push('categorias: ' + e5.message)
-    setCategorias(cats ?? [])
 
     if (erros.length) setErro('Erro ao carregar o dashboard — os números podem estar incompletos. ' + erros.join(' · '))
   }, [empresaAtiva])
@@ -119,24 +112,11 @@ export default function Dashboard() {
   // ── cartão de crédito (real) ──────────────────────────────────────────────
   const cartao = useMemo(() => {
     const totalFaturas = invoices.reduce((s, i) => s + Number(i.total ?? 0), 0)
-    const semCategoria = txs.filter((t) => !t.category).length
-    const corDe = (nome: string) => {
-      const idx = categorias.findIndex((c) => c.name === nome)
-      return idx >= 0 ? CAT_CHART_COLORS[idx % CAT_CHART_COLORS.length] : C.subtle
-    }
-    const m = new Map<string, number>()
-    for (const t of txs) {
-      const nome = t.category || 'Sem categoria'
-      m.set(nome, (m.get(nome) ?? 0) + valorComSinal(t))
-    }
-    const porCategoria: CatAgg[] = [...m.entries()]
-      .map(([nome, valor]) => ({ nome, valor, cor: nome === 'Sem categoria' ? C.subtle : corDe(nome) }))
-      .sort((a, b) => b.valor - a.valor)
     const porFatura = invoices
       .map((i) => ({ nome: (i.name ?? 'Fatura').slice(0, 16), total: Number(i.total ?? 0) }))
       .reverse()
-    return { totalFaturas, qtdFaturas: invoices.length, qtdTx: txs.length, semCategoria, porCategoria, porFatura }
-  }, [invoices, txs, categorias])
+    return { totalFaturas, qtdFaturas: invoices.length, qtdTx: txs.length, porFatura }
+  }, [invoices, txs])
 
   // ── financeiro rb7 (entries + hotmart) ────────────────────────────────────
   const kpis = useMemo(() => {
@@ -277,32 +257,14 @@ export default function Dashboard() {
       {/* ══ Cartão de crédito ══ */}
       <section>
         <Eyebrow>Cartão de crédito</Eyebrow>
-        <KPIStrip cols={4}>
+        <KPIStrip cols={3}>
           <KPICard bare label="Total das faturas" valor={fmt(cartao.totalFaturas)} />
           <KPICard bare label="Faturas" valor={cartao.qtdFaturas} />
           <KPICard bare label="Transações" valor={cartao.qtdTx} />
-          <KPICard bare label="Sem categoria" valor={cartao.semCategoria} tom={cartao.semCategoria > 0 ? 'warning' : 'revenue'} />
         </KPIStrip>
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card className="p-5">
-          <h3 className="font-semibold text-fg mb-4">Gasto de cartão por categoria</h3>
-          {cartao.porCategoria.length === 0 ? (
-            <p className="text-sm text-fg-subtle py-8 text-center">Importe uma fatura para ver o gasto por categoria.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={cartao.porCategoria} dataKey="valor" nameKey="nome" innerRadius={60} outerRadius={100} paddingAngle={2}>
-                  {cartao.porCategoria.map((c) => <Cell key={c.nome} fill={c.cor} />)}
-                </Pie>
-                <Tooltip formatter={(v) => fmtBRL(Number(v))} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
-
+      <section>
         <Card className="p-5">
           <h3 className="font-semibold text-fg mb-4">Gasto por fatura</h3>
           {cartao.porFatura.length === 0 ? (

@@ -59,26 +59,10 @@ export interface AccountLedgerRow {
   origem_id: string
 }
 
-// retorno da RPC relatorio_categorias (uma linha por categoria, consolidando fontes)
-export interface RelatorioCategoriaLinha {
-  categoria: string
-  color_index: number
-  despesa_cartao: number
-  despesa_entries: number
-  receita_entries: number
-  despesa_extrato: number
-  receita_extrato: number
-  despesa_total: number
-  receita_total: number
-  saldo: number
-  n_lanc: number
-}
-
 export interface Entry {
   id: string
   company_id: string
   account_id: string | null
-  category_id: string | null
   type: EntryType
   description: string
   amount: number
@@ -108,7 +92,6 @@ export interface Entry {
   appropriation_month?: number | null
   appropriation_total_months?: number | null
   // embeds opcionais (select com join)
-  category?: Category | null
   account?: Account | null
   chart_of_account?: ChartOfAccount | null
   dre_product?: DreProduct | null
@@ -122,12 +105,9 @@ export interface BankTransaction {
   amount: number // COM sinal (despesa negativa)
   memo: string | null
   tx_type: string | null
-  category_id: string | null
   entry_id: string | null
   invoice_id: string | null
-  auto_categorized: boolean
   imported_at: string
-  category?: Category | null
 }
 
 export interface HotmartSale {
@@ -154,32 +134,7 @@ export interface HotmartSale {
   imported_at: string
 }
 
-// ── Tabelas vivas (modelo PT do app original; categoria como TEXTO é decisão
-//    de design — Fase 3 auditou e manteve: dado íntegro, sem FK) ──
-
-export interface Category {
-  id: string
-  user_id: string
-  name: string
-  color_index: number
-  dre_group: string | null // "Grupo na DRE" (Receita Bruta/Dedução/Custo Variável/...); null = a classificar
-  created_at: string | null
-}
-
-// retorno da RPC dre_competencia (o frontend monta a cascata a partir disto)
-export interface DreLinha {
-  bloco: string
-  categoria: string
-  valor: number
-}
-
-export interface AutoRule {
-  id: string
-  user_id: string
-  keywords: string[]
-  category: string // nome da categoria (texto por design; Fase 3 manteve)
-  created_at: string | null
-}
+// ── Tabelas vivas do "mundo cartão" (modelo PT do app original) ──
 
 export interface Invoice {
   id: string
@@ -200,8 +155,6 @@ export interface Transaction {
   memo: string
   amount: number // sempre positivo (magnitude); o sinal vem de kind
   date: string // 'DD/MM/YYYY' em texto (formato vivo; Fase 3 manteve)
-  category: string | null // nome da categoria (texto livre)
-  auto_categorized: boolean | null
   kind: 'debit' | 'credit' // débito = despesa; crédito = estorno/desconto (abate o total)
   created_at: string | null
 }
@@ -212,18 +165,9 @@ export interface PurchaseItem {
   invoice_id: string | null // null = pendente (aguardando próxima fatura)
   description: string
   amount: number | null
-  category: string | null
   month: string | null
   purchase_date: string | null
   payment_method: string | null
-  created_at: string | null
-}
-
-export interface PurchaseCategory {
-  id: string
-  user_id: string
-  name: string
-  color_index: number
   created_at: string | null
 }
 

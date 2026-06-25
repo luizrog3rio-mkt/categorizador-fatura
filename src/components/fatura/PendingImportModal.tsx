@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ShoppingCart, Calendar } from 'lucide-react'
 import { fmt, formatMonth } from '../../lib/fatura'
 import type { PurchaseItem } from '../../lib/types'
-import { btnPrimario, btnSecundario, Badge } from '../ui'
+import { btnPrimario, btnSecundario } from '../ui'
 
 // Modal de pendentes (contrato #7): abre automaticamente após importar fatura
 // com pendentes existentes, todos pré-selecionados, agrupados por mês desc;
@@ -87,7 +87,6 @@ export default function PendingImportModal({
                     )}
                     <span className="flex-1 text-sm text-fg">{it.description}</span>
                     {it.payment_method && <span className="text-xs text-fg-muted">{it.payment_method}</span>}
-                    {it.category && <Badge tom="muted">{it.category}</Badge>}
                     {it.amount != null && (
                       <span className="text-xs font-bold text-fg tnum">{fmt(Number(it.amount))}</span>
                     )}

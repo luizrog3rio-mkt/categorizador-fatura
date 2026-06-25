@@ -7,8 +7,6 @@ interface TxView {
   date: string
   memo: string
   amount: number // magnitude positiva; o sinal vem de kind
-  category: string | null
-  auto: boolean
   kind: 'debit' | 'credit'
 }
 

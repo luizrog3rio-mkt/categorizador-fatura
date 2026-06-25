@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { parseOFXCartao, valorComSinal, type RegraUI } from './fatura'
+import { parseOFXCartao, valorComSinal } from './fatura'
 import type { Invoice, PurchaseItem } from './types'
 
 // Fluxo de import de fatura de cartão — port do handleFile do App.jsx, com
@@ -13,12 +13,11 @@ export interface ResultadoImport {
 
 export async function importarFaturaOFX(
   file: File,
-  regras: RegraUI[],
   userId: string,
   accountId: string | null
 ): Promise<{ ok: ResultadoImport | null; erro: string | null }> {
   const text = await file.text()
-  const txs = parseOFXCartao(text, regras)
+  const txs = parseOFXCartao(text)
   // total contábil: despesa soma, estorno/desconto abate (ver valorComSinal)
   const total = txs.reduce((s, t) => s + valorComSinal(t), 0)
 
@@ -59,8 +58,6 @@ export async function importarFaturaOFX(
       memo: t.memo,
       amount: t.amount,
       date: t.date,
-      category: t.category,
-      auto_categorized: t.auto,
       kind: t.kind,
     }))
     const { error: e2 } = await supabase.from('transactions').insert(rows)

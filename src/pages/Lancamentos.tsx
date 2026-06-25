@@ -3,10 +3,9 @@ import { Plus, Pencil, CheckCircle2, Trash2, ArrowRight, Repeat, Upload, Search 
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
-import { corDaCategoria } from '../lib/fatura'
-import type { Account, Category, Entry, EntryType, EntryStatus } from '../lib/types'
+import type { Account, Entry, EntryType, EntryStatus } from '../lib/types'
 import type { ChartOfAccount, DreProduct } from '../lib/types'
-import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, KPICard, KPIStrip, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { Card, PageHeader, StatusBadge, Vazio, Modal, ErroBanner, KPICard, KPIStrip, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import type { RowSelectionState } from '@tanstack/react-table'
 import DateRangePicker from '../components/DateRangePicker'
@@ -14,9 +13,8 @@ import DateRangePicker from '../components/DateRangePicker'
 // Etapa 4 — Contas a Pagar/Receber. Port do Lancamentos.tsx do rb7 adaptado
 // pro schema EN (tabela `entries`). Adaptações vs a fonte:
 //  - `lancamentos`→`entries` e todas as colunas PT→EN; enums EN.
-//  - categoria referencia a tabela VIVA `categories` (color_index, sem
-//    dimensão pagar/receber); ambos os tipos compartilham a mesma lista —
-//    decisão mantida pela Fase 3.
+//  - classificação por Conta DRE (chart_of_accounts) + Produto (dre_products);
+//    a categoria legada foi removida (2026-06-25).
 //  - embed de accounts precisa do hint !account_id (entries tem 2 FKs pra
 //    accounts: account_id e invoice_account_id → PGRST201 sem o hint).
 //  - erros aparecem em banner (o rb7 também engolia).
@@ -25,7 +23,6 @@ interface FormState {
   id?: string
   company_id: string
   account_id: string
-  category_id: string
   description: string
   amount: string
   interest: string
@@ -51,7 +48,6 @@ interface FormState {
 const formVazio = (companyId: string): FormState => ({
   company_id: companyId,
   account_id: '',
-  category_id: '',
   description: '',
   amount: '',
   interest: '',
@@ -84,7 +80,6 @@ function mapColunas(headers: string[]) {
     if (['vencimento', 'due_date', 'venc'].includes(k)) idx.due_date = i
     if (['emissao', 'issue_date', 'emis'].includes(k)) idx.issue_date = i
     if (['fornecedor', 'cliente', 'counterparty', 'sacado'].includes(k)) idx.counterparty = i
-    if (['categoria', 'category'].includes(k)) idx.category = i
     if (['conta', 'account'].includes(k)) idx.account = i
     if (['observacoes', 'notes', 'obs'].includes(k)) idx.notes = i
     if (['status'].includes(k)) idx.status = i
@@ -154,10 +149,8 @@ const STATUS_MAP: Record<string, EntryStatus> = {
 export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const { empresas, empresaAtiva, session, isAdmin } = useApp()
   const [lancamentos, setLancamentos] = useState<Entry[]>([])
-  const [categorias, setCategorias] = useState<Category[]>([])
   const [contas, setContas] = useState<Account[]>([])
   const [filtroStatus, setFiltroStatus] = useState('')
-  const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [dataDe, setDataDe] = useState('')
   const [dataAte, setDataAte] = useState('')
@@ -183,27 +176,23 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     setErro(null)
     let q = supabase
       .from('entries')
-      .select('*, category:categories(*), account:accounts!account_id(*), chart_of_account:chart_of_accounts(*), dre_product:dre_products(*)')
+      .select('*, account:accounts!account_id(*), chart_of_account:chart_of_accounts(*), dre_product:dre_products(*)')
       .eq('type', tipo)
       .order('due_date')
     // empresa: filtro local da tela tem precedência sobre o escopo global
     const escopoEmpresa = filtroEmpresa || empresaAtiva?.id
     if (escopoEmpresa) q = q.eq('company_id', escopoEmpresa)
     if (filtroStatus) q = q.eq('status', filtroStatus)
-    if (filtroCategoria === '__none__') q = q.is('category_id', null)
-    else if (filtroCategoria) q = q.eq('category_id', filtroCategoria)
     if (dataDe) q = q.gte('due_date', dataDe)
     if (dataAte) q = q.lte('due_date', dataAte)
     const { data, error } = await q
     if (error) { setErro('Erro ao carregar lançamentos: ' + error.message); return }
     setLancamentos((data as Entry[]) ?? [])
-  }, [tipo, empresaAtiva, filtroStatus, filtroCategoria, filtroEmpresa, dataDe, dataAte])
+  }, [tipo, empresaAtiva, filtroStatus, filtroEmpresa, dataDe, dataAte])
 
   useEffect(() => { carregar() }, [carregar])
 
   useEffect(() => {
-    // categorias vivas (compartilhadas entre pagar/receber, por design)
-    supabase.from('categories').select('*').order('name').then(({ data }) => setCategorias(data ?? []))
     supabase.from('accounts').select('*').eq('active', true).order('name').then(({ data }) => setContas(data ?? []))
     supabase.from('chart_of_accounts').select('*').eq('active', true).eq('is_analytical', true).order('sort_order').then(({ data }) => setChartAccounts(data ?? []))
     supabase.from('dre_products').select('*').eq('active', true).order('sort_order').then(({ data }) => setDreProducts(data ?? []))
@@ -220,7 +209,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       id: l.id,
       company_id: l.company_id,
       account_id: l.account_id ?? '',
-      category_id: l.category_id ?? '',
       description: l.description,
       amount: String(l.amount),
       interest: l.interest_amount ? String(l.interest_amount) : '',
@@ -246,9 +234,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   }, [])
 
   // gera o lançamento do mês seguinte de uma série recorrente (mesmo valor,
-  // categoria, conta; vencimento +1 mês; status inicial "a pagar")
+  // conta; vencimento +1 mês; status inicial "a pagar")
   const inserirProximoMes = useCallback(async (b: {
-    company_id: string; account_id: string | null; category_id: string | null
+    company_id: string; account_id: string | null
     type: EntryType; description: string; amount: number; due_date: string
     counterparty: string | null; notes: string | null; recurrence_day: number | null
   }) => {
@@ -271,7 +259,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     return (await supabase.from('entries').insert({
       company_id: b.company_id,
       account_id: b.account_id,
-      category_id: b.category_id,
       type: b.type,
       description: b.description,
       amount: b.amount,
@@ -307,7 +294,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     const payload = {
       company_id: form.company_id,
       account_id: form.account_id || null,
-      category_id: form.category_id || null,
       type: tipo,
       description: form.description,
       amount: parseFloat(form.amount.replace(',', '.')),
@@ -340,7 +326,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       const errRec = await inserirProximoMes({
         company_id: payload.company_id,
         account_id: payload.account_id,
-        category_id: payload.category_id,
         type: tipo,
         description: payload.description,
         amount: payload.amount,
@@ -368,7 +353,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       const errRec = await inserirProximoMes({
         company_id: l.company_id,
         account_id: l.account_id ?? null,
-        category_id: l.category_id ?? null,
         type: l.type,
         description: l.description,
         amount: Number(l.amount),
@@ -423,7 +407,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       setImportando(false)
       return
     }
-    const catByName = (name: string) => categorias.find(c => normalizar(c.name) === normalizar(name))?.id ?? null
     const contaByName = (name: string) => contas.find(c => normalizar(c.name) === normalizar(name))?.id ?? null
     const cid = empresaAtiva?.id ?? empresas[0]?.id ?? ''
     const payload = importLinhas
@@ -439,7 +422,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         discount_amount: idx.discount !== undefined ? parseValor(r[idx.discount] ?? '') : 0,
         issue_date: idx.issue_date !== undefined ? parseData(r[idx.issue_date] ?? '') || null : null,
         counterparty: idx.counterparty !== undefined ? r[idx.counterparty]?.trim() || null : null,
-        category_id: idx.category !== undefined ? catByName(r[idx.category] ?? '') : null,
         account_id: idx.account !== undefined ? contaByName(r[idx.account] ?? '') : null,
         notes: idx.notes !== undefined ? r[idx.notes]?.trim() || null : null,
         status: (idx.status !== undefined ? STATUS_MAP[normalizar(r[idx.status] ?? '')] : undefined) ?? ('to_pay' as EntryStatus),
@@ -471,8 +453,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
 
   const downloadTemplate = useCallback(() => {
     const ehPagar = tipo === 'payable'
-    const cols = ['Descrição', 'Valor', 'Vencimento', 'Emissão', ehPagar ? 'Fornecedor' : 'Cliente', 'Categoria', 'Conta', 'Observações', 'Recorrente', 'Juros', 'Multa', 'Desconto']
-    const ex = ['Aluguel escritório', '2500,00', '2026-07-10', '2026-07-01', 'João Imóveis', 'Despesas Fixas', 'Conta Corrente', 'Mensalidade', 'sim', '', '', '']
+    const cols = ['Descrição', 'Valor', 'Vencimento', 'Emissão', ehPagar ? 'Fornecedor' : 'Cliente', 'Conta', 'Observações', 'Recorrente', 'Juros', 'Multa', 'Desconto']
+    const ex = ['Aluguel escritório', '2500,00', '2026-07-10', '2026-07-01', 'João Imóveis', 'Conta Corrente', 'Mensalidade', 'sim', '', '', '']
     const csv = [cols.join(';'), ex.join(';')].join('\r\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -519,11 +501,10 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   // se o filtro de empresa coincide com o escopo global, trata como "sem filtro"
   // (a empresa ativa é omitida das opções — evita o select renderizar em branco)
   const filtroEmpresaVisivel = filtroEmpresa && filtroEmpresa !== empresaAtiva?.id ? filtroEmpresa : ''
-  const temFiltro = !!(busca || filtroStatus || filtroCategoria || filtroEmpresaVisivel || dataDe || dataAte)
+  const temFiltro = !!(busca || filtroStatus || filtroEmpresaVisivel || dataDe || dataAte)
   const limparFiltros = () => {
     setBusca('')
     setFiltroStatus('')
-    setFiltroCategoria('')
     setFiltroEmpresa('')
     setDataDe('')
     setDataAte('')
@@ -535,14 +516,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const idsVisiveis = new Set(lancamentosExibidos.map((l) => l.id))
   const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id] && idsVisiveis.has(id))
   const selectedEntries = lancamentosExibidos.filter((l) => rowSelection[l.id])
-
-  const aplicarCategoriaEmMassa = async (categoryId: string | null) => {
-    if (selectedIds.length === 0) return
-    const { error } = await supabase.from('entries').update({ category_id: categoryId }).in('id', selectedIds)
-    if (error) { setErro('Erro ao alterar categorias em massa: ' + error.message); return }
-    setRowSelection({})
-    carregar()
-  }
 
   // espelha as transições individuais: "pago" grava a data de hoje e, para os
   // recorrentes, gera o lançamento do próximo mês (inserirProximoMes é idempotente)
@@ -565,7 +538,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
           inserirProximoMes({
             company_id: l.company_id,
             account_id: l.account_id ?? null,
-            category_id: l.category_id ?? null,
             type: l.type,
             description: l.description,
             amount: Number(l.amount),
@@ -614,7 +586,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         return emp ? <span className="text-fg-muted">{emp.name}</span> : <span className="text-fg-subtle">—</span>
       },
     } satisfies DataColumn<Entry>] : []),
-    { id: 'category', header: 'Categoria', size: 150, cell: (l) => (l.category ? <Badge cor={corDaCategoria(l.category.color_index).text}>{l.category.name}</Badge> : '—') },
     { id: 'chart_of_account', header: 'Conta DRE', size: 160, cell: (l) =>
       l.chart_of_account
         ? <span className="text-xs text-fg-muted font-mono">{l.chart_of_account.code} – {l.chart_of_account.name}</span>
@@ -725,14 +696,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             <label className="block text-sm font-medium mb-1">Vencimento</label>
             <DateRangePicker de={dataDe} ate={dataAte} onChange={(d, a) => { setDataDe(d); setDataAte(a) }} />
           </div>
-          <div className="w-48">
-            <label className="block text-sm font-medium mb-1">Categoria</label>
-            <select className={inputCls} value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
-              <option value="">Todas as categorias</option>
-              <option value="__none__">Sem categoria</option>
-              {categorias.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
           <div className="w-44">
             <label className="block text-sm font-medium mb-1">Status</label>
             <select className={inputCls} value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
@@ -765,18 +728,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
           <span className="text-sm font-semibold text-brand whitespace-nowrap">
             {selectedIds.length} selecionado{selectedIds.length !== 1 ? 's' : ''}
           </span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-fg-muted">Categoria:</span>
-            <select
-              value=""
-              onChange={(e) => { const v = e.target.value; if (v) aplicarCategoriaEmMassa(v === '__none__' ? null : v) }}
-              className="rounded-control border border-border-strong px-2 py-1.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand"
-            >
-              <option value="" disabled>Escolher…</option>
-              <option value="__none__">Sem categoria</option>
-              {categorias.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-fg-muted">Status:</span>
             <select
@@ -875,13 +826,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Categoria</label>
-              <select className={inputCls} value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}>
-                <option value="">Sem categoria</option>
-                {categorias.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="block text-sm font-medium mb-1">Conta do Plano de Contas</label>
               <select className={inputCls} value={form.chart_of_account_id} onChange={(e) => setForm({ ...form, chart_of_account_id: e.target.value })}>
                 <option value="">Sem conta DRE</option>
@@ -964,7 +908,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
           <div className="rounded-card bg-surface-2 border border-border p-3 text-xs text-fg-muted leading-relaxed">
             <p className="font-semibold text-fg mb-1">Colunas reconhecidas no cabeçalho (case insensitive):</p>
             <p><span className="font-medium text-fg">Obrigatórias:</span> Descrição · Valor · Vencimento</p>
-            <p><span className="font-medium text-fg">Opcionais:</span> Emissão · {ehPagar ? 'Fornecedor' : 'Cliente'} · Categoria · Conta · Observações · Status · Recorrente · Juros · Multa · Desconto</p>
+            <p><span className="font-medium text-fg">Opcionais:</span> Emissão · {ehPagar ? 'Fornecedor' : 'Cliente'} · Conta · Observações · Status · Recorrente · Juros · Multa · Desconto</p>
             <p className="mt-1.5 text-fg-subtle">Datas: DD/MM/AAAA ou AAAA-MM-DD · Valores: vírgula ou ponto decimal · Recorrente: sim/não</p>
           </div>
           <div className="flex items-center justify-between">

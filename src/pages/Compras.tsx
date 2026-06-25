@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
-import { useFaturaWorld } from '../hooks/useFaturaWorld'
 import PurchaseItemsTab, { type NovoItem } from '../components/fatura/PurchaseItemsTab'
 import { PageHeader, ErroBanner } from '../components/ui'
 import type { PurchaseItem } from '../lib/types'
@@ -11,7 +10,6 @@ import type { PurchaseItem } from '../lib/types'
 // Ao importar uma fatura, o modal de pendentes (Etapa 2) oferece anexá-los.
 export default function Compras() {
   const { session, isAdmin, recarregarPendentes } = useApp()
-  const { purchaseCategorias, erro: erroWorld, addPurchaseCategoria } = useFaturaWorld()
   const [items, setItems] = useState<PurchaseItem[]>([])
   const [erro, setErro] = useState<string | null>(null)
 
@@ -37,7 +35,6 @@ export default function Compras() {
         invoice_id: null,
         description: item.description,
         amount: item.amount === '' || item.amount == null ? null : Number(item.amount),
-        category: item.category || null,
         month: item.month || null,
         purchase_date: item.purchaseDate || null,
         payment_method: item.paymentMethod || null,
@@ -67,14 +64,12 @@ export default function Compras() {
         titulo="Compras pendentes"
         subtitulo="Anotações aguardando a próxima fatura — não entram em totais nem no dashboard"
       />
-      <ErroBanner mensagem={erro ?? erroWorld} />
+      <ErroBanner mensagem={erro} />
       <PurchaseItemsTab
         items={items}
-        categories={purchaseCategorias}
         onAdd={addItem}
         onUpdate={updateItem}
         onDelete={deleteItem}
-        onAddCategory={addPurchaseCategoria}
         isPending
         readOnly={!isAdmin}
       />

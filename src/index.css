@@ -28,7 +28,7 @@
   --color-revenue-bg: #ecfdf5;
   --color-expense: #be123c;      /* despesa / saída / atraso (vinho, não vermelho cru) */
   --color-expense-bg: #fff1f2;
-  --color-warning: #b45309;      /* pendente / alerta / sem-categoria */
+  --color-warning: #b45309;      /* pendente / alerta / atraso */
   --color-warning-bg: #fffbeb;
   --color-muted: #64748b;        /* cancelado / neutro */
 

@@ -29,7 +29,7 @@ export default function Login() {
             R
           </div>
           <h1 className="text-2xl font-bold text-fg">RB7 Financeiro</h1>
-          <p className="text-sm text-fg-muted mt-1">Importe, categorize e analise as finanças</p>
+          <p className="text-sm text-fg-muted mt-1">Importe e analise as finanças</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-fg-muted mb-1">E-mail</label>

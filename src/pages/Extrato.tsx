@@ -4,18 +4,16 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { importarExtratoOFX } from '../lib/importarExtrato'
 import { fmtBRL, fmtData } from '../lib/format'
-import { corDaCategoria } from '../lib/fatura'
-import type { Account, Category, BankTransaction } from '../lib/types'
-import { Card, PageHeader, Badge, Vazio, ErroBanner, Modal, Alert, Button, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import type { Account, BankTransaction } from '../lib/types'
+import { Card, PageHeader, Vazio, ErroBanner, Modal, Alert, Button, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
 // Etapa 5 — Extratos (OFX). Port do ImportarOfx.tsx do rb7 pra bank_transactions.
-// Conta corrente (cartão vai pelo fluxo de Faturas). Categoria viva (sem tipo,
-// mostra todas). Import reporta duplicatas e FITID sintético (follow-up 1c).
+// Conta corrente (cartão vai pelo fluxo de Faturas). Import reporta duplicatas
+// e FITID sintético (follow-up 1c). Categorização removida em 2026-06-25.
 export default function Extrato() {
   const { empresaAtiva, isAdmin } = useApp()
   const [contas, setContas] = useState<Account[]>([])
-  const [categorias, setCategorias] = useState<Category[]>([])
   const [contaSelecionada, setContaSelecionada] = useState('')
   const [transacoes, setTransacoes] = useState<BankTransaction[]>([])
   const [msg, setMsg] = useState<string | null>(null)
@@ -34,14 +32,13 @@ export default function Extrato() {
       setContas(data ?? [])
       setContaSelecionada((prev) => (data?.find((c) => c.id === prev) ? prev : data?.[0]?.id ?? ''))
     })
-    supabase.from('categories').select('*').order('name').then(({ data }) => setCategorias(data ?? []))
   }, [empresaAtiva])
 
   const carregarTransacoes = useCallback(async () => {
     if (!contaSelecionada) { setTransacoes([]); return }
     const { data, error } = await supabase
       .from('bank_transactions')
-      .select('*, category:categories(*)')
+      .select('*')
       .eq('account_id', contaSelecionada)
       .order('date', { ascending: false })
       .limit(300)
@@ -95,36 +92,13 @@ export default function Extrato() {
     carregarTransacoes()
   }
 
-  const categorizar = useCallback(async (t: BankTransaction, categoryId: string) => {
-    const { error } = await supabase.from('bank_transactions').update({ category_id: categoryId || null }).eq('id', t.id)
-    if (error) { setErro('Erro ao categorizar: ' + error.message); return }
-    carregarTransacoes()
-  }, [carregarTransacoes])
-
   const colunas = useMemo<DataColumn<BankTransaction>[]>(() => [
     { id: 'date', header: 'Data', size: 110, cell: (t) => <span className="text-fg-muted whitespace-nowrap">{fmtData(t.date)}</span> },
     { id: 'memo', header: 'Descrição', size: 360, cell: (t) => <span className="text-fg-muted">{t.memo ?? '—'}</span> },
     { id: 'amount', header: 'Valor', size: 130, align: 'right', cell: (t) => (
       <span className={`font-semibold whitespace-nowrap tnum ${Number(t.amount) < 0 ? 'text-expense' : 'text-revenue'}`}>{fmtBRL(Number(t.amount))}</span>
     ) },
-    { id: 'category', header: 'Categoria', size: 220, cell: (t) => (
-      t.category ? (
-        <div className="flex items-center gap-2">
-          <Badge cor={corDaCategoria(t.category.color_index).text}>{t.category.name}</Badge>
-          {isAdmin && <button onClick={() => categorizar(t, '')} className="text-xs text-fg-subtle hover:text-expense">×</button>}
-        </div>
-      ) : isAdmin ? (
-        <select
-          className="w-full rounded-control border border-border px-2 py-1 text-xs text-fg-muted"
-          value=""
-          onChange={(e) => { if (e.target.value) categorizar(t, e.target.value) }}
-        >
-          <option value="">Categorizar…</option>
-          {categorias.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      ) : null
-    ) },
-  ], [isAdmin, categorias, categorizar])
+  ], [])
 
   return (
     <div>
