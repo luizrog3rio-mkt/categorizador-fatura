@@ -17,6 +17,8 @@
 //  - POST {company_id, debug:true}         → 1ª venda crua+mapeada, NÃO grava
 //  - POST {company_id, refresh_status:N}   → SÓ serviço: re-checa N vendas por
 //    ?transaction=<id> e atualiza estornos (a busca por data não traz reembolso)
+//  - POST {company_id, refresh_commissions:N} → SÓ serviço: preenche afiliado/
+//    coprodução/líquido exato via /sales/commissions (o /sales/history não traz)
 //  - header x-service-auth == HOTMART_SYNC_SERVICE_KEY → modo-serviço (cron
 //    diário): escreve com a service key, sem usuário. verify_jwt=false no deploy.
 // ============================================================================
@@ -24,6 +26,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const HOTMART_TOKEN_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token'
 const HOTMART_SALES_URL = 'https://developers.hotmart.com/payments/api/v1/sales/history'
+const HOTMART_COMMISSIONS_URL = 'https://developers.hotmart.com/payments/api/v1/sales/commissions'
 
 // publishable key é PÚBLICA (já vai no bundle da Vercel) — o anon legado foi desabilitado
 const PUBLISHABLE_KEY = 'sb_publishable_CYnY2cJ5mgmKJ4ZhV5IFcA_7mHEQhdo'
@@ -46,9 +49,12 @@ const isoDate = (ms: number | null | undefined) =>
 //  - bruto (preço do produto, SEM juros): purchase.hotmart_fee.base (base da taxa)
 //    ⚠️ purchase.price.base NÃO EXISTE — price só tem { currency_code, value }
 //  - taxa Hotmart: purchase.hotmart_fee.total (~5% da base + fixo)
-//  - líquido do produtor: bruto - taxa (validado: base 297 → 281,15, bate com painel)
-//  - /sales/history NÃO traz array commissions[] (afiliado/coprodução), só
-//    purchase.commission_as. Logo aff/coprod ficam 0 — net exato só p/ PRODUCER.
+//  - líquido APROXIMADO: bruto - taxa (validado: base 297 → 281,15, bate com painel)
+//  - afiliado/coprodução/líquido EXATO NÃO vêm do /sales/history — são donos do
+//    modo refresh_commissions (via /sales/commissions). Por isso este map NÃO
+//    emite affiliate*/coproduction*/coproducer (defaults 0/NULL os cobrem) pra o
+//    sync diário não regravar por cima do que o refresh preencheu. Só net_amount
+//    sai aqui (NOT NULL sem default), como aproximação que o refresh refina.
 //  - status em inglês maiúsculo (COMPLETE/APPROVED/...): a allowlist pega
 function mapSale(it: any, companyId: string) {
   const p = it?.purchase ?? {}
@@ -60,13 +66,7 @@ function mapSale(it: any, companyId: string) {
   const total = Number(p.price?.value ?? 0)                          // valor total pago (com juros de parcelamento)
   const gross = Number(p.hotmart_fee?.base ?? p.price?.value ?? 0)   // bruto: preço base do produto (sem juros)
   const fee = Number(p.hotmart_fee?.total ?? 0)
-
-  const commissions: any[] = Array.isArray(it?.commissions) ? it.commissions : []
-  const soma = (re: RegExp) =>
-    commissions.filter((c) => re.test(String(c?.source ?? ''))).reduce((s, c) => s + Number(c?.value ?? 0), 0)
-  const affiliate = soma(/affiliate/i)
-  const coproduction = soma(/co.?produc/i)
-  const net = gross - fee - affiliate - coproduction
+  const net = gross - fee                                            // líquido aproximado (refresh_commissions sobrescreve com o PRODUCER exato)
 
   return {
     transaction_code: String(code),
@@ -79,11 +79,7 @@ function mapSale(it: any, companyId: string) {
     hotmart_fee: fee,
     fee_percentage: p.hotmart_fee?.percentage ?? null, // % cobrada pela Hotmart
     installments: p.payment?.installments_number ?? null, // nº de parcelas (1 = à vista)
-    affiliate_commission: affiliate,
-    coproduction_commission: coproduction,
     net_amount: net,
-    affiliate: it?.affiliate?.name ?? null,
-    coproducer: null,
     payment_method: p.payment?.type ?? null,
     status: String(p.status ?? 'UNKNOWN'),
     buyer: it?.buyer?.name ?? null,
@@ -107,7 +103,7 @@ Deno.serve(async (req) => {
     // quota da Hotmart); a escrita real ainda é protegida pelo RLS de equipe
     if (!isService && !/^Bearer\s+eyJ/.test(auth ?? '')) return json({ error: 'sem autorização' }, 401)
 
-    const { company_id, debug, refresh_status, months, start: startArg, end: endArg } = await req.json().catch(() => ({}))
+    const { company_id, debug, refresh_status, refresh_commissions, months, start: startArg, end: endArg } = await req.json().catch(() => ({}))
     if (!company_id) return json({ error: 'company_id obrigatório' }, 400)
 
     const clientId = Deno.env.get('HOTMART_CLIENT_ID')
@@ -122,6 +118,63 @@ Deno.serve(async (req) => {
     const tokenJson = await tokenRes.json()
     const accessToken = tokenJson.access_token
     if (!accessToken) return json({ error: 'token Hotmart sem access_token', body: tokenJson }, 502)
+
+    // 1a-bis) modo refresh_commissions (SÓ serviço): preenche afiliado/coprodução
+    //   e o líquido EXATO via /sales/commissions?transaction=<id> (que SEMPRE
+    //   retorna, ao contrário da busca por data). Shape validado (2026-06-25):
+    //   items[0].commissions[] = [{ source, commission:{value}, user:{name} }],
+    //   source ∈ AFFILIATE/PRODUCER/COPRODUCER/ADDON/MARKETPLACE. Este modo é o
+    //   DONO dessas colunas; grava authoritative (afiliado 0/NULL quando não há).
+    //   Rodízio: prioriza commission_checked_at NULLS FIRST (backfill) E sempre
+    //   re-checa a janela recente (~35d) que o sync diário regrava por cima.
+    if (refresh_commissions) {
+      if (!isService) return json({ error: 'refresh_commissions é só modo-serviço' }, 403)
+      const N = Math.max(1, Math.min(500, Number(refresh_commissions) || 200))
+      const sbsvc = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey!)
+      const recente = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      const { data: cands, error: eSel } = await sbsvc
+        .from('hotmart_sales')
+        .select('transaction_code')
+        .eq('company_id', company_id)
+        .or(`commission_checked_at.is.null,sale_date.gte.${recente}`)
+        .order('commission_checked_at', { ascending: true, nullsFirst: true })
+        .limit(N)
+      if (eSel) return json({ error: 'falha ao selecionar candidatos', detalhe: eSel.message }, 500)
+      const t0 = Date.now()
+      const agora = new Date().toISOString()
+      let verificados = 0
+      let comAfiliado = 0
+      for (const c of (cands ?? [])) {
+        if (Date.now() - t0 > 100000) break // guarda de tempo
+        const u = new URL(HOTMART_COMMISSIONS_URL)
+        u.searchParams.set('transaction', c.transaction_code)
+        const r = await fetch(u.toString(), { headers: { Authorization: `Bearer ${accessToken}` } })
+        if (!r.ok) continue
+        const comms: any[] = (await r.json())?.items?.[0]?.commissions ?? []
+        const val = (ok: (s: string) => boolean) =>
+          comms.filter((x) => ok(String(x?.source ?? ''))).reduce((s, x) => s + Number(x?.commission?.value ?? 0), 0)
+        const nome = (ok: (s: string) => boolean) =>
+          comms.find((x) => ok(String(x?.source ?? '')))?.user?.name ?? null
+        const isAff = (s: string) => /affiliate/i.test(s)
+        const isCop = (s: string) => /co.?produc/i.test(s)
+        const afi = val(isAff)
+        const cop = val(isCop)
+        const prod = comms.find((x) => /^producer$/i.test(String(x?.source ?? '')))
+        const patch: Record<string, unknown> = {
+          commission_checked_at: agora,
+          affiliate_commission: afi,
+          affiliate: afi > 0 ? nome(isAff) : null,
+          coproduction_commission: cop,
+          coproducer: cop > 0 ? nome(isCop) : null,
+        }
+        if (prod) patch.net_amount = Number(prod?.commission?.value ?? 0) // líquido exato
+        if (afi > 0) comAfiliado++
+        await sbsvc.from('hotmart_sales').update(patch).eq('transaction_code', c.transaction_code)
+        verificados++
+      }
+      const restamNull = (cands?.length ?? 0) < N // heurística: lote menor que N ⇒ backfill perto do fim
+      return json({ ok: true, refresh_commissions: true, candidatos: cands?.length ?? 0, verificados, com_afiliado: comAfiliado, backfill_perto_do_fim: restamNull })
+    }
 
     // 1b) modo refresh_status (SÓ serviço): re-checa vendas existentes por
     //     ?transaction=<id> (sempre retorna, independente de status) pra capturar

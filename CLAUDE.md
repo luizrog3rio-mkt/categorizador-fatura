@@ -74,19 +74,31 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   RLS, botão na tela) e modo-serviço (header `x-service-auth` == secret
   `HOTMART_SYNC_SERVICE_KEY` → escreve com a service key). Secrets
   `HOTMART_CLIENT_ID`/`HOTMART_CLIENT_SECRET` no env da function. Modos:
-  `{debug:true}` (1ª venda crua+mapeada sem gravar) e `{refresh_status:N}`
-  (só serviço: re-checa N vendas por `?transaction=<id>` p/ capturar estorno).
+  `{debug:true}` (1ª venda crua+mapeada sem gravar), `{refresh_status:N}`
+  (só serviço: re-checa N vendas por `?transaction=<id>` p/ capturar estorno) e
+  `{refresh_commissions:N}` (só serviço: preenche afiliado/coprodução/líquido
+  exato via `/sales/commissions`).
 - **Crons** (pg_cron, lendo o segredo do **Vault** `hotmart_service_key` via
   `net.http_post`, timeout 120s): `hotmart-sync-diario` (09:00 UTC, descoberta
-  de vendas novas, janela 1 mês) e `hotmart-refresh-status-diario` (09:30 UTC,
-  refresh de estorno, rodízio por `status_checked_at`, ~200/dia).
+  de vendas novas, janela 1 mês), `hotmart-refresh-status-diario` (09:30 UTC,
+  refresh de estorno, rodízio por `status_checked_at`, ~200/dia) e
+  `hotmart-commissions-diario` (09:45 UTC, **por último**, preenche afiliado/
+  coprodução/líquido exato via modo `refresh_commissions=400`, rodízio por
+  `commission_checked_at` + re-checa a janela recente ~35d que o sync regrava).
 - **Mapeamento de valores validado contra dados reais (2026-06-11), ver
   [[hotmart-mapeamento-campos]]**: `total_amount`=`purchase.price.value`
   (VALOR TOTAL pago, **inclui juros de parcelamento**); `gross_amount`=
   **`purchase.hotmart_fee.base`** (BRUTO, preço do produto sem juros —
-  `price.base` NÃO existe); taxa=`purchase.hotmart_fee.total`; líquido=bruto−taxa
-  (`/sales/history` NÃO traz `commissions[]` → afiliado/coprodução ficam 0, net
-  exato só p/ `commission_as=PRODUCER`). ~37,5% das vendas são parceladas.
+  `price.base` NÃO existe); taxa=`purchase.hotmart_fee.total`; líquido=bruto−taxa (aproximado no
+  `mapSale`). ~37,5% das vendas são parceladas. **Afiliado/coprodução e o
+  líquido EXATO vêm de OUTRO endpoint**: `/sales/commissions?transaction=<id>`
+  (`items[0].commissions[]` = `{source, commission.value, user.name}`, source
+  AFFILIATE/PRODUCER/COPRODUCER; ver [[hotmart-sales-commissions-shape]]). O modo
+  `refresh_commissions` da edge function (dirigido pelo banco, rodízio por
+  `commission_checked_at`) preenche `affiliate`/`affiliate_commission`/
+  `coproducer`/`coproduction_commission`/`net_amount` (= PRODUCER) — e por isso
+  o `mapSale` do sync diário NÃO emite essas 4 colunas (defaults 0/NULL as cobrem),
+  só `net_amount` aproximado. Total por afiliado: RPC `hotmart_by_affiliate`.
 - **Moeda**: coluna `currency` (`price.currency_code`); a base tem vendas USD/
   EUR/PYG/etc. A RPC `hotmart_totals` filtra `currency='BRL'` (default) e
   devolve `fora_moeda` (nº excluído) — **nunca somar moedas diferentes** (5

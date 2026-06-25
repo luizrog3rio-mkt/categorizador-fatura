@@ -38,6 +38,9 @@ function StatusHotmart({ status }: { status: string }) {
   return <Badge tom={tomStatus(status)}>{rotuloStatus(status)}</Badge>
 }
 
+// Linha do "Total por afiliado" (RPC hotmart_by_affiliate, agregação no banco)
+type AfiliadoRow = { afiliado: string; qtd: number; comissao: number; bruto: number; total: number; liquido_produtor: number }
+
 export default function Hotmart() {
   const { empresas, empresaAtiva, isAdmin } = useApp()
   const [vendas, setVendas] = useState<HotmartSale[]>([])
@@ -49,6 +52,7 @@ export default function Hotmart() {
   const [dataDe, setDataDe] = useState('')
   const [dataAte, setDataAte] = useState('')
   const [totais, setTotais] = useState({ qtd: 0, total: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0, foraMoeda: 0 })
+  const [afiliados, setAfiliados] = useState<AfiliadoRow[]>([])
 
   useEffect(() => {
     if (empresas.length && !empresaDestino) setEmpresaDestino(empresaAtiva?.id ?? empresas[0].id)
@@ -78,6 +82,18 @@ export default function Hotmart() {
     setTotais(t
       ? { qtd: Number(t.qtd), total: Number(t.total), bruto: Number(t.bruto), taxas: Number(t.taxas), afiliados: Number(t.afiliados), liquido: Number(t.liquido), foraMoeda: Number(t.fora_moeda) }
       : { qtd: 0, total: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0, foraMoeda: 0 })
+
+    // Total por afiliado (agregação no banco; vazio até o refresh_commissions preencher)
+    const { data: afi, error: e3 } = await supabase.rpc('hotmart_by_affiliate', {
+      p_company: empresaAtiva?.id ?? null,
+      p_start: pStart,
+      p_end: pEnd,
+    })
+    if (e3) { setErro('Erro nos afiliados: ' + e3.message); return }
+    setAfiliados(((afi as AfiliadoRow[]) ?? []).map((a) => ({
+      afiliado: a.afiliado, qtd: Number(a.qtd), comissao: Number(a.comissao),
+      bruto: Number(a.bruto), total: Number(a.total), liquido_produtor: Number(a.liquido_produtor),
+    })))
   }, [empresaAtiva, dataDe, dataAte])
 
   useEffect(() => { carregar() }, [carregar])
@@ -145,6 +161,7 @@ export default function Hotmart() {
     { id: 'gross_amount', header: 'Bruto', size: 110, align: 'right', cell: (v) => <span className="tnum">{fmtBRL(Number(v.gross_amount))}</span> },
     { id: 'hotmart_fee', header: 'Taxa', size: 100, align: 'right', cell: (v) => <span className="text-expense tnum">{fmtBRL(Number(v.hotmart_fee))}</span> },
     { id: 'fee_percentage', header: '% Hotmart', size: 100, align: 'right', cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.fee_percentage != null ? `${Number(v.fee_percentage)}%` : '—'}</span> },
+    { id: 'affiliate', header: 'Afiliado', size: 150, align: 'left', grow: true, cell: (v) => <span className="text-fg-muted">{v.affiliate ?? '—'}</span> },
     { id: 'afiliados', header: 'Afil./Coprod.', size: 120, align: 'right', cell: (v) => <span className="text-warning tnum">{fmtBRL(Number(v.affiliate_commission) + Number(v.coproduction_commission))}</span> },
     { id: 'net_amount', header: 'Líquido', size: 120, align: 'right', cell: (v) => <span className="font-semibold text-revenue tnum">{fmtBRL(Number(v.net_amount))}</span> },
     { id: 'release_date', header: 'Liberação', size: 110, cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.release_date)}</span> },
@@ -232,6 +249,41 @@ export default function Hotmart() {
               </p>
             )}
           </>
+        )}
+      </Card>
+
+      <Card className="mt-6">
+        <div className="px-5 pt-5 pb-3 border-b border-border">
+          <h2 className="text-sm font-semibold text-fg">Total por afiliado</h2>
+          <p className="text-xs text-fg-subtle mt-0.5">
+            Comissões pagas a afiliados e o líquido que a RB7 recebeu nessas vendas (período selecionado · moeda BRL).
+          </p>
+        </div>
+        {afiliados.length === 0 ? (
+          <Vazio mensagem="Nenhuma venda com afiliado no período. Os dados de afiliado são preenchidos automaticamente pelo sync de comissões." />
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-fg-subtle border-b border-border">
+                <th className="font-medium px-5 py-2">Afiliado</th>
+                <th className="font-medium px-3 py-2 text-right">Vendas</th>
+                <th className="font-medium px-3 py-2 text-right">Comissão</th>
+                <th className="font-medium px-3 py-2 text-right">Bruto</th>
+                <th className="font-medium px-5 py-2 text-right">Líquido RB7</th>
+              </tr>
+            </thead>
+            <tbody>
+              {afiliados.map((a) => (
+                <tr key={a.afiliado} className="border-b border-border last:border-0">
+                  <td className="px-5 py-2 text-fg">{a.afiliado}</td>
+                  <td className="px-3 py-2 text-right tnum text-fg-muted">{a.qtd}</td>
+                  <td className="px-3 py-2 text-right tnum text-warning">{fmtBRL(a.comissao)}</td>
+                  <td className="px-3 py-2 text-right tnum text-fg-muted">{fmtBRL(a.bruto)}</td>
+                  <td className="px-5 py-2 text-right tnum font-medium text-revenue">{fmtBRL(a.liquido_produtor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </Card>
     </div>
