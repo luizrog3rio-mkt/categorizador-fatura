@@ -12,6 +12,7 @@ const pageLoaders: Record<string, Loader> = {
   '/compras': () => import('../pages/Compras'),
   '/pagar': () => import('../pages/Lancamentos'),
   '/receber': () => import('../pages/Lancamentos'),
+  '/transferencias': () => import('../pages/Transferencias'),
   '/extrato': () => import('../pages/Extrato'),
   '/conciliacao': () => import('../pages/Conciliacao'),
   '/hotmart': () => import('../pages/Hotmart'),

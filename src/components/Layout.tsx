@@ -47,6 +47,7 @@ const grupos: Grupo[] = [
     itens: [
       { to: '/pagar', rotulo: 'Contas a Pagar', icone: ArrowDownCircle },
       { to: '/receber', rotulo: 'Contas a Receber', icone: ArrowUpCircle },
+      { to: '/transferencias', rotulo: 'Transferências', icone: ArrowLeftRight },
       { to: '/extrato', rotulo: 'Extratos (OFX)', icone: FileDown },
       { to: '/conciliacao', rotulo: 'Conciliação', icone: Link2 },
     ],

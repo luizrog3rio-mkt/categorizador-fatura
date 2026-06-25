@@ -13,6 +13,7 @@ const Faturas = lazy(() => import('./pages/Faturas'))
 const Fatura = lazy(() => import('./pages/Fatura'))
 const Compras = lazy(() => import('./pages/Compras'))
 const Lancamentos = lazy(() => import('./pages/Lancamentos'))
+const Transferencias = lazy(() => import('./pages/Transferencias'))
 const Extrato = lazy(() => import('./pages/Extrato'))
 const Hotmart = lazy(() => import('./pages/Hotmart'))
 const ProdutosHotmart = lazy(() => import('./pages/ProdutosHotmart'))
@@ -49,6 +50,7 @@ function Rotas() {
         <Route path="/compras" element={<Compras />} />
         <Route path="/pagar" element={<Lancamentos key="payable" tipo="payable" />} />
         <Route path="/receber" element={<Lancamentos key="receivable" tipo="receivable" />} />
+        <Route path="/transferencias" element={<Transferencias />} />
         <Route path="/extrato" element={<Extrato />} />
         <Route path="/conciliacao" element={<Conciliacao />} />
         <Route path="/hotmart" element={<Hotmart />} />
