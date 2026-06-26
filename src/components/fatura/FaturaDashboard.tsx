@@ -97,11 +97,11 @@ export default function FaturaDashboard({
           Classifique os lançamentos abaixo (coluna <span className="text-fg-muted">Plano de Contas</span>) pra ver o gasto por conta.
         </Card>
       ) : (
-        <Card className="p-5">
-          <h3 className="text-sm font-semibold text-fg mb-4">Gasto por Plano de Contas</h3>
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
-            <DonutChart slices={slices} total={totalClass} />
-            <div className="flex-1 min-w-0 w-full">
+        <>
+          {/* Bloco 1: ranking por conta (largura cheia) */}
+          <Card className="p-5">
+            <h3 className="text-sm font-semibold text-fg mb-4">Gasto por Plano de Contas</h3>
+            <div>
               {linhas.map((a, i) => {
                 const ativo = (a.key === SEM && contaFiltro === SEM) || (!!a.id && contaFiltro === a.id)
                 return (
@@ -124,8 +124,13 @@ export default function FaturaDashboard({
                 )
               })}
             </div>
-          </div>
-        </Card>
+          </Card>
+
+          {/* Bloco 2: donut (composição do classificado) */}
+          <Card className="p-5 flex justify-center">
+            <DonutChart slices={slices} total={totalClass} />
+          </Card>
+        </>
       )}
 
       {naturezas.length > 0 && (
