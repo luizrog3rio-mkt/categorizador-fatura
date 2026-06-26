@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Upload, Download, Search, FileText, BarChart3, ShoppingCart } from 'lucide-react'
+import { Upload, Download, Search, FileText, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { importarFaturaOFX } from '../lib/importarFatura'
@@ -19,11 +19,10 @@ import type { Invoice, PurchaseItem, ChartOfAccount } from '../lib/types'
 // pós-import (contrato #7). A categorização (coluna, filtro por categoria,
 // auto, ação em massa) foi removida em 2026-06-25 — a classificação financeira
 // vive no Plano de Contas / DRE.
-type Aba = 'lancamentos' | 'dashboard' | 'compras'
+type Aba = 'lancamentos' | 'compras'
 
 const ABAS: { key: Aba; label: string; Icon: typeof FileText }[] = [
   { key: 'lancamentos', label: 'Lançamentos', Icon: FileText },
-  { key: 'dashboard', label: 'Dashboard', Icon: BarChart3 },
   { key: 'compras', label: 'Compras', Icon: ShoppingCart },
 ]
 
@@ -282,9 +281,12 @@ export default function Fatura() {
         ))}
       </div>
 
-      {/* Aba: Lançamentos */}
+      {/* Aba: Lançamentos (com o dashboard no topo) */}
       {activeTab === 'lancamentos' && (
         <>
+          <div className="mb-4">
+            <FaturaDashboard transactions={transactions} />
+          </div>
           <Card className="p-4 mb-4">
             <div className="relative max-w-sm">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
@@ -334,11 +336,6 @@ export default function Fatura() {
             />
           </Card>
         </>
-      )}
-
-      {/* Aba: Dashboard */}
-      {activeTab === 'dashboard' && (
-        <FaturaDashboard transactions={transactions} />
       )}
 
       {/* Aba: Compras */}
