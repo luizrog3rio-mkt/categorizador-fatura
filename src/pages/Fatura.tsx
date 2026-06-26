@@ -11,6 +11,7 @@ import PurchaseItemsTab, { type NovoItem } from '../components/fatura/PurchaseIt
 import PendingImportModal from '../components/fatura/PendingImportModal'
 import { Card, Badge, ErroBanner, PageHeader, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
+import type { RowSelectionState } from '@tanstack/react-table'
 import type { Invoice, PurchaseItem, ChartOfAccount } from '../lib/types'
 
 // Página da fatura — 3 abas (Lançamentos / Dashboard / Compras), busca por
@@ -35,6 +36,7 @@ export default function Fatura() {
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [transactions, setTransactions] = useState<TxView[]>([])
   const [chartAccounts, setChartAccounts] = useState<ChartOfAccount[]>([])
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([])
   const [pendentes, setPendentes] = useState<PurchaseItem[] | null>(
     (location.state as { pendentes?: PurchaseItem[] } | null)?.pendentes?.length
@@ -183,6 +185,20 @@ export default function Fatura() {
   const filtered = transactions.filter((t) => t.memo.toLowerCase().includes(search.toLowerCase()))
   const totalFiltered = filtered.reduce((s, t) => s + valorComSinal(t), 0)
 
+  // seleção em massa (conta só os marcados VISÍVEIS — respeita a busca)
+  const idsVisiveis = new Set(filtered.map((t) => t.id))
+  const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id] && idsVisiveis.has(id))
+
+  // aplica uma conta do plano a todos os selecionados de uma vez (ou limpa, com null)
+  const aplicarContaEmMassa = async (accountId: string | null) => {
+    if (selectedIds.length === 0) return
+    const sel = new Set(selectedIds)
+    setTransactions((prev) => prev.map((t) => (sel.has(t.id) ? { ...t, chart_of_account_id: accountId } : t)))
+    const { error } = await supabase.from('transactions').update({ chart_of_account_id: accountId }).in('id', selectedIds)
+    if (error) { setErro('Erro ao classificar em massa: ' + error.message); carregar(); return }
+    setRowSelection({})
+  }
+
   const colunas = useMemo<DataColumn<TxView>[]>(() => [
     {
       id: 'date', header: 'Data', size: 110,
@@ -280,6 +296,31 @@ export default function Fatura() {
               />
             </div>
           </Card>
+
+          {/* ação em massa: classifica os selecionados de uma vez */}
+          {isAdmin && selectedIds.length > 0 && (
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-card border border-brand-subtle bg-brand-subtle flex-wrap">
+              <span className="text-sm font-semibold text-brand whitespace-nowrap">
+                {selectedIds.length} selecionado{selectedIds.length !== 1 ? 's' : ''}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-fg-muted">Plano de Contas:</span>
+                <select
+                  value=""
+                  onChange={(e) => { const v = e.target.value; if (v) aplicarContaEmMassa(v === '__none__' ? null : v) }}
+                  className="rounded-control border border-border-strong px-2 py-1.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand"
+                >
+                  <option value="" disabled>Escolher conta…</option>
+                  <option value="__none__">— Sem conta (limpar) —</option>
+                  {chartAccounts.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+                </select>
+              </div>
+              <button onClick={() => setRowSelection({})} className="ml-auto text-xs font-medium text-fg-muted hover:text-fg whitespace-nowrap">
+                Limpar seleção
+              </button>
+            </div>
+          )}
+
           <Card className="p-3">
             <DataTable
               tableKey="fatura-lancamentos"
@@ -287,6 +328,9 @@ export default function Fatura() {
               data={filtered}
               getRowId={(t) => t.id}
               empty="Nenhum lançamento encontrado."
+              enableSelection={isAdmin}
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
             />
           </Card>
         </>
