@@ -97,29 +97,9 @@ export default function FaturaDashboard({
           Classifique os lançamentos abaixo (coluna <span className="text-fg-muted">Plano de Contas</span>) pra ver o gasto por conta.
         </Card>
       ) : (
-        // mesmo bloco (um card) com duas seções separadas por divisória
+        // mesmo bloco (um card): ranking em cima, "Por natureza" embaixo
         <Card className="p-5 space-y-5">
-          {naturezas.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-fg mb-3">Por natureza</h3>
-              <div className="flex h-3 rounded-full overflow-hidden mb-3">
-                {naturezas.map((n) => (
-                  <div key={n.nat} style={{ background: NATURE_COLORS[n.nat] ?? NEUTRO, width: `${(n.total / totalNat) * 100}%` }} title={NATURE_LABELS[n.nat] ?? n.nat} />
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-                {naturezas.map((n) => (
-                  <div key={n.nat} className="flex items-center gap-2 text-xs">
-                    <span className="w-2.5 h-2.5 rounded-sm" style={{ background: NATURE_COLORS[n.nat] ?? NEUTRO }} />
-                    <span className="text-fg-muted">{NATURE_LABELS[n.nat] ?? n.nat}</span>
-                    <span className="text-fg font-medium tnum">{fmt(n.total)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className={naturezas.length > 0 ? 'border-t border-border pt-5' : ''}>
+          <div>
             <h3 className="text-sm font-semibold text-fg mb-4">Gasto por Plano de Contas</h3>
             <div>
               {linhas.map((a, i) => {
@@ -145,6 +125,26 @@ export default function FaturaDashboard({
               })}
             </div>
           </div>
+
+          {naturezas.length > 0 && (
+            <div className="border-t border-border pt-5">
+              <h3 className="text-sm font-semibold text-fg mb-3">Por natureza</h3>
+              <div className="flex h-3 rounded-full overflow-hidden mb-3">
+                {naturezas.map((n) => (
+                  <div key={n.nat} style={{ background: NATURE_COLORS[n.nat] ?? NEUTRO, width: `${(n.total / totalNat) * 100}%` }} title={NATURE_LABELS[n.nat] ?? n.nat} />
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                {naturezas.map((n) => (
+                  <div key={n.nat} className="flex items-center gap-2 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ background: NATURE_COLORS[n.nat] ?? NEUTRO }} />
+                    <span className="text-fg-muted">{NATURE_LABELS[n.nat] ?? n.nat}</span>
+                    <span className="text-fg font-medium tnum">{fmt(n.total)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
       )}
     </div>
