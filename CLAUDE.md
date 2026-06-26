@@ -52,7 +52,13 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   helper `valorComSinal()` — fonte única do sinal (decisão de 2026-06-22,
   desvia do contrato #3 que descartava todo crédito). Faturas importadas ANTES
   dessa data têm `kind='debit'` no backfill e total inflado pelos créditos
-  ignorados — só reimportar corrige.
+  ignorados — só reimportar corrige. **Cartão agora ENTRA na DRE**: a coluna
+  `transactions.chart_of_account_id` (seletor "Plano de Contas" na aba Lançamentos
+  da Fatura) classifica cada lançamento, e `dre_by_competency` une essas
+  transactions aos entries — competência = data da compra, empresa via
+  fatura→conta, sinal pelo `kind`. Anti-dupla-contagem: a DRE exclui entries de
+  fatura agregada (`invoice_account_id`). NÃO entra na `dre_by_product` (cartão
+  sem produto) nem na conciliação de caixa.
 - **RLS = modelo de EQUIPE**: `using (true) with check (true)` para
   authenticated em todas as tabelas (Fase 1b/1c). Os ~11 WARNs
   `rls_policy_always_true` dos advisors são **aceitos por design**.

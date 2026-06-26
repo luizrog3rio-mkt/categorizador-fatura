@@ -11,7 +11,7 @@ import PurchaseItemsTab, { type NovoItem } from '../components/fatura/PurchaseIt
 import PendingImportModal from '../components/fatura/PendingImportModal'
 import { Card, Badge, ErroBanner, PageHeader, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
-import type { Invoice, PurchaseItem } from '../lib/types'
+import type { Invoice, PurchaseItem, ChartOfAccount } from '../lib/types'
 
 // Página da fatura — 3 abas (Lançamentos / Dashboard / Compras), busca por
 // descrição, total no rodapé, export (contrato #9) e modal de pendentes
@@ -34,6 +34,7 @@ export default function Fatura() {
 
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [transactions, setTransactions] = useState<TxView[]>([])
+  const [chartAccounts, setChartAccounts] = useState<ChartOfAccount[]>([])
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([])
   const [pendentes, setPendentes] = useState<PurchaseItem[] | null>(
     (location.state as { pendentes?: PurchaseItem[] } | null)?.pendentes?.length
@@ -65,8 +66,18 @@ export default function Fatura() {
         memo: t.memo,
         amount: Number(t.amount),
         kind: (t.kind ?? 'debit') as 'debit' | 'credit',
+        chart_of_account_id: t.chart_of_account_id ?? null,
       }))
     )
+
+    // contas folha do plano (mesmo filtro do Lançamentos) pro seletor de classificação
+    const { data: coas } = await supabase
+      .from('chart_of_accounts')
+      .select('*')
+      .eq('active', true)
+      .eq('is_analytical', true)
+      .order('sort_order')
+    setChartAccounts((coas as ChartOfAccount[]) ?? [])
 
     const { data: items, error: e2 } = await supabase
       .from('purchase_items')
@@ -160,6 +171,14 @@ export default function Fatura() {
     URL.revokeObjectURL(url)
   }
 
+  // marca a conta do plano num lançamento da fatura (alimenta a DRE por competência).
+  // useCallback pra manter a memo das colunas estável (gotcha do DataTable).
+  const setConta = useCallback(async (txId: string, accountId: string | null) => {
+    setTransactions((prev) => prev.map((t) => (t.id === txId ? { ...t, chart_of_account_id: accountId } : t)))
+    const { error } = await supabase.from('transactions').update({ chart_of_account_id: accountId }).eq('id', txId)
+    if (error) setErro('Erro ao salvar a conta: ' + error.message)
+  }, [])
+
   // ── derivados ──────────────────────────────────────────────────────────────
   const filtered = transactions.filter((t) => t.memo.toLowerCase().includes(search.toLowerCase()))
   const totalFiltered = filtered.reduce((s, t) => s + valorComSinal(t), 0)
@@ -189,7 +208,21 @@ export default function Fatura() {
         </Badge>
       ),
     },
-  ], [filtered.length, totalFiltered])
+    {
+      id: 'conta', header: 'Plano de Contas', size: 240, grow: true,
+      cell: (t) => (
+        <select
+          className="w-full rounded-control border border-border-strong bg-surface px-2 py-1 text-xs text-fg focus:outline-none focus:ring-2 focus:ring-brand disabled:opacity-50"
+          value={t.chart_of_account_id ?? ''}
+          disabled={!isAdmin}
+          onChange={(e) => setConta(t.id, e.target.value || null)}
+        >
+          <option value="">— sem conta —</option>
+          {chartAccounts.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+        </select>
+      ),
+    },
+  ], [filtered.length, totalFiltered, chartAccounts, isAdmin, setConta])
 
   return (
     <div>

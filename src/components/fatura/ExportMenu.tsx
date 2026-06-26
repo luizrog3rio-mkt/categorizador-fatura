@@ -8,6 +8,7 @@ interface TxView {
   memo: string
   amount: number // magnitude positiva; o sinal vem de kind
   kind: 'debit' | 'credit'
+  chart_of_account_id?: string | null // conta do plano marcada (alimenta a DRE)
 }
 
 // Menu de export — distingue "filtrados (N)" vs "todos (N)"; comportamento
