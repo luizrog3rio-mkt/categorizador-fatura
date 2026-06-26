@@ -190,29 +190,36 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
     return () => el.removeEventListener('wheel', onWheel)
   }, [fitsAll, containerW, data, prefs.columnVisibility, prefs.columnSizing])
 
-  // shift-click range selection: clica um, segura Shift e clica outro → marca o
-  // intervalo inteiro (estado = o que a linha clicada viraria). Âncora = última
-  // linha clicada (por id, robusto a re-render).
+  // shift-click range selection: clica um, segura Shift e clica outro → marca (ou
+  // desmarca) o intervalo inteiro. Toda a lógica vive no onChange (fonte única,
+  // sem depender de preventDefault) — o Shift é capturado no clique, num ref.
+  // Âncora = última linha clicada (por id, robusto a re-render).
   const lastSelectedRef = useRef<string | null>(null)
-  const handleSelectClick = (e: ReactMouseEvent<HTMLInputElement>, rowIndex: number) => {
+  const shiftKeyRef = useRef(false)
+  const handleRowToggle = (rowIndex: number) => {
     const rows = table.getRowModel().rows
-    if (e.shiftKey && lastSelectedRef.current && onRowSelectionChange) {
-      const ancora = rows.findIndex((r) => r.id === lastSelectedRef.current)
-      if (ancora !== -1) {
-        e.preventDefault() // assume o controle: não deixa o toggle simples disparar
-        const lo = Math.min(ancora, rowIndex)
-        const hi = Math.max(ancora, rowIndex)
-        const novo = !rows[rowIndex].getIsSelected()
-        const next: RowSelectionState = { ...(rowSelection ?? {}) }
-        for (let j = lo; j <= hi; j++) {
-          if (!rows[j].getCanSelect()) continue
-          if (novo) next[rows[j].id] = true
-          else delete next[rows[j].id]
-        }
-        onRowSelectionChange(next)
+    const row = rows[rowIndex]
+    if (!row || !onRowSelectionChange) return
+    const novo = !row.getIsSelected() // estado que a linha clicada vai assumir
+    const next: RowSelectionState = { ...(rowSelection ?? {}) }
+    const ancora = shiftKeyRef.current && lastSelectedRef.current
+      ? rows.findIndex((r) => r.id === lastSelectedRef.current)
+      : -1
+    if (ancora !== -1) {
+      const lo = Math.min(ancora, rowIndex)
+      const hi = Math.max(ancora, rowIndex) // INCLUI a linha clicada
+      for (let j = lo; j <= hi; j++) {
+        if (!rows[j].getCanSelect()) continue
+        if (novo) next[rows[j].id] = true
+        else delete next[rows[j].id]
       }
+    } else {
+      if (novo) next[row.id] = true
+      else delete next[row.id]
     }
-    lastSelectedRef.current = rows[rowIndex].id
+    onRowSelectionChange(next)
+    lastSelectedRef.current = row.id
+    shiftKeyRef.current = false
   }
 
   const handleDragEnd = (e: DragEndEvent) => {
@@ -277,8 +284,8 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
                         <IndeterminateCheckbox
                           checked={row.getIsSelected()}
                           disabled={!row.getCanSelect()}
-                          onChange={row.getToggleSelectedHandler()}
-                          onClick={(e) => handleSelectClick(e, i)}
+                          onClick={(e) => { shiftKeyRef.current = e.shiftKey }}
+                          onChange={() => handleRowToggle(i)}
                         />
                       </td>
                     )}
