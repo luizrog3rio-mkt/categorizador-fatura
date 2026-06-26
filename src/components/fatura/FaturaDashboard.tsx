@@ -112,9 +112,9 @@ export default function FaturaDashboard({
                   >
                     <span className="w-4 text-xs text-fg-subtle tnum">{a.key === SEM ? '·' : i + 1}</span>
                     <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: a.color }} />
-                    <span className="flex-1 min-w-0 truncate text-sm text-fg">{a.label}</span>
-                    <div className="hidden sm:block w-24 h-1.5 rounded bg-surface-2 overflow-hidden shrink-0">
-                      <div className="h-full" style={{ background: a.color, width: `${a.key === SEM ? 100 : (a.total / maxVal) * 100}%` }} />
+                    <span className="w-72 lg:w-80 shrink-0 truncate text-sm text-fg">{a.label}</span>
+                    <div className="hidden sm:block flex-1 min-w-[60px] h-2 rounded bg-surface-2 overflow-hidden">
+                      <div className="h-full rounded" style={{ background: a.color, width: `${a.key === SEM ? 100 : (a.total / maxVal) * 100}%` }} />
                     </div>
                     <span className="w-10 text-right text-xs text-fg-subtle tnum hidden sm:block">{a.key === SEM ? '' : `${a.pct.toFixed(0)}%`}</span>
                     <span className="w-24 text-right text-sm font-medium text-fg tnum">{fmt(a.total)}</span>
@@ -153,7 +153,7 @@ export default function FaturaDashboard({
 
 // Donut oco em SVG puro (sem recharts) — total classificado no centro.
 function DonutChart({ slices, total }: { slices: { pct: number; color: string }[]; total: number }) {
-  const size = 150, cx = 75, cy = 75, r = 56, inner = 34
+  const size = 188, cx = 94, cy = 94, r = 72, inner = 44
   if (!total) return null
   // offsets acumulados via prefix-sum (sem variável mutável — react-compiler)
   const arcs = slices.map((s, i) => {
@@ -173,8 +173,8 @@ function DonutChart({ slices, total }: { slices: { pct: number; color: string }[
         const d = `M ${i1.x} ${i1.y} L ${s1.x} ${s1.y} A ${r} ${r} 0 ${large} 1 ${s2.x} ${s2.y} L ${i2.x} ${i2.y} A ${inner} ${inner} 0 ${large} 0 ${i1.x} ${i1.y} Z`
         return <path key={i} d={d} fill={s.color} stroke="#fff" strokeWidth={1.5} />
       })}
-      <text x={cx} y={cy - 7} textAnchor="middle" fontSize={9} fill="#94a3b8" fontWeight={700}>CLASSIFICADO</text>
-      <text x={cx} y={cy + 9} textAnchor="middle" fontSize={10} fill="#0f172a" fontWeight={800}>{fmt(total)}</text>
+      <text x={cx} y={cy - 8} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={700}>CLASSIFICADO</text>
+      <text x={cx} y={cy + 11} textAnchor="middle" fontSize={13} fill="#0f172a" fontWeight={800}>{fmt(total)}</text>
     </svg>
   )
 }
