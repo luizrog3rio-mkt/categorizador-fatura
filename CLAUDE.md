@@ -275,6 +275,13 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   (A conversão rodinha-vertical→horizontal-sem-shift foi **removida** a pedido do
   Luiz — ela "roubava" o scroll vertical da página.) Corpo das células 13px.
   (Houve um toggle fit↔natural; removido a pedido do Luiz — fit é sempre.)
-  **Paginação opcional** via prop `pageSize` (TanStack `getPaginationRowModel`):
-  renderiza só `pageSize` linhas/página + controles Anterior/Próxima — usada no
-  `/hotmart` (`pageSize=50`) pra não travar com 1000 linhas no DOM.
+  Pra muitas linhas sem travar há 2 opções opt-in (mut. exclusivas): **paginação**
+  (`pageSize`, TanStack `getPaginationRowModel` + controles Anterior/Próxima) e
+  **virtualização** (`virtualize`, `@tanstack/react-virtual` v3.13.12 pinado): rola
+  TODAS as linhas num container de altura fixa (`maxHeight`, default 70vh) com header
+  sticky, mas só renderiza as ~30 visíveis no DOM (padding-rows + `measureElement`
+  pra altura variável). O `/hotmart` usa **`virtualize`** (mostra as 1000 num scroll
+  contínuo sem travar). **Ordenação** opt-in por coluna via `DataColumn.sortFn`
+  (clicar no header alterna asc/desc; ícone seta) — convive com o arrastar (clique
+  ordena, arraste reordena). Reordenar normaliza a `columnOrder` salva (descarta ids
+  de colunas que não existem mais — ex.: `canal`→`vendedor`).

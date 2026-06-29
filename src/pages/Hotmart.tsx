@@ -364,7 +364,7 @@ export default function Hotmart() {
               columns={colunas}
               data={vendas}
               getRowId={(v) => v.id}
-              pageSize={50}
+              virtualize
             />
             {totais.qtd > vendas.length && filtroOrigem === 'todas' && !buscaDebounced.trim() && (
               <p className="text-xs text-fg-subtle text-center py-3 border-t border-border">

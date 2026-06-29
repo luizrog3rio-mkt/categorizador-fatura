@@ -30,6 +30,7 @@ import {
 } from '@dnd-kit/sortable'
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useColumnPrefs } from '../hooks/useColumnPrefs'
 
 // Tabela reordenável (arrastar o cabeçalho), redimensionável (puxar a borda) e
@@ -74,6 +75,11 @@ interface DataTableProps<T> {
   // paginação client-side (opt-in): quando definido, renderiza só `pageSize` linhas
   // por vez + controles de navegação. Evita travar com milhares de linhas no DOM.
   pageSize?: number
+  // virtualização (opt-in): rola TODAS as linhas num container de altura fixa,
+  // mas só renderiza as visíveis (~30) no DOM. Mostra "tudo" sem travar.
+  // Mutuamente exclusivo com pageSize. `virtualize` liga; `maxHeight` (CSS) opcional.
+  virtualize?: boolean
+  maxHeight?: string
 }
 
 const SEL_W = 52 // largura da coluna de checkbox (centralizado)
@@ -82,7 +88,7 @@ const FLEX_MIN = 64 // largura mínima de uma coluna de texto no modo fit
 const alignClasse = (a?: string) =>
   a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left'
 
-export default function DataTable<T>({ columns, data, tableKey, getRowId, empty, enableSelection, rowSelection, onRowSelectionChange, pageSize }: DataTableProps<T>) {
+export default function DataTable<T>({ columns, data, tableKey, getRowId, empty, enableSelection, rowSelection, onRowSelectionChange, pageSize, virtualize, maxHeight = '70vh' }: DataTableProps<T>) {
   const prefs = useColumnPrefs(tableKey)
   const colMap = useMemo(() => new Map(columns.map((c) => [c.id, c])), [columns])
 
@@ -251,13 +257,58 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
     prefs.onColumnOrderChange(arrayMove(atual, de, para))
   }
 
+  // ── virtualização (opt-in): só renderiza as linhas visíveis ──
+  const rows = table.getRowModel().rows
+  const rowVirtualizer = useVirtualizer({
+    count: virtualize ? rows.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 41,
+    overscan: 12,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  })
+  const virtualRows = virtualize ? rowVirtualizer.getVirtualItems() : []
+  const totalSize = rowVirtualizer.getTotalSize()
+  const padTop = virtualRows.length > 0 ? virtualRows[0].start : 0
+  const padBottom = virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0
+  const nCols = visibleCols.length + (enableSelection ? 1 : 0)
+
+  // células de uma linha (checkbox opcional + colunas) — reusado virtualizado e normal
+  const celulasDaLinha = (row: ReturnType<typeof table.getRowModel>['rows'][number], i: number) => (
+    <>
+      {enableSelection && (
+        <td className={`${padX} py-2.5 align-middle text-center`} style={{ width: wcss(SEL_W) }}>
+          <IndeterminateCheckbox
+            checked={row.getIsSelected()}
+            disabled={!row.getCanSelect()}
+            onClick={(e) => { shiftKeyRef.current = e.shiftKey }}
+            onChange={() => handleRowToggle(i)}
+          />
+        </td>
+      )}
+      {row.getVisibleCells().map((cell) => (
+        <td
+          key={cell.id}
+          style={{ width: wcss(larguraPx(cell.column)) }}
+          className={`${padX} py-2.5 align-middle ${alignClasse(colMap.get(cell.column.id)?.align)} ${truncCol(cell.column.id, cell.column.getSize())}`}
+        >
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        </td>
+      ))}
+    </>
+  )
+
   return (
     <div>
       <div className="flex justify-end mb-2">
         <ColunasMenu table={table} columns={columns} onReset={prefs.reset} />
       </div>
       <div className="relative">
-        <div ref={scrollRef} onScroll={atualizarSombra} className="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
+        <div
+          ref={scrollRef}
+          onScroll={atualizarSombra}
+          className={`overflow-x-auto rounded-card border border-border bg-surface shadow-card ${virtualize ? 'overflow-y-auto' : ''}`}
+          style={virtualize ? { maxHeight } : undefined}
+        >
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -265,7 +316,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
             onDragEnd={handleDragEnd}
           >
             <table className="table-fixed border-collapse text-[13px] tnum" style={fitsAll ? { width: '100%' } : { width: naturalTotal, minWidth: '100%' }}>
-              <thead>
+              <thead className={virtualize ? 'sticky top-0 z-10' : ''}>
                 {table.getHeaderGroups().map((hg) => (
                   <tr key={hg.id} className="border-b border-border">
                     {enableSelection && (
@@ -294,38 +345,35 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
                 ))}
               </thead>
               <tbody>
-                {table.getRowModel().rows.map((row, i) => (
-                  <tr key={row.id} className={`border-b border-border last:border-0 ${row.getIsSelected() ? 'bg-brand-subtle' : 'hover:bg-surface-2'}`}>
-                    {enableSelection && (
-                      <td className={`${padX} py-2.5 align-middle text-center`} style={{ width: wcss(SEL_W) }}>
-                        <IndeterminateCheckbox
-                          checked={row.getIsSelected()}
-                          disabled={!row.getCanSelect()}
-                          onClick={(e) => { shiftKeyRef.current = e.shiftKey }}
-                          onChange={() => handleRowToggle(i)}
-                        />
-                      </td>
-                    )}
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        style={{ width: wcss(larguraPx(cell.column)) }}
-                        className={`${padX} py-2.5 align-middle ${alignClasse(colMap.get(cell.column.id)?.align)} ${truncCol(cell.column.id, cell.column.getSize())}`}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                {table.getRowModel().rows.length === 0 && (
+                {virtualize ? (
+                  <>
+                    {padTop > 0 && <tr aria-hidden><td colSpan={nCols} style={{ height: padTop }} /></tr>}
+                    {virtualRows.map((vr) => {
+                      const row = rows[vr.index]
+                      return (
+                        <tr key={row.id} data-index={vr.index} ref={rowVirtualizer.measureElement} className={`border-b border-border last:border-0 ${row.getIsSelected() ? 'bg-brand-subtle' : 'hover:bg-surface-2'}`}>
+                          {celulasDaLinha(row, vr.index)}
+                        </tr>
+                      )
+                    })}
+                    {padBottom > 0 && <tr aria-hidden><td colSpan={nCols} style={{ height: padBottom }} /></tr>}
+                  </>
+                ) : (
+                  rows.map((row, i) => (
+                    <tr key={row.id} className={`border-b border-border last:border-0 ${row.getIsSelected() ? 'bg-brand-subtle' : 'hover:bg-surface-2'}`}>
+                      {celulasDaLinha(row, i)}
+                    </tr>
+                  ))
+                )}
+                {rows.length === 0 && (
                   <tr>
-                    <td colSpan={visibleCols.length + (enableSelection ? 1 : 0)} className="text-center py-10 text-fg-subtle text-sm">
+                    <td colSpan={nCols} className="text-center py-10 text-fg-subtle text-sm">
                       {empty ?? 'Nada por aqui.'}
                     </td>
                   </tr>
                 )}
               </tbody>
-              {temFooter && table.getRowModel().rows.length > 0 && (
+              {temFooter && rows.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-border-strong bg-surface-2">
                     {enableSelection && <td style={{ width: wcss(SEL_W) }} />}
