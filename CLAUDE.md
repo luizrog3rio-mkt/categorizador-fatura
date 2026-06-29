@@ -270,6 +270,11 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   truncam) e só as de TEXTO encolhem/truncam ("…"). A heurística texto-vs-rígida
   é "alinhada à esquerda E size≥140"; a página pode forçar via `DataColumn.grow`.
   Quando nem o texto no mínimo cabe (tela estreita), a tabela rola na horizontal
-  — e a rodinha vertical do mouse já rola na horizontal (sem shift) + sombra na
-  borda direita (rede de segurança, sem botão). Corpo das células 13px. (Houve um
-  toggle fit↔natural; removido a pedido do Luiz — fit é sempre.)
+  — scroll horizontal **nativo** (rodinha normal desce a página, Shift+rodinha
+  rola na horizontal) + sombra na borda direita (rede de segurança, sem botão).
+  (A conversão rodinha-vertical→horizontal-sem-shift foi **removida** a pedido do
+  Luiz — ela "roubava" o scroll vertical da página.) Corpo das células 13px.
+  (Houve um toggle fit↔natural; removido a pedido do Luiz — fit é sempre.)
+  **Paginação opcional** via prop `pageSize` (TanStack `getPaginationRowModel`):
+  renderiza só `pageSize` linhas/página + controles Anterior/Próxima — usada no
+  `/hotmart` (`pageSize=50`) pra não travar com 1000 linhas no DOM.

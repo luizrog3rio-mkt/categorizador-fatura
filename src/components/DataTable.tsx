@@ -176,7 +176,10 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
   const truncCol = (id: string, size: number) => (fitsAll && ehFlex(id, size) ? 'truncate [&_p]:truncate' : '')
   const padX = 'px-2'
 
-  // ── scroll horizontal sem shift (rodinha vertical → horizontal) + sombra ──
+  // ── sombra na borda direita quando há mais conteúdo à direita ──
+  // O scroll horizontal é o NATIVO do navegador: rodinha normal desce a página,
+  // Shift+rodinha rola na horizontal. (Antes a rodinha vertical era convertida em
+  // horizontal sem Shift, mas isso "roubava" o scroll vertical da página.)
   const [maisDireita, setMaisDireita] = useState(false)
   const atualizarSombra = () => {
     const el = scrollRef.current
@@ -185,15 +188,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const onWheel = (e: WheelEvent) => {
-      if (el.scrollWidth <= el.clientWidth) return // nada a rolar na horizontal
-      if (e.deltaY === 0 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return // já é horizontal
-      el.scrollLeft += e.deltaY
-      e.preventDefault()
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
     setMaisDireita(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
-    return () => el.removeEventListener('wheel', onWheel)
   }, [fitsAll, containerW, data, prefs.columnVisibility, prefs.columnSizing])
 
   // shift-click range selection: clica um, segura Shift e clica outro → marca (ou
