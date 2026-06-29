@@ -18,6 +18,7 @@ type Filtro = 'a_classificar' | 'classificadas' | 'todas'
 
 const MATCH_LABELS: Record<MatchType, string> = { exact: '=', contains: 'contém', starts_with: 'começa com', is_empty: 'é vazio' }
 const REGRA_VAZIA: NovaRegra = { src_value: '', src_match: 'exact', sck_value: '', sck_match: 'exact', xcode_value: '', xcode_match: 'exact', afiliado_value: '', afiliado_match: 'exact', group_id: '', channel_id: '', seller_id: '' }
+const NOVO = '__novo__'
 
 export default function Origem() {
   const [grupos, setGrupos] = useState<Grupo[]>([])
@@ -31,6 +32,10 @@ export default function Origem() {
   const [erro, setErro] = useState<string | null>(null)
 
   const [salvando, setSalvando] = useState(false)
+
+  // modal criar grupo/canal (a partir do modal de regra)
+  const [modalCriar, setModalCriar] = useState<{ tipo: 'grupo' | 'canal' } | null>(null)
+  const [nomeNovo, setNomeNovo] = useState('')
 
   // modal criar/editar regra
   const [modalRegra, setModalRegra] = useState<{ modo: 'criar' } | { modo: 'editar'; id: string } | null>(null)
@@ -119,6 +124,25 @@ export default function Origem() {
     setAplicando(false)
     carregar()
   }, [carregar])
+
+  const confirmarCriacao = useCallback(async () => {
+    if (!modalCriar || !nomeNovo.trim()) return
+    setSalvando(true)
+    if (modalCriar.tipo === 'grupo') {
+      const { data, error } = await supabase.from('origin_groups').insert({ nome: nomeNovo.trim() }).select('id,nome').single()
+      if (error) { setErro('Erro ao criar grupo: ' + error.message); setSalvando(false); return }
+      const g = data as Grupo
+      setGrupos((prev) => [...prev, g].sort((a, b) => a.nome.localeCompare(b.nome)))
+      setNovaRegra((p) => ({ ...p, group_id: g.id, channel_id: '' }))
+    } else {
+      const { data, error } = await supabase.from('origin_channels').insert({ nome: nomeNovo.trim(), group_id: novaRegra.group_id }).select('id,nome,group_id').single()
+      if (error) { setErro('Erro ao criar canal: ' + error.message); setSalvando(false); return }
+      const c = data as Canal
+      setCanais((prev) => [...prev, c].sort((a, b) => a.nome.localeCompare(b.nome)))
+      setNovaRegra((p) => ({ ...p, channel_id: c.id }))
+    }
+    setSalvando(false); setModalCriar(null); setNomeNovo('')
+  }, [modalCriar, nomeNovo, novaRegra.group_id])
 
   const nomeGrupo = (id: string | null) => grupos.find((g) => g.id === id)?.nome ?? '—'
   const nomeCanal = (id: string | null) => canais.find((c) => c.id === id)?.nome ?? '—'
@@ -271,6 +295,31 @@ export default function Origem() {
         )}
       </Card>
 
+      {/* Modal criar grupo/canal */}
+      {modalCriar && (
+        <Modal
+          titulo={modalCriar.tipo === 'grupo' ? 'Novo grupo' : 'Novo canal'}
+          aberto={true}
+          onFechar={() => setModalCriar(null)}
+          largura="lg"
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variante="secondary" onClick={() => setModalCriar(null)}>Cancelar</Button>
+              <Button variante="primary" loading={salvando} disabled={!nomeNovo.trim()} onClick={confirmarCriacao}>Criar</Button>
+            </div>
+          }
+        >
+          <input
+            autoFocus
+            className={inputCls}
+            placeholder={modalCriar.tipo === 'grupo' ? 'Nome do grupo' : 'Nome do canal'}
+            value={nomeNovo}
+            onChange={(e) => setNomeNovo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') confirmarCriacao() }}
+          />
+        </Modal>
+      )}
+
       {/* Modal criar/editar regra */}
       {modalRegra && (
         <Modal
@@ -320,10 +369,11 @@ export default function Origem() {
               <select
                 className={inputCls}
                 value={novaRegra.group_id}
-                onChange={(e) => setNovaRegra((p) => ({ ...p, group_id: e.target.value, channel_id: '' }))}
+                onChange={(e) => e.target.value === NOVO ? (setNomeNovo(''), setModalCriar({ tipo: 'grupo' })) : setNovaRegra((p) => ({ ...p, group_id: e.target.value, channel_id: '' }))}
               >
                 <option value="">— sem grupo —</option>
                 {grupos.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                <option value={NOVO}>+ Novo grupo...</option>
               </select>
             </div>
             <div>
@@ -332,10 +382,11 @@ export default function Origem() {
                 className={inputCls}
                 value={novaRegra.channel_id}
                 disabled={!novaRegra.group_id}
-                onChange={(e) => setNovaRegra((p) => ({ ...p, channel_id: e.target.value }))}
+                onChange={(e) => e.target.value === NOVO ? (setNomeNovo(''), setModalCriar({ tipo: 'canal' })) : setNovaRegra((p) => ({ ...p, channel_id: e.target.value }))}
               >
                 <option value="">{novaRegra.group_id ? '— sem canal —' : 'escolha o grupo primeiro'}</option>
                 {canais.filter((c) => c.group_id === novaRegra.group_id).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                {novaRegra.group_id && <option value={NOVO}>+ Novo canal...</option>}
               </select>
             </div>
             <div>
