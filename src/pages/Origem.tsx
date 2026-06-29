@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtBRL, fmtData } from '../lib/format'
 import type { HotmartSale } from '../lib/types'
-import { Card, PageHeader, ErroBanner, KPICard, Vazio } from '../components/ui'
+import { Card, PageHeader, ErroBanner, KPICard, Vazio, Modal, Button, inputCls } from '../components/ui'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 
 // Origem das vendas — classificação POR VENDA (modelo origem v3). Cada venda recebe
@@ -26,6 +26,9 @@ export default function Origem() {
   const [totais, setTotais] = useState<GrupoTotal[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
+  const [modalCriar, setModalCriar] = useState<{ tipo: 'grupo' | 'canal'; venda: HotmartSale } | null>(null)
+  const [nomeNovo, setNomeNovo] = useState('')
+  const [salvando, setSalvando] = useState(false)
 
   const carregarKpis = useCallback(async () => {
     const { data } = await supabase.rpc('hotmart_by_group', { p_company: null, p_start: null, p_end: null })
@@ -67,24 +70,35 @@ export default function Origem() {
     carregarKpis()
   }, [carregarKpis])
 
-  const criarGrupo = useCallback(async (v: HotmartSale) => {
-    const nome = window.prompt('Nome do novo grupo:')?.trim()
-    if (!nome) return
-    const { data, error } = await supabase.from('origin_groups').insert({ nome }).select('id,nome').single()
-    if (error) { setErro('Erro ao criar grupo: ' + error.message); return }
-    setGrupos((prev) => [...prev, data as Grupo].sort((a, b) => a.nome.localeCompare(b.nome)))
-    classificar(v, { group_id: (data as Grupo).id, channel_id: null })
-  }, [classificar])
+  const criarGrupo = useCallback((v: HotmartSale) => {
+    setNomeNovo('')
+    setModalCriar({ tipo: 'grupo', venda: v })
+  }, [])
 
-  const criarCanal = useCallback(async (v: HotmartSale) => {
+  const criarCanal = useCallback((v: HotmartSale) => {
     if (!v.group_id) return
-    const nome = window.prompt('Nome do novo canal:')?.trim()
-    if (!nome) return
-    const { data, error } = await supabase.from('origin_channels').insert({ nome, group_id: v.group_id }).select('id,nome,group_id').single()
-    if (error) { setErro('Erro ao criar canal: ' + error.message); return }
-    setCanais((prev) => [...prev, data as Canal].sort((a, b) => a.nome.localeCompare(b.nome)))
-    classificar(v, { channel_id: (data as Canal).id })
-  }, [classificar])
+    setNomeNovo('')
+    setModalCriar({ tipo: 'canal', venda: v })
+  }, [])
+
+  const confirmarCriacao = useCallback(async () => {
+    if (!modalCriar || !nomeNovo.trim()) return
+    setSalvando(true)
+    const { tipo, venda } = modalCriar
+    if (tipo === 'grupo') {
+      const { data, error } = await supabase.from('origin_groups').insert({ nome: nomeNovo.trim() }).select('id,nome').single()
+      if (error) { setErro('Erro ao criar grupo: ' + error.message); setSalvando(false); return }
+      setGrupos((prev) => [...prev, data as Grupo].sort((a, b) => a.nome.localeCompare(b.nome)))
+      classificar(venda, { group_id: (data as Grupo).id, channel_id: null })
+    } else {
+      const { data, error } = await supabase.from('origin_channels').insert({ nome: nomeNovo.trim(), group_id: venda.group_id }).select('id,nome,group_id').single()
+      if (error) { setErro('Erro ao criar canal: ' + error.message); setSalvando(false); return }
+      setCanais((prev) => [...prev, data as Canal].sort((a, b) => a.nome.localeCompare(b.nome)))
+      classificar(venda, { channel_id: (data as Canal).id })
+    }
+    setSalvando(false)
+    setModalCriar(null)
+  }, [modalCriar, nomeNovo, classificar])
 
   return (
     <div className="space-y-6">
@@ -172,6 +186,30 @@ export default function Origem() {
           </div>
         )}
       </Card>
+
+      {modalCriar && (
+        <Modal
+          titulo={modalCriar.tipo === 'grupo' ? 'Novo grupo' : 'Novo canal'}
+          aberto={true}
+          onFechar={() => setModalCriar(null)}
+          largura="lg"
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variante="secondary" onClick={() => setModalCriar(null)}>Cancelar</Button>
+              <Button variante="primary" loading={salvando} disabled={!nomeNovo.trim()} onClick={confirmarCriacao}>Criar</Button>
+            </div>
+          }
+        >
+          <input
+            autoFocus
+            className={inputCls}
+            placeholder={modalCriar.tipo === 'grupo' ? 'Nome do grupo' : 'Nome do canal'}
+            value={nomeNovo}
+            onChange={(e) => setNomeNovo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') confirmarCriacao() }}
+          />
+        </Modal>
+      )}
     </div>
   )
 }
