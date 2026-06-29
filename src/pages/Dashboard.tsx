@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [txs, setTxs] = useState<TxLite[]>([])
   const [erro, setErro] = useState<string | null>(null)
+  const [carregando, setCarregando] = useState(true)
 
   const carregar = useCallback(async () => {
     setErro(null)
@@ -95,6 +96,7 @@ export default function Dashboard() {
     setTxs((tx as TxLite[]) ?? [])
 
     if (erros.length) setErro('Erro ao carregar o dashboard — os números podem estar incompletos. ' + erros.join(' · '))
+    setCarregando(false)
   }, [empresaAtiva])
 
   useEffect(() => { carregar() }, [carregar])
@@ -158,6 +160,24 @@ export default function Dashboard() {
   )
 
   const temFinanceiro = lancamentos.length > 0 || vendas.length > 0
+
+  // Skeleton enquanto a 1ª carga não volta — evita o flash de "+R$ 0,00" (verde) que
+  // parece um resultado real por meio segundo.
+  if (carregando) {
+    return (
+      <div className="space-y-8">
+        <PageHeader titulo="Dashboard" subtitulo={empresaAtiva ? empresaAtiva.name : 'Visão consolidada'} />
+        <div className="h-28 rounded-card bg-surface-2 animate-pulse" />
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 rounded-card bg-surface-2 animate-pulse" />)}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="h-72 rounded-card bg-surface-2 animate-pulse" />
+          <div className="h-72 rounded-card bg-surface-2 animate-pulse" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">

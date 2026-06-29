@@ -35,6 +35,7 @@ const rotulos: Record<AccountType, string> = {
 export default function Contas() {
   const { empresas, empresaAtiva, isAdmin } = useApp()
   const [contas, setContas] = useState<ContaComSaldo[]>([])
+  const [carregando, setCarregando] = useState(true)
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroAtivo, setFiltroAtivo] = useState('')
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
@@ -52,8 +53,8 @@ export default function Contas() {
     const escopoEmpresa = filtroEmpresa || empresaAtiva?.id
     if (escopoEmpresa) q = q.eq('company_id', escopoEmpresa)
     const { data: cts, error } = await q
-    if (error) { setErro('Erro ao carregar contas: ' + error.message); return }
-    if (!cts) { setContas([]); return }
+    if (error) { setErro('Erro ao carregar contas: ' + error.message); setCarregando(false); return }
+    if (!cts) { setContas([]); setCarregando(false); return }
 
     // saldo vem do banco (RPC) — a regra OFX-XOR-lançamentos-pagos roda lá dentro,
     // sem o bug do .in() que truncava em 1000 linhas no cliente.
@@ -69,6 +70,7 @@ export default function Contas() {
         fonte: saldos.get(c.id)?.fonte ?? 'inicial',
       }))
     )
+    setCarregando(false)
   }, [empresaAtiva, filtroEmpresa])
 
   useEffect(() => { carregar() }, [carregar])
@@ -199,7 +201,7 @@ export default function Contas() {
       )}
 
       {contasFiltradas.length === 0 ? (
-        <Card><Vazio mensagem={contas.length === 0 ? 'Nenhuma conta cadastrada.' : 'Nenhuma conta com esses filtros.'} /></Card>
+        <Card><Vazio mensagem={carregando ? 'Carregando…' : contas.length === 0 ? 'Nenhuma conta cadastrada.' : 'Nenhuma conta com esses filtros.'} /></Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {contasFiltradas.map((c) => {

@@ -159,6 +159,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const [form, setForm] = useState<FormState>(formVazio(''))
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [carregando, setCarregando] = useState(true)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [chartAccounts, setChartAccounts] = useState<ChartOfAccount[]>([])
   const [dreProducts, setDreProducts] = useState<DreProduct[]>([])
@@ -191,8 +192,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     if (dataDe) q = q.gte('due_date', dataDe)
     if (dataAte) q = q.lte('due_date', dataAte)
     const { data, error } = await q
-    if (error) { setErro('Erro ao carregar lançamentos: ' + error.message); return }
-    setLancamentos((data as Entry[]) ?? [])
+    if (error) setErro('Erro ao carregar lançamentos: ' + error.message)
+    else setLancamentos((data as Entry[]) ?? [])
+    setCarregando(false)
   }, [tipo, empresaAtiva, filtroStatus, filtroEmpresa, dataDe, dataAte])
 
   useEffect(() => { carregar() }, [carregar])
@@ -815,7 +817,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
 
       <Card>
         {lancamentosExibidos.length === 0 ? (
-          <Vazio mensagem={busca && lancamentos.length > 0 ? 'Nenhum lançamento para essa busca.' : 'Nenhum lançamento encontrado.'} />
+          <Vazio mensagem={carregando ? 'Carregando…' : busca && lancamentos.length > 0 ? 'Nenhum lançamento para essa busca.' : 'Nenhum lançamento encontrado.'} />
         ) : (
           <DataTable
             tableKey={`lancamentos:${tipo}`}

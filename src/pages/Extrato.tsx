@@ -16,6 +16,7 @@ export default function Extrato() {
   const [contas, setContas] = useState<Account[]>([])
   const [contaSelecionada, setContaSelecionada] = useState('')
   const [transacoes, setTransacoes] = useState<BankTransaction[]>([])
+  const [carregando, setCarregando] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
@@ -36,14 +37,16 @@ export default function Extrato() {
 
   const carregarTransacoes = useCallback(async () => {
     if (!contaSelecionada) { setTransacoes([]); return }
+    setCarregando(true)
     const { data, error } = await supabase
       .from('bank_transactions')
       .select('*')
       .eq('account_id', contaSelecionada)
       .order('date', { ascending: false })
       .limit(300)
-    if (error) { setErro('Erro ao carregar transações: ' + error.message); return }
-    setTransacoes((data as BankTransaction[]) ?? [])
+    if (error) setErro('Erro ao carregar transações: ' + error.message)
+    else setTransacoes((data as BankTransaction[]) ?? [])
+    setCarregando(false)
   }, [contaSelecionada])
 
   useEffect(() => { carregarTransacoes() }, [carregarTransacoes])
@@ -152,7 +155,7 @@ export default function Extrato() {
 
       <Card>
         {transacoes.length === 0 ? (
-          <Vazio mensagem="Nenhuma transação importada para esta conta." />
+          <Vazio mensagem={carregando ? 'Carregando…' : !contaSelecionada ? 'Selecione uma conta para ver o extrato.' : 'Nenhuma transação importada para esta conta.'} />
         ) : (
           <DataTable
             tableKey="extrato-ofx"
