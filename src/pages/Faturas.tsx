@@ -112,8 +112,12 @@ export default function Faturas() {
           return (
             <div
               key={inv.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`Abrir ${inv.name || 'fatura'}`}
               onClick={() => navigate(`/faturas/${inv.id}`)}
-              className="bg-surface rounded-card border border-border shadow-card px-5 py-4 flex items-center gap-4 cursor-pointer transition hover:border-brand-subtle hover:shadow-pop"
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/faturas/${inv.id}`) } }}
+              className="bg-surface rounded-card border border-border shadow-card px-5 py-4 flex items-center gap-4 cursor-pointer transition hover:border-brand-subtle hover:shadow-pop focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
               <div className="w-11 h-11 rounded-control bg-brand-subtle flex items-center justify-center text-brand shrink-0">
                 <FileText size={20} />

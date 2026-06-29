@@ -32,20 +32,24 @@ export default function Login() {
           <p className="text-sm text-fg-muted mt-1">Importe e analise as finanças</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-fg-muted mb-1">E-mail</label>
+          <label htmlFor="login-email" className="block text-sm font-medium text-fg-muted mb-1">E-mail</label>
           <input
+            id="login-email"
             type="email"
             required
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={inputCls}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-fg-muted mb-1">Senha</label>
+          <label htmlFor="login-senha" className="block text-sm font-medium text-fg-muted mb-1">Senha</label>
           <input
+            id="login-senha"
             type="password"
             required
+            autoComplete="current-password"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
             className={inputCls}
