@@ -34,8 +34,8 @@ export default function Origem() {
   const [nomeNovo, setNomeNovo] = useState('')
   const [salvando, setSalvando] = useState(false)
 
-  // modal nova regra
-  const [modalRegra, setModalRegra] = useState(false)
+  // modal criar/editar regra
+  const [modalRegra, setModalRegra] = useState<{ modo: 'criar' } | { modo: 'editar'; id: string } | null>(null)
   const [novaRegra, setNovaRegra] = useState<{ field: 'src' | 'sck' | 'xcode'; value: string; group_id: string; channel_id: string; seller_id: string }>({ field: 'src', value: '', group_id: '', channel_id: '', seller_id: '' })
   const [aplicando, setAplicando] = useState(false)
 
@@ -112,22 +112,31 @@ export default function Origem() {
 
   const abrirModalRegra = useCallback(() => {
     setNovaRegra({ field: 'src', value: '', group_id: '', channel_id: '', seller_id: '' })
-    setModalRegra(true)
+    setModalRegra({ modo: 'criar' })
+  }, [])
+
+  const editarRegra = useCallback((r: Regra) => {
+    setNovaRegra({ field: r.field, value: r.value, group_id: r.group_id ?? '', channel_id: r.channel_id ?? '', seller_id: r.seller_id ?? '' })
+    setModalRegra({ modo: 'editar', id: r.id })
   }, [])
 
   const salvarRegra = useCallback(async () => {
-    if (!novaRegra.value.trim()) return
+    if (!novaRegra.value.trim() || !modalRegra) return
     setSalvando(true)
-    const { data, error } = await supabase
-      .from('origin_tracking_rules')
-      .insert({ field: novaRegra.field, value: novaRegra.value.trim(), group_id: novaRegra.group_id || null, channel_id: novaRegra.channel_id || null, seller_id: novaRegra.seller_id || null })
-      .select('*').single()
-    if (error) { setErro('Erro ao salvar regra: ' + error.message); setSalvando(false); return }
-    setRegras((prev) => [...prev, data as Regra])
-    setModalRegra(false); setSalvando(false)
+    const payload = { field: novaRegra.field, value: novaRegra.value.trim(), group_id: novaRegra.group_id || null, channel_id: novaRegra.channel_id || null, seller_id: novaRegra.seller_id || null }
+    if (modalRegra.modo === 'criar') {
+      const { data, error } = await supabase.from('origin_tracking_rules').insert(payload).select('*').single()
+      if (error) { setErro('Erro ao salvar regra: ' + error.message); setSalvando(false); return }
+      setRegras((prev) => [...prev, data as Regra])
+    } else {
+      const { data, error } = await supabase.from('origin_tracking_rules').update(payload).eq('id', modalRegra.id).select('*').single()
+      if (error) { setErro('Erro ao editar regra: ' + error.message); setSalvando(false); return }
+      setRegras((prev) => prev.map((r) => r.id === modalRegra.id ? data as Regra : r))
+    }
+    setModalRegra(null); setSalvando(false)
     await supabase.rpc('apply_origin_rules')
     carregar()
-  }, [novaRegra, carregar])
+  }, [novaRegra, modalRegra, carregar])
 
   const excluirRegra = useCallback(async (id: string) => {
     const { error } = await supabase.from('origin_tracking_rules').delete().eq('id', id)
@@ -207,7 +216,10 @@ export default function Origem() {
                     <td className="px-4 py-2 text-fg-muted">{nomeCanal(r.channel_id)}</td>
                     <td className="px-4 py-2 text-fg-muted">{nomeSeller(r.seller_id)}</td>
                     <td className="px-4 py-2 text-right">
-                      <button onClick={() => excluirRegra(r.id)} className="text-expense hover:text-expense/70 text-xs transition">Excluir</button>
+                      <div className="flex justify-end gap-3">
+                        <button onClick={() => editarRegra(r)} className="text-brand hover:text-brand/70 text-xs transition">Editar</button>
+                        <button onClick={() => excluirRegra(r.id)} className="text-expense hover:text-expense/70 text-xs transition">Excluir</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -324,16 +336,16 @@ export default function Origem() {
         </Modal>
       )}
 
-      {/* Modal nova regra */}
+      {/* Modal criar/editar regra */}
       {modalRegra && (
         <Modal
-          titulo="Nova regra de propagação"
+          titulo={modalRegra.modo === 'criar' ? 'Nova regra de propagação' : 'Editar regra'}
           aberto={true}
-          onFechar={() => setModalRegra(false)}
+          onFechar={() => setModalRegra(null)}
           largura="lg"
           footer={
             <div className="flex justify-end gap-2">
-              <Button variante="secondary" onClick={() => setModalRegra(false)}>Cancelar</Button>
+              <Button variante="secondary" onClick={() => setModalRegra(null)}>Cancelar</Button>
               <Button variante="primary" loading={salvando} disabled={!novaRegra.value.trim()} onClick={salvarRegra}>Salvar e aplicar</Button>
             </div>
           }
@@ -345,6 +357,7 @@ export default function Origem() {
                 <select
                   className={inputCls}
                   value={novaRegra.field}
+                  disabled={modalRegra?.modo === 'editar'}
                   onChange={(e) => setNovaRegra((p) => ({ ...p, field: e.target.value as 'src' | 'sck' | 'xcode' }))}
                 >
                   {CAMPOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -355,8 +368,9 @@ export default function Origem() {
                 <input
                   autoFocus
                   className={inputCls}
-                  placeholder={`ex: comercial_luiz-otavio`}
+                  placeholder="ex: comercial_luiz-otavio"
                   value={novaRegra.value}
+                  disabled={modalRegra?.modo === 'editar'}
                   onChange={(e) => setNovaRegra((p) => ({ ...p, value: e.target.value }))}
                   onKeyDown={(e) => { if (e.key === 'Enter') salvarRegra() }}
                 />
