@@ -5,19 +5,18 @@ import type { HotmartSale } from '../lib/types'
 import { Card, PageHeader, ErroBanner, KPICard, Vazio, Modal, Button, inputCls } from '../components/ui'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 
-// Origem das vendas — classificação POR VENDA (modelo origem v3). Cada venda recebe
-// Grupo, Canal e Vendedor direto na tabela. Grupo e Canal são listas que o Luiz cria
-// (inline, via "➕"); Canal pertence a um Grupo. Grava em hotmart_sale_class; a origem
-// é derivada ao vivo pela view hotmart_sales_origin. Regras de propagação virão depois.
+// Origem das vendas — classificação POR VENDA (modelo origem v3) + regras persistentes de propagação.
 
 interface Grupo { id: string; nome: string }
 interface Canal { id: string; nome: string; group_id: string }
 interface SellerLite { id: string; name: string }
 interface GrupoTotal { grupo: string; vendas: number; liquido: number }
+interface Regra { id: string; field: 'src' | 'sck' | 'xcode'; value: string; group_id: string | null; channel_id: string | null; seller_id: string | null }
 type Filtro = 'a_classificar' | 'classificadas' | 'todas'
 
 const NOVO = '__novo__'
 const selCls = 'w-full rounded-control border border-border bg-surface px-2 py-1 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-40'
+const CAMPOS = [{ value: 'src', label: 'src' }, { value: 'sck', label: 'sck' }, { value: 'xcode', label: 'xcode' }] as const
 
 export default function Origem() {
   const [grupos, setGrupos] = useState<Grupo[]>([])
@@ -25,12 +24,20 @@ export default function Origem() {
   const [sellers, setSellers] = useState<SellerLite[]>([])
   const [vendas, setVendas] = useState<HotmartSale[]>([])
   const [totais, setTotais] = useState<GrupoTotal[]>([])
+  const [regras, setRegras] = useState<Regra[]>([])
   const [filtro, setFiltro] = useState<Filtro>('a_classificar')
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
+
+  // modal criar grupo/canal
   const [modalCriar, setModalCriar] = useState<{ tipo: 'grupo' | 'canal'; venda: HotmartSale } | null>(null)
   const [nomeNovo, setNomeNovo] = useState('')
   const [salvando, setSalvando] = useState(false)
+
+  // modal nova regra
+  const [modalRegra, setModalRegra] = useState(false)
+  const [novaRegra, setNovaRegra] = useState<{ field: 'src' | 'sck' | 'xcode'; value: string; group_id: string; channel_id: string; seller_id: string }>({ field: 'src', value: '', group_id: '', channel_id: '', seller_id: '' })
+  const [aplicando, setAplicando] = useState(false)
 
   const carregarKpis = useCallback(async () => {
     const { data } = await supabase.rpc('hotmart_by_group', { p_company: null, p_start: null, p_end: null })
@@ -42,25 +49,26 @@ export default function Origem() {
     let vendasQ = supabase.from('hotmart_sales_origin').select('*').order('sale_date', { ascending: false }).limit(300)
     if (filtro === 'a_classificar') vendasQ = vendasQ.eq('origem', 'a_classificar')
     else if (filtro === 'classificadas') vendasQ = vendasQ.neq('origem', 'a_classificar')
-    const [r1, r2, r3, r4, r5] = await Promise.all([
+    const [r1, r2, r3, r4, r5, r6] = await Promise.all([
       supabase.from('origin_groups').select('id,nome').order('nome'),
       supabase.from('origin_channels').select('id,nome,group_id').order('nome'),
       supabase.from('sellers').select('id,name').eq('active', true).order('name'),
       vendasQ,
       supabase.rpc('hotmart_by_group', { p_company: null, p_start: null, p_end: null }),
+      supabase.from('origin_tracking_rules').select('*').order('field').order('value'),
     ])
     if (r1.error) setErro('Erro ao carregar grupos: ' + r1.error.message); else setGrupos((r1.data as Grupo[]) ?? [])
     if (r2.error) setErro('Erro ao carregar canais: ' + r2.error.message); else setCanais((r2.data as Canal[]) ?? [])
     if (!r3.error) setSellers((r3.data as SellerLite[]) ?? [])
     if (r4.error) setErro('Erro ao carregar vendas: ' + r4.error.message); else setVendas((r4.data as HotmartSale[]) ?? [])
     if (!r5.error) setTotais(((r5.data as GrupoTotal[]) ?? []).map((g) => ({ grupo: g.grupo, vendas: Number(g.vendas), liquido: Number(g.liquido) })))
+    if (!r6.error) setRegras((r6.data as Regra[]) ?? [])
     setCarregando(false)
   }, [filtro])
 
   useEffect(() => { carregar() }, [carregar])
   useRealtimeRefetch('hotmart_sales', carregar)
 
-  // grava a classificação da venda (otimista + upsert), mantendo as 3 dimensões
   const classificar = useCallback(async (v: HotmartSale, patch: Partial<Pick<HotmartSale, 'group_id' | 'channel_id' | 'seller_id'>>) => {
     const novo = {
       transaction_code: v.transaction_code,
@@ -76,14 +84,12 @@ export default function Origem() {
   }, [carregarKpis])
 
   const criarGrupo = useCallback((v: HotmartSale) => {
-    setNomeNovo('')
-    setModalCriar({ tipo: 'grupo', venda: v })
+    setNomeNovo(''); setModalCriar({ tipo: 'grupo', venda: v })
   }, [])
 
   const criarCanal = useCallback((v: HotmartSale) => {
     if (!v.group_id) return
-    setNomeNovo('')
-    setModalCriar({ tipo: 'canal', venda: v })
+    setNomeNovo(''); setModalCriar({ tipo: 'canal', venda: v })
   }, [])
 
   const confirmarCriacao = useCallback(async () => {
@@ -101,20 +107,57 @@ export default function Origem() {
       setCanais((prev) => [...prev, data as Canal].sort((a, b) => a.nome.localeCompare(b.nome)))
       classificar(venda, { channel_id: (data as Canal).id })
     }
-    setSalvando(false)
-    setModalCriar(null)
+    setSalvando(false); setModalCriar(null)
   }, [modalCriar, nomeNovo, classificar])
+
+  const abrirModalRegra = useCallback(() => {
+    setNovaRegra({ field: 'src', value: '', group_id: '', channel_id: '', seller_id: '' })
+    setModalRegra(true)
+  }, [])
+
+  const salvarRegra = useCallback(async () => {
+    if (!novaRegra.value.trim()) return
+    setSalvando(true)
+    const { data, error } = await supabase
+      .from('origin_tracking_rules')
+      .insert({ field: novaRegra.field, value: novaRegra.value.trim(), group_id: novaRegra.group_id || null, channel_id: novaRegra.channel_id || null, seller_id: novaRegra.seller_id || null })
+      .select('*').single()
+    if (error) { setErro('Erro ao salvar regra: ' + error.message); setSalvando(false); return }
+    setRegras((prev) => [...prev, data as Regra])
+    setModalRegra(false); setSalvando(false)
+    await supabase.rpc('apply_origin_rules')
+    carregar()
+  }, [novaRegra, carregar])
+
+  const excluirRegra = useCallback(async (id: string) => {
+    const { error } = await supabase.from('origin_tracking_rules').delete().eq('id', id)
+    if (error) { setErro('Erro ao excluir regra: ' + error.message); return }
+    setRegras((prev) => prev.filter((r) => r.id !== id))
+  }, [])
+
+  const aplicarRegras = useCallback(async () => {
+    setAplicando(true)
+    const { data, error } = await supabase.rpc('apply_origin_rules')
+    if (error) setErro('Erro ao aplicar regras: ' + error.message)
+    else if (Number(data) > 0) setErro(null)
+    setAplicando(false)
+    carregar()
+  }, [carregar])
+
+  const nomeGrupo = (id: string | null) => grupos.find((g) => g.id === id)?.nome ?? '—'
+  const nomeCanal = (id: string | null) => canais.find((c) => c.id === id)?.nome ?? '—'
+  const nomeSeller = (id: string | null) => sellers.find((s) => s.id === id)?.name ?? '—'
 
   return (
     <div className="space-y-6">
       <PageHeader
         titulo="Origem das vendas"
-        subtitulo="Classifique cada venda em Grupo, Canal e Vendedor. Grupo e Canal você cria na hora pelo “➕” do próprio campo."
+        subtitulo={'Classifique cada venda em Grupo, Canal e Vendedor. Grupo e Canal você cria na hora pelo "+" do próprio campo.'}
       />
 
       <ErroBanner mensagem={erro} />
 
-      {/* KPIs por grupo (dinâmico — só aparecem os grupos com vendas + A classificar) */}
+      {/* KPIs por grupo */}
       {totais.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {totais.map((g) => (
@@ -128,6 +171,53 @@ export default function Origem() {
         </div>
       )}
 
+      {/* Card de regras de propagação */}
+      <Card>
+        <div className="px-5 pt-5 pb-3 border-b border-border flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-fg">Regras de propagação</h2>
+            <p className="text-xs text-fg-subtle mt-0.5">Defina regras por src / sck / xcode para classificar vendas automaticamente.</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variante="secondary" onClick={aplicarRegras} loading={aplicando} disabled={regras.length === 0}>Aplicar agora</Button>
+            <Button variante="primary" onClick={abrirModalRegra}>+ Adicionar</Button>
+          </div>
+        </div>
+        {regras.length === 0 ? (
+          <Vazio mensagem="Nenhuma regra cadastrada. Adicione uma regra para propagar classificações automaticamente." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border text-xs text-fg-subtle uppercase tracking-wide">
+                  <th className="text-left px-4 h-9 font-medium">Campo</th>
+                  <th className="text-left px-4 h-9 font-medium">Valor</th>
+                  <th className="text-left px-4 h-9 font-medium">Grupo</th>
+                  <th className="text-left px-4 h-9 font-medium">Canal</th>
+                  <th className="text-left px-4 h-9 font-medium">Vendedor</th>
+                  <th className="px-4 h-9" />
+                </tr>
+              </thead>
+              <tbody>
+                {regras.map((r) => (
+                  <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-2">
+                    <td className="px-4 py-2 font-mono text-fg-muted">{r.field}</td>
+                    <td className="px-4 py-2 text-fg">{r.value}</td>
+                    <td className="px-4 py-2 text-fg-muted">{nomeGrupo(r.group_id)}</td>
+                    <td className="px-4 py-2 text-fg-muted">{nomeCanal(r.channel_id)}</td>
+                    <td className="px-4 py-2 text-fg-muted">{nomeSeller(r.seller_id)}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button onClick={() => excluirRegra(r.id)} className="text-expense hover:text-expense/70 text-xs transition">Excluir</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* Card de vendas */}
       <Card>
         <div className="px-5 pt-5 pb-3 border-b border-border flex items-center justify-between gap-4">
           <div>
@@ -153,10 +243,10 @@ export default function Origem() {
         {carregando ? (
           <Vazio mensagem="Carregando…" />
         ) : vendas.length === 0 ? (
-          <Vazio mensagem="Nenhuma venda. As vendas aparecem aqui conforme o sync/webhook preenche o histórico." />
+          <Vazio mensagem="Nenhuma venda encontrada." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-[11px]">
               <thead>
                 <tr className="border-b border-border text-xs text-fg-subtle uppercase tracking-wide">
                   <th className="text-left px-3 h-10 font-medium">Data</th>
@@ -176,9 +266,9 @@ export default function Origem() {
                   <tr key={v.id} className="border-b border-border last:border-0 hover:bg-surface-2 align-top">
                     <td className="px-3 py-2 whitespace-nowrap text-fg-muted tnum">{fmtData(v.sale_date)}</td>
                     <td className="px-3 py-2 text-fg max-w-[200px] truncate" title={v.product}>{v.product}</td>
-                    <td className="px-3 py-2 text-xs text-fg-subtle break-all max-w-[160px]">{v.src || '—'}</td>
-                    <td className="px-3 py-2 text-xs text-fg-subtle break-all max-w-[160px]">{v.sck || '—'}</td>
-                    <td className="px-3 py-2 text-xs text-fg-subtle break-all max-w-[120px]">{v.xcod || '—'}</td>
+                    <td className="px-3 py-2 text-fg-subtle break-all max-w-[160px]">{v.src || '—'}</td>
+                    <td className="px-3 py-2 text-fg-subtle break-all max-w-[160px]">{v.sck || '—'}</td>
+                    <td className="px-3 py-2 text-fg-subtle break-all max-w-[120px]">{v.xcod || '—'}</td>
                     <td className="px-3 py-2 text-fg-muted max-w-[140px] truncate" title={v.affiliate ?? ''}>{v.affiliate || '—'}</td>
                     <td className="px-3 py-2">
                       <select className={selCls} value={v.group_id ?? ''} onChange={(e) => (e.target.value === NOVO ? criarGrupo(v) : classificar(v, { group_id: e.target.value || null, channel_id: null }))}>
@@ -209,6 +299,7 @@ export default function Origem() {
         )}
       </Card>
 
+      {/* Modal criar grupo/canal */}
       {modalCriar && (
         <Modal
           titulo={modalCriar.tipo === 'grupo' ? 'Novo grupo' : 'Novo canal'}
@@ -230,6 +321,82 @@ export default function Origem() {
             onChange={(e) => setNomeNovo(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') confirmarCriacao() }}
           />
+        </Modal>
+      )}
+
+      {/* Modal nova regra */}
+      {modalRegra && (
+        <Modal
+          titulo="Nova regra de propagação"
+          aberto={true}
+          onFechar={() => setModalRegra(false)}
+          largura="lg"
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variante="secondary" onClick={() => setModalRegra(false)}>Cancelar</Button>
+              <Button variante="primary" loading={salvando} disabled={!novaRegra.value.trim()} onClick={salvarRegra}>Salvar e aplicar</Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <div className="w-32 shrink-0">
+                <label className="block text-xs text-fg-muted mb-1">Campo</label>
+                <select
+                  className={inputCls}
+                  value={novaRegra.field}
+                  onChange={(e) => setNovaRegra((p) => ({ ...p, field: e.target.value as 'src' | 'sck' | 'xcode' }))}
+                >
+                  {CAMPOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-fg-muted mb-1">Valor exato</label>
+                <input
+                  autoFocus
+                  className={inputCls}
+                  placeholder={`ex: comercial_luiz-otavio`}
+                  value={novaRegra.value}
+                  onChange={(e) => setNovaRegra((p) => ({ ...p, value: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') salvarRegra() }}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-fg-muted mb-1">Grupo</label>
+              <select
+                className={inputCls}
+                value={novaRegra.group_id}
+                onChange={(e) => setNovaRegra((p) => ({ ...p, group_id: e.target.value, channel_id: '' }))}
+              >
+                <option value="">— sem grupo —</option>
+                {grupos.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-fg-muted mb-1">Canal</label>
+              <select
+                className={inputCls}
+                value={novaRegra.channel_id}
+                disabled={!novaRegra.group_id}
+                onChange={(e) => setNovaRegra((p) => ({ ...p, channel_id: e.target.value }))}
+              >
+                <option value="">{novaRegra.group_id ? '— sem canal —' : 'escolha o grupo primeiro'}</option>
+                {canais.filter((c) => c.group_id === novaRegra.group_id).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-fg-muted mb-1">Vendedor</label>
+              <select
+                className={inputCls}
+                value={novaRegra.seller_id}
+                onChange={(e) => setNovaRegra((p) => ({ ...p, seller_id: e.target.value }))}
+              >
+                <option value="">— sem vendedor —</option>
+                {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
