@@ -11,12 +11,12 @@ interface Grupo { id: string; nome: string }
 interface Canal { id: string; nome: string; group_id: string }
 interface SellerLite { id: string; name: string }
 interface GrupoTotal { grupo: string; vendas: number; liquido: number }
-interface Regra { id: string; field: 'src' | 'sck' | 'xcode'; value: string; group_id: string | null; channel_id: string | null; seller_id: string | null }
+interface Regra { id: string; field: 'src' | 'sck' | 'xcode' | 'afiliado'; value: string; group_id: string | null; channel_id: string | null; seller_id: string | null }
 type Filtro = 'a_classificar' | 'classificadas' | 'todas'
 
 const NOVO = '__novo__'
 const selCls = 'w-full rounded-control border border-border bg-surface px-2 py-1 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-40'
-const CAMPOS = [{ value: 'src', label: 'src' }, { value: 'sck', label: 'sck' }, { value: 'xcode', label: 'xcode' }] as const
+const CAMPOS = [{ value: 'src', label: 'src' }, { value: 'sck', label: 'sck' }, { value: 'xcode', label: 'xcode' }, { value: 'afiliado', label: 'afiliado' }] as const
 
 export default function Origem() {
   const [grupos, setGrupos] = useState<Grupo[]>([])
@@ -36,7 +36,7 @@ export default function Origem() {
 
   // modal criar/editar regra
   const [modalRegra, setModalRegra] = useState<{ modo: 'criar' } | { modo: 'editar'; id: string } | null>(null)
-  const [novaRegra, setNovaRegra] = useState<{ field: 'src' | 'sck' | 'xcode'; value: string; group_id: string; channel_id: string; seller_id: string }>({ field: 'src', value: '', group_id: '', channel_id: '', seller_id: '' })
+  const [novaRegra, setNovaRegra] = useState<{ field: 'src' | 'sck' | 'xcode' | 'afiliado'; value: string; group_id: string; channel_id: string; seller_id: string }>({ field: 'src', value: '', group_id: '', channel_id: '', seller_id: '' })
   const [aplicando, setAplicando] = useState(false)
 
   const carregarKpis = useCallback(async () => {
@@ -362,7 +362,7 @@ export default function Origem() {
                   className={inputCls}
                   value={novaRegra.field}
                   disabled={modalRegra?.modo === 'editar'}
-                  onChange={(e) => setNovaRegra((p) => ({ ...p, field: e.target.value as 'src' | 'sck' | 'xcode' }))}
+                  onChange={(e) => setNovaRegra((p) => ({ ...p, field: e.target.value as 'src' | 'sck' | 'xcode' | 'afiliado' }))}
                 >
                   {CAMPOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
