@@ -226,9 +226,14 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e
     if (!over || active.id === over.id) return
-    const atual = table.getState().columnOrder.length
-      ? table.getState().columnOrder
-      : table.getAllLeafColumns().map((c) => c.id)
+    // ordem efetiva COMPLETA: a salva (só colunas que ainda existem) + as colunas
+    // ausentes no fim. Sem isso, uma coluna fora da order salva (nova ou renomeada,
+    // ex.: 'canal'→'vendedor') tem indexOf -1 e não consegue ser arrastada.
+    const todas = table.getAllLeafColumns().map((c) => c.id)
+    const salva = table.getState().columnOrder
+    const atual = salva.length
+      ? [...salva.filter((id) => todas.includes(id)), ...todas.filter((id) => !salva.includes(id))]
+      : todas
     const de = atual.indexOf(active.id as string)
     const para = atual.indexOf(over.id as string)
     if (de < 0 || para < 0) return
