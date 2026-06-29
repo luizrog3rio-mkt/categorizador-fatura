@@ -253,9 +253,10 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `sb_publishable_`/`sb_secret_`; as JWT legadas estão **desabilitadas** — não
   reativar). `.env.example` na raiz.
 - `npm run dev` → localhost:5173 · `npm run build` (tsc strict + vite) ·
-  `npm run lint` (0 errors; os 26 warnings conscientes = 25 fetch-on-mount
-  (set-state-in-effect) + 1 react-compiler "incompatible library" das libs de
-  tabela na DataTable — ver eslint.config.js). Cada página nova com o
+  `npm run lint` (0 errors; os 28 warnings conscientes = 27 set-state-in-effect
+  (fetch-on-mount das páginas + o debounce de alcance do RegraModal) + 1
+  react-compiler "incompatible library" das libs de tabela na DataTable — ver
+  eslint.config.js). Cada página nova com o
   padrão `useEffect(() => { carregar() }, [carregar])` soma 1 fetch-on-mount (a
   tela Transferências somou +1 em 2026-06-25; a remoção de categoria havia
   derrubado 3 no mesmo dia).

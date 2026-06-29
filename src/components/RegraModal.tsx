@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { Modal, Button, Alert, inputCls } from './ui'
 import { type MatchType, type NovaRegra, type VendaRef } from '../lib/regra'
@@ -31,12 +31,42 @@ export default function RegraModal({ modo, regraId, inicial, grupos, sellers, on
   const [erro, setErro] = useState<string | null>(null)
   const [modalCriar, setModalCriar] = useState(false)
   const [nomeNovo, setNomeNovo] = useState('')
+  const [alcance, setAlcance] = useState<number | null>(null) // quantas vendas a regra casa
+  const [calculando, setCalculando] = useState(false)
 
   const regraValida = (r: NovaRegra) =>
     r.src_match === 'is_empty' || r.src_value.trim() ||
     r.sck_match === 'is_empty' || r.sck_value.trim() ||
     r.xcode_match === 'is_empty' || r.xcode_value.trim() ||
     r.afiliado_match === 'is_empty' || r.afiliado_value.trim()
+
+  // Preview de alcance: conta as vendas que a regra casa (mesma lógica do motor:
+  // exact=eq, contains/starts_with=ilike, is_empty=null/''). Debounced. Mata o
+  // foot-gun de uma regra "é vazio" que despeja milhares sem o Luiz perceber.
+  useEffect(() => {
+    const campos: [string, MatchType, string][] = [
+      ['src', novaRegra.src_match, novaRegra.src_value.trim()],
+      ['sck', novaRegra.sck_match, novaRegra.sck_value.trim()],
+      ['xcod', novaRegra.xcode_match, novaRegra.xcode_value.trim()],
+      ['affiliate', novaRegra.afiliado_match, novaRegra.afiliado_value.trim()],
+    ]
+    const ativos = campos.filter(([, m, v]) => m === 'is_empty' || v)
+    if (ativos.length === 0) { setAlcance(null); setCalculando(false); return }
+    setCalculando(true)
+    const t = setTimeout(async () => {
+      let q = supabase.from('hotmart_sales').select('*', { count: 'exact', head: true })
+      for (const [col, m, v] of ativos) {
+        if (m === 'is_empty') q = q.or(`${col}.is.null,${col}.eq.`)
+        else if (m === 'contains') q = q.ilike(col, `%${v}%`)
+        else if (m === 'starts_with') q = q.ilike(col, `${v}%`)
+        else q = q.eq(col, v)
+      }
+      const { count } = await q
+      setAlcance(count ?? 0)
+      setCalculando(false)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [novaRegra])
 
   const salvar = async () => {
     if (!regraValida(novaRegra)) return
@@ -119,7 +149,7 @@ export default function RegraModal({ modo, regraId, inicial, grupos, sellers, on
                   <select
                     className="shrink-0 rounded-control border border-border bg-surface px-2 py-1 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-brand"
                     value={novaRegra[matchKey]}
-                    onChange={(e) => setNovaRegra((p) => ({ ...p, [matchKey]: e.target.value as MatchType }))}
+                    onChange={(e) => { const m = e.target.value as MatchType; setNovaRegra((p) => ({ ...p, [matchKey]: m, ...(m === 'is_empty' ? { [valKey]: '' } : {}) })) }}
                   >
                     <option value="exact">= exato</option>
                     <option value="contains">contém</option>
@@ -137,6 +167,11 @@ export default function RegraModal({ modo, regraId, inicial, grupos, sellers, on
                 </div>
               ))}
             </div>
+            {regraValida(novaRegra) && (
+              <p className={`text-xs mt-2 ${alcance != null && alcance > 500 ? 'text-warning font-medium' : 'text-fg-subtle'}`}>
+                {calculando ? 'Calculando alcance…' : alcance != null ? `Esta regra casa ${new Intl.NumberFormat('pt-BR').format(alcance)} venda(s)${alcance > 500 ? ' — confira antes de salvar.' : '.'}` : ''}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-xs text-fg-muted mb-1">Grupo</label>
