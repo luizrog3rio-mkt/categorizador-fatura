@@ -92,25 +92,17 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `hotmart-commissions-diario` (09:45 UTC, **por último**, preenche afiliado/
   coprodução/líquido exato via modo `refresh_commissions=400`, rodízio por
   `commission_checked_at` + re-checa a janela recente ~35d que o sync regrava).
-- **Vendedores diretos (atribuição por `sck`)**: a API `/sales/history` traz
-  `purchase.tracking.source_sck` (NÃO `sck`) — `mapSale` o grava em
-  `hotmart_sales.sck`. Valor é ruidoso: visitor-id (`<ts>_<id>`) / UTM (`a|b|c`)
-  **ou** código fixo de vendedor (`raphaella_silva`, `maikom_vinicius`,
-  `luiz_otavio`…, com variantes de grafia). Tabelas `sellers` (cadastro) +
-  `hotmart_sck_map` (de-para sck→vendedor, espelha `hotmart_product_map`). RPC
-  `hotmart_scks` (de-para, com `is_ruido`). Tela **`/vendedores`** cadastra
-  vendedor e mapeia o sck. Backfill do sck por `refresh_sck` (cron temporário
-  auto-terminável); vendas novas pegam sck pelo sync diário (sem cron permanente).
-- **Afiliado UNIFICADO na mesma pessoa (vendedor)**: a pessoa vende ora pelo
-  link de afiliado, ora por sck — são a MESMA pessoa. Por isso `hotmart_affiliate_map`
-  (nome do afiliado → `sellers`, espelha o sck_map) liga o afiliado ao mesmo
-  cadastro de vendedor. ⚠️ A grafia diverge entre canais (afiliado "Raphaela Silva"
-  vs sck "raphaella_silva") — mapear os dois pro mesmo vendedor resolve. RPCs
-  `hotmart_affiliates` (de-para, o nome do afiliado é canônico, sem `is_ruido`) e
-  **`hotmart_by_person`** (Total por PESSOA: sck e afiliado lado a lado, colunas
-  separadas, sem dupla contagem) — substitui o `hotmart_by_seller` na tela (que
-  segue existindo, só-sck). 2 seções de de-para em `/vendedores` + "Total por
-  pessoa" na Hotmart.
+- **`sck` e `afiliado` (atribuição de vendedor) — hoje via modelo de canais (ver "Origem da
+  venda" abaixo)**: a API `/sales/history` traz `purchase.tracking.source_sck` (NÃO `sck`) →
+  `mapSale` grava em `hotmart_sales.sck`. Valor ruidoso: visitor-id (`<ts>_<id>`) / UTM (`a|b|c`)
+  **ou** código fixo de vendedor (`raphaella_silva`, `maikom_vinicius`, `luiz_otavio`…, com
+  variantes de grafia). O `affiliate` (nome canônico da Hotmart, ex. "Raphaela Silva") e o `sck`
+  ("raphaella_silva") são a **MESMA pessoa** com grafias diferentes. `sellers` (cadastro) é
+  mantido; o vínculo sck/afiliado → vendedor virou parte do **de-para de canais**
+  (`origin_tracking_map`, dimensões `sck`/`afiliado` → canal Comercial com `seller_id`). Backfill
+  do sck por `refresh_sck` (cron temporário auto-terminável); vendas novas pegam sck pelo sync
+  diário. ⚠️ As tabelas `hotmart_sck_map`/`hotmart_affiliate_map` e as RPCs `hotmart_scks`/
+  `hotmart_affiliates`/`hotmart_by_person`/`hotmart_by_seller` (modelo v1) foram **REMOVIDAS** (2026-06-29).
 - **Tracking extra `src`/`external_code`**: `mapSale` grava `hotmart_sales.src`
   (=`tracking.source`) e `external_code` (=`tracking.external_code`) — origem/
   campanha, **NÃO carregam vendedor** (só o `sck` carrega; `xcode` a API não
@@ -162,7 +154,7 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `carregar()` debounced). Os ~24 WARNs do lint não sobem (o `setState` do hook é
   assíncrono). Pegadinhas-fonte em `docs/HOTMART-REFERENCIA.md` §2.4.
 - **Origem da venda — modelo de 2 níveis (Grupo › Canal)** (migration `origem_canais_v2`,
-  2026-06-29, version `20260629133817`; **Fase 1 — em transição, Fase 2 pendente**): TODO o
+  2026-06-29; **modelo único — v1 removido**): TODO o
   mapeamento de origem vive na tela **`/origem`** (grupo Receitas & Vendas). Dois níveis:
   **Grupo** (macro: `organico`/`trafego`/`comercial`/`afiliado`) e **Canal** (nomeado: "Meta Ads",
   "WhatsApp", "Raphaella"…; cada canal pertence a 1 grupo e pode ter `seller_id`). 3 tabelas novas:
@@ -181,12 +173,16 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   RPCs novas: `hotmart_by_group`, `hotmart_by_channel`, `origin_channels_list`, `origin_tracking_unmapped`.
   Tela `/origem`: KPIs por grupo + cadastro/edição/exclusão de canais + de-para dos não-mapeados +
   tabela de vendas (src/sck/xcode/afiliado/grupo/canal) com **Reclassificar** (override). Realtime
-  via `useRealtimeRefetch`. **Predecessoras** (origem v1, 2026-06-27, `hotmart_origem_base`/`_por_sck`):
-  `hotmart_origin_map` + RPCs `hotmart_channels`/`hotmart_by_origin` + funções `hotmart_canal_base`/
-  `hotmart_origin_suggest` — `canal_base`/`origin_suggest` SEGUEM em uso (reaproveitadas na v2); o resto
-  + `hotmart_sck_map`/`hotmart_affiliate_map`/`hotmart_by_seller`/`hotmart_by_person`/`hotmart_by_affiliate`
-  ficam VIVOS até a **Fase 2** (enxugar `/vendedores` p/ só cadastro+relatório, migrar `/hotmart` p/ grupo+canal,
-  remover os de-paras antigos). A `/hotmart` ainda lê a coluna `origem` da view (preservada).
+  via `useRealtimeRefetch`. A **`/vendedores`** virou só **cadastro de vendedor + relatório por vendedor**
+  (RPC `hotmart_seller_report`, lê a view via `channel_id → seller_id`); o vínculo sck/afiliado→vendedor
+  agora é feito na `/origem` (criar canal Comercial com `seller_id` e mapear os valores nele). A **`/hotmart`**
+  exibe Grupo+Canal e usa `hotmart_by_channel` (+ `hotmart_by_affiliate`, mantida — lê `hotmart_sales` direto).
+  **Modelo v1 REMOVIDO** (migration `origem_drop_legado`, version `20260629142205`): dropados
+  `hotmart_origin_map`/`hotmart_sck_map`/`hotmart_affiliate_map` + RPCs `hotmart_channels`/`hotmart_scks`/
+  `hotmart_affiliates`/`hotmart_by_origin`/`hotmart_by_seller`/`hotmart_by_person`. Mantidos:
+  `hotmart_canal_base`/`hotmart_origin_suggest` (reaproveitados pela v2), `hotmart_by_affiliate`, `hotmart_totals`.
+  ⚠️ **Dados de mapeamento ZERADOS em 2026-06-29** (canais/de-paras/overrides apagados a pedido do Luiz p/
+  remapear do zero; os 7 `sellers` preservados) — a origem está **100% `a_classificar`** até o remapeamento manual.
 
 ## Convenções
 
