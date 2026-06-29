@@ -186,12 +186,15 @@ export default function Hotmart() {
   useEffect(() => { carregarVendas() }, [carregarVendas])
   useEffect(() => { carregarTotais() }, [carregarTotais])
 
-  // Realtime: o webhook hotmart-webhook grava/atualiza hotmart_sales → refetch
-  // (debounced). 3 das 4 fontes são RPCs agregadas, então re-buscar tudo é mais
-  // simples e correto que merge incremental. Filtro server-side por empresa; no
-  // consolidado (empresaAtiva null) ouve todas. Só re-subscreve ao trocar empresa.
-  useRealtimeRefetch('hotmart_sales', recarregarTudo, {
+  // Realtime: o webhook hotmart-webhook grava/atualiza hotmart_sales em lote durante
+  // o sync. Aqui re-buscamos SÓ os agregados (carregarTotais = 3 RPCs baratas), NUNCA
+  // a grade (carregarVendas pode ser um fetch-all paginado de milhares de linhas —
+  // recarregá-la a cada evento é o que travava a tela). A grade reflete as ações do
+  // usuário (filtro, classificar, import/sync) via recarregarTudo; o realtime só
+  // mantém os números vivos. Debounce folgado (3s) pra não thrashear no pico de vendas.
+  useRealtimeRefetch('hotmart_sales', carregarTotais, {
     filter: empresaAtiva ? `company_id=eq.${empresaAtiva.id}` : undefined,
+    debounceMs: 3000,
   })
 
   const importar = async (file: File) => {
@@ -406,6 +409,7 @@ export default function Hotmart() {
               getRowId={(v) => v.id}
               virtualize
               onPresenceFiltersChange={setPresenca}
+              presencaServerSide
             />
             {filtroOrigem === 'todas' && !buscaDebounced.trim() && presenca.length === 0 && !soMapeaveis && totais.qtd > vendas.length && (
               <p className="text-xs text-fg-subtle text-center py-3 border-t border-border">

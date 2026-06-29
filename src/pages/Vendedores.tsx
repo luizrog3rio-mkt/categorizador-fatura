@@ -62,7 +62,7 @@ export default function Vendedores() {
     <div className="space-y-6">
       <PageHeader
         titulo="Vendedores"
-        subtitulo="Cadastre os vendedores e acompanhe as vendas atribuídas a cada um. O vínculo de cada sck/afiliado ao vendedor é feito na tela Origem."
+        subtitulo="Cadastre os vendedores e acompanhe as vendas atribuídas a cada um. A atribuição de cada venda ao vendedor é feita pelas regras em Regras de origem."
       />
 
       <ErroBanner mensagem={erro} />
@@ -112,12 +112,12 @@ export default function Vendedores() {
       <Card>
         <div className="px-5 pt-5 pb-3 border-b border-border">
           <h2 className="text-sm font-semibold text-fg">Vendas por vendedor</h2>
-          <p className="text-xs text-fg-subtle mt-0.5">Vendas atribuídas a cada vendedor pelos canais Comercial vinculados a ele (BRL · aprovadas). Inclui sck, afiliado e reclassificações manuais.</p>
+          <p className="text-xs text-fg-subtle mt-0.5">Vendas atribuídas a cada vendedor pelas regras de origem (BRL · aprovadas).</p>
         </div>
         {carregando ? (
           <Vazio mensagem="Carregando…" />
         ) : relatorio.length === 0 ? (
-          <Vazio mensagem="Nenhuma venda atribuída ainda. Vincule os canais Comercial aos vendedores na tela Origem." />
+          <Vazio mensagem="Nenhuma venda atribuída ainda. Cadastre as regras de cada vendedor em Regras de origem." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm tnum">

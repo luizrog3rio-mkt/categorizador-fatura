@@ -23,6 +23,10 @@ const presenceFilter: FilterFn<unknown> = (row, columnId, value) => {
   const tem = v != null && String(v).trim() !== ''
   return value === 'empty' ? !tem : tem
 }
+// quando o pai aplica o filtro de presença no servidor, o lado client vira no-op:
+// o funil/estado continuam (pra emitir onPresenceFiltersChange e mostrar o ícone),
+// mas o getFilteredRowModel não refiltra as linhas que já vieram filtradas.
+const passaTudo: FilterFn<unknown> = () => true
 import {
   DndContext,
   closestCenter,
@@ -94,6 +98,8 @@ interface DataTableProps<T> {
   // notifica o pai quando os filtros de presença mudam — pra aplicar SERVER-SIDE
   // (o filtro do header é client-side e só enxerga as linhas já carregadas).
   onPresenceFiltersChange?: (filters: { id: string; mode: 'has' | 'empty' }[]) => void
+  // o pai aplica o filtro de presença no servidor → desliga a refiltragem client (evita filtrar em dobro)
+  presencaServerSide?: boolean
 }
 
 const SEL_W = 52 // largura da coluna de checkbox (centralizado)
@@ -102,7 +108,7 @@ const FLEX_MIN = 64 // largura mínima de uma coluna de texto no modo fit
 const alignClasse = (a?: string) =>
   a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left'
 
-export default function DataTable<T>({ columns, data, tableKey, getRowId, empty, enableSelection, rowSelection, onRowSelectionChange, pageSize, virtualize, maxHeight = '70vh', onPresenceFiltersChange }: DataTableProps<T>) {
+export default function DataTable<T>({ columns, data, tableKey, getRowId, empty, enableSelection, rowSelection, onRowSelectionChange, pageSize, virtualize, maxHeight = '70vh', onPresenceFiltersChange, presencaServerSide }: DataTableProps<T>) {
   const prefs = useColumnPrefs(tableKey)
   const colMap = useMemo(() => new Map(columns.map((c) => [c.id, c])), [columns])
 
@@ -120,9 +126,9 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
         enableSorting: !!c.sortFn,
         sortUndefined: 'last',
         enableColumnFilter: !!c.filterPresenca,
-        ...(c.filterPresenca ? { filterFn: presenceFilter as FilterFn<T> } : {}),
+        ...(c.filterPresenca ? { filterFn: (presencaServerSide ? passaTudo : presenceFilter) as FilterFn<T> } : {}),
       })),
-    [columns]
+    [columns, presencaServerSide]
   )
 
   const [sorting, setSorting] = useState<SortingState>([])

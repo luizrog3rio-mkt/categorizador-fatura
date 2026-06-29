@@ -138,10 +138,8 @@ export interface HotmartSale {
   external_code: string | null  // purchase.tracking.external_code
   imported_at: string
   origem?: string               // derivado pela view: nome do GRUPO (ou 'a_classificar')
-  canal?: string | null         // derivado pela view: nome do canal de origem
   vendedor?: string | null      // derivado pela view: nome do vendedor
   group_id?: string | null      // classificação por venda (hotmart_sale_class)
-  channel_id?: string | null    // classificação por venda
   seller_id?: string | null     // classificação por venda
 }
 
@@ -153,12 +151,6 @@ export interface Seller {
   active: boolean
   company_id: string | null
   created_at: string
-}
-
-export interface HotmartSckMap {
-  sck: string
-  seller_id: string | null
-  updated_at?: string
 }
 
 // ── Tabelas vivas do "mundo cartão" (modelo PT do app original) ──
