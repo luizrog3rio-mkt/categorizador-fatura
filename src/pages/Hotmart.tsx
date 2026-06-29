@@ -6,11 +6,10 @@ import { parseHotmartCSV } from '../lib/hotmart'
 import { fmtBRL, fmtData } from '../lib/format'
 import type { HotmartSale } from '../lib/types'
 import { Card, PageHeader, Vazio, ErroBanner, KPICard, Alert, Badge, type BadgeTom, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { Link } from 'react-router-dom'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import DateRangePicker from '../components/DateRangePicker'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
-import RegraModal from '../components/RegraModal'
-import { REGRA_VAZIA } from '../lib/regra'
 
 // Etapa 6 — Conciliação Hotmart. Port do Hotmart.tsx do rb7 pra hotmart_sales.
 // Feature 100% exclusiva do rb7 (não existia no app antigo). Upsert por
@@ -60,7 +59,6 @@ type AfiliadoRow = { afiliado: string; qtd: number; comissao: number; bruto: num
 // Linha do "Total por grupo" (RPC hotmart_by_group): vendas agrupadas pelo grupo
 // de origem (modelo v3, classificação por venda via /regras)
 type GrupoRow = { grupo: string; vendas: number; bruto: number; total: number; liquido: number }
-type FiltroOrigem = 'todas' | 'a_classificar' | 'classificadas'
 
 export default function Hotmart() {
   const { empresas, empresaAtiva, isAdmin } = useApp()
@@ -77,14 +75,7 @@ export default function Hotmart() {
   const [gruposOrigem, setGruposOrigem] = useState<GrupoRow[]>([])
   const [busca, setBusca] = useState('')
   const [buscaDebounced, setBuscaDebounced] = useState('')
-  const [filtroOrigem, setFiltroOrigem] = useState<FiltroOrigem>('todas')
-  const [presenca, setPresenca] = useState<{ id: string; mode: 'has' | 'empty' }[]>([])
-  const [soMapeaveis, setSoMapeaveis] = useState(false) // só vendas com afiliado/src/sck
   const [carregandoVendas, setCarregandoVendas] = useState(false)
-  // classificar venda (abre o RegraModal pré-preenchido); listas pro modal
-  const [classificar, setClassificar] = useState<HotmartSale | null>(null)
-  const [grupos, setGrupos] = useState<{ id: string; nome: string }[]>([])
-  const [vendedores, setVendedores] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     if (empresas.length && !empresaDestino) setEmpresaDestino(empresaAtiva?.id ?? empresas[0].id)
@@ -95,59 +86,26 @@ export default function Hotmart() {
     return () => clearTimeout(t)
   }, [busca])
 
-  // listas pro modal de classificar (grupos + vendedores ativos) — carregadas uma vez
-  useEffect(() => {
-    supabase.from('origin_groups').select('id,nome').order('nome').then(({ data }) => setGrupos(data ?? []))
-    supabase.from('sellers').select('id,name').eq('active', true).order('name').then(({ data }) => setVendedores(data ?? []))
-  }, [])
-
-  // Tabela de vendas: empresa + período + filtro de origem + busca + presença.
-  // SEM filtro: 1000 mais recentes. COM filtro: TODAS que casam (paginado por range,
-  // pra furar o teto de 1000 do PostgREST) — a virtualização aguenta renderizar.
+  // Tabela de vendas: conciliação financeira — 1000 mais recentes do período (read-only).
+  // A triagem/mapeamento por origem mora em /classificar (orientada a valores, sem baixar
+  // milhares de linhas). A busca aqui é só pra ACHAR uma venda (server-side, teto 1000).
   const carregarVendas = useCallback(async () => {
-    const pStart: string | null = dataDe || null
-    const pEnd: string | null = dataAte || null
-    const temFiltro = filtroOrigem !== 'todas' || !!buscaDebounced.trim() || presenca.length > 0 || soMapeaveis
-    const build = () => {
-      let q = supabase.from('hotmart_sales_origin').select('*')
-        .order('sale_date', { ascending: false })
-        .order('transaction_code', { ascending: false }) // tiebreaker p/ paginação estável
-      if (empresaAtiva) q = q.eq('company_id', empresaAtiva.id)
-      if (pStart) q = q.gte('sale_date', pStart)
-      if (pEnd) q = q.lte('sale_date', pEnd)
-      if (filtroOrigem === 'a_classificar') q = q.eq('origem', 'a_classificar')
-      else if (filtroOrigem === 'classificadas') q = q.neq('origem', 'a_classificar')
-      if (buscaDebounced.trim()) {
-        const s = buscaDebounced.trim()
-        q = q.or(`product.ilike.%${s}%,src.ilike.%${s}%,sck.ilike.%${s}%,xcod.ilike.%${s}%,affiliate.ilike.%${s}%,origem.ilike.%${s}%,vendedor.ilike.%${s}%,transaction_code.ilike.%${s}%`)
-      }
-      for (const f of presenca) {
-        if (f.mode === 'has') q = q.not(f.id, 'is', null).neq(f.id, '')
-        else q = q.or(`${f.id}.is.null,${f.id}.eq.`)
-      }
-      // só mapeáveis: tem afiliado OU src OU sck (vazios são null nessas colunas)
-      if (soMapeaveis) q = q.or('affiliate.not.is.null,src.not.is.null,sck.not.is.null')
-      return q
-    }
     setCarregandoVendas(true)
-    if (!temFiltro) {
-      const { data, error } = await build().limit(1000)
-      if (error) setErro('Erro ao carregar vendas: ' + error.message)
-      else setVendas((data as HotmartSale[]) ?? [])
-    } else {
-      const PAGE = 1000
-      const acc: HotmartSale[] = []
-      let ok = true
-      for (let from = 0; from < 50000; from += PAGE) { // teto de segurança
-        const { data, error } = await build().range(from, from + PAGE - 1)
-        if (error) { setErro('Erro ao carregar vendas: ' + error.message); ok = false; break }
-        acc.push(...((data as HotmartSale[]) ?? []))
-        if (!data || data.length < PAGE) break
-      }
-      if (ok) setVendas(acc)
+    let q = supabase.from('hotmart_sales_origin').select('*')
+      .order('sale_date', { ascending: false })
+      .limit(1000)
+    if (empresaAtiva) q = q.eq('company_id', empresaAtiva.id)
+    if (dataDe) q = q.gte('sale_date', dataDe)
+    if (dataAte) q = q.lte('sale_date', dataAte)
+    if (buscaDebounced.trim()) {
+      const s = buscaDebounced.trim()
+      q = q.or(`product.ilike.%${s}%,affiliate.ilike.%${s}%,vendedor.ilike.%${s}%,transaction_code.ilike.%${s}%`)
     }
+    const { data, error } = await q
+    if (error) setErro('Erro ao carregar vendas: ' + error.message)
+    else setVendas((data as HotmartSale[]) ?? [])
     setCarregandoVendas(false)
-  }, [empresaAtiva, dataDe, dataAte, filtroOrigem, buscaDebounced, presenca, soMapeaveis])
+  }, [empresaAtiva, dataDe, dataAte, buscaDebounced])
 
   // KPIs e relatórios agregados: dependem só de empresa + período (não da busca/
   // filtro da tabela). Separado pra não piscar os números ao digitar na busca.
@@ -256,30 +214,22 @@ export default function Hotmart() {
       </span>
     ) },
     { id: 'origem', header: 'Grupo', size: 110, sortFn: (v) => v.origem, cell: (v) => <OrigemBadge origem={v.origem} /> },
-    { id: 'vendedor', header: 'Vendedor', size: 130, sortFn: (v) => v.vendedor ?? '', filterPresenca: true, cell: (v) => <span className="text-fg-muted">{v.vendedor || '—'}</span> },
-    { id: 'src', header: 'src', size: 140, sortFn: (v) => v.src ?? '', filterPresenca: true, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.src || '—'}</span> },
-    { id: 'sck', header: 'sck', size: 140, sortFn: (v) => v.sck ?? '', filterPresenca: true, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.sck || '—'}</span> },
-    { id: 'xcod', header: 'xcode', size: 110, sortFn: (v) => v.xcod ?? '', filterPresenca: true, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.xcod || '—'}</span> },
+    { id: 'vendedor', header: 'Vendedor', size: 130, sortFn: (v) => v.vendedor ?? '', cell: (v) => <span className="text-fg-muted">{v.vendedor || '—'}</span> },
+    { id: 'src', header: 'src', size: 140, sortFn: (v) => v.src ?? '', cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.src || '—'}</span> },
+    { id: 'sck', header: 'sck', size: 140, sortFn: (v) => v.sck ?? '', cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.sck || '—'}</span> },
+    { id: 'xcod', header: 'xcode', size: 110, sortFn: (v) => v.xcod ?? '', cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.xcod || '—'}</span> },
     { id: 'transaction_code', header: 'Transação', size: 130, sortFn: (v) => v.transaction_code, cell: (v) => <span className="text-xs text-fg-subtle tnum">{v.transaction_code}</span> },
     { id: 'total_amount', header: 'Valor Total', size: 120, align: 'right', sortFn: (v) => Number(v.total_amount), cell: (v) => <span className="tnum">{fmtBRL(Number(v.total_amount))}</span> },
     { id: 'gross_amount', header: 'Bruto', size: 110, align: 'right', sortFn: (v) => Number(v.gross_amount), cell: (v) => <span className="tnum">{fmtBRL(Number(v.gross_amount))}</span> },
     { id: 'hotmart_fee', header: 'Taxa', size: 100, align: 'right', sortFn: (v) => Number(v.hotmart_fee), cell: (v) => <span className="text-expense tnum">{fmtBRL(Number(v.hotmart_fee))}</span> },
     { id: 'fee_percentage', header: '% Hotmart', size: 100, align: 'right', sortFn: (v) => (v.fee_percentage != null ? Number(v.fee_percentage) : null), cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.fee_percentage != null ? `${Number(v.fee_percentage)}%` : '—'}</span> },
-    { id: 'affiliate', header: 'Afiliado', size: 150, align: 'left', grow: true, sortFn: (v) => v.affiliate ?? '', filterPresenca: true, cell: (v) => <span className="text-fg-muted">{v.affiliate ?? '—'}</span> },
+    { id: 'affiliate', header: 'Afiliado', size: 150, align: 'left', grow: true, sortFn: (v) => v.affiliate ?? '', cell: (v) => <span className="text-fg-muted">{v.affiliate ?? '—'}</span> },
     { id: 'afiliados', header: 'Afil./Coprod.', size: 120, align: 'right', sortFn: (v) => Number(v.affiliate_commission) + Number(v.coproduction_commission), cell: (v) => <span className="text-warning tnum">{fmtBRL(Number(v.affiliate_commission) + Number(v.coproduction_commission))}</span> },
     { id: 'net_amount', header: 'Líquido', size: 120, align: 'right', sortFn: (v) => Number(v.net_amount), cell: (v) => <span className="font-semibold text-revenue tnum">{fmtBRL(Number(v.net_amount))}</span> },
     { id: 'release_date', header: 'Liberação', size: 110, sortFn: (v) => v.release_date ?? '', cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.release_date)}</span> },
     { id: 'payment_method', header: 'Pagamento', size: 130, sortFn: (v) => v.payment_method ?? '', cell: (v) => <span className="text-xs text-fg-muted whitespace-nowrap">{v.payment_method ?? '—'}</span> },
     { id: 'installments', header: 'Parcelas', size: 90, align: 'center', sortFn: (v) => v.installments ?? null, cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.installments == null ? '—' : v.installments <= 1 ? 'À vista' : `${v.installments}x`}</span> },
     { id: 'status', header: 'Status', size: 120, sortFn: (v) => v.status, cell: (v) => <StatusHotmart status={v.status} /> },
-    { id: 'classificar', header: '', size: 104, enableReorder: false, enableHiding: false, enableResize: false, cell: (v) => (
-      <button
-        onClick={() => setClassificar(v)}
-        className="rounded-control border border-border px-2 py-1 text-xs font-medium text-brand hover:bg-brand-subtle hover:border-brand whitespace-nowrap transition"
-      >
-        Classificar
-      </button>
-    ) },
   ], [])
 
   return (
@@ -368,38 +318,20 @@ export default function Hotmart() {
             <p className="text-xs text-fg-subtle mt-0.5">
               {carregandoVendas
                 ? 'Carregando…'
-                : `${vendas.length} ${filtroOrigem === 'a_classificar' ? 'sem classificação' : filtroOrigem === 'classificadas' ? 'classificadas' : (buscaDebounced.trim() || presenca.length > 0 || soMapeaveis) ? 'no filtro' : vendas.length === 1000 ? 'mais recentes (de ' + totais.qtd + ')' : 'no período'}${soMapeaveis ? ' · só mapeáveis' : ''}.`}
+                : buscaDebounced.trim()
+                  ? `${vendas.length} resultado(s) da busca.`
+                  : `${vendas.length} mais recentes${totais.qtd > vendas.length ? ` (de ${totais.qtd} no período)` : ''}.`}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => setSoMapeaveis((s) => !s)}
-              title="Mostra só as vendas que têm afiliado, src ou sck (as que dá pra mapear)"
-              className={`px-3 py-1 rounded-control text-xs font-medium transition ${soMapeaveis ? 'bg-brand text-white' : 'bg-surface-2 text-fg-muted hover:bg-border'}`}
-            >
-              Só mapeáveis
-            </button>
-            <input
-              className="rounded-control border border-border bg-surface px-3 py-1 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-1 focus:ring-brand w-48"
-              placeholder="Pesquisar..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-            />
-            <div className="flex gap-1 shrink-0">
-              {(['todas', 'a_classificar', 'classificadas'] as FiltroOrigem[]).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFiltroOrigem(f)}
-                  className={`px-3 py-1 rounded-control text-xs font-medium transition ${filtroOrigem === f ? 'bg-brand text-white' : 'bg-surface-2 text-fg-muted hover:bg-border'}`}
-                >
-                  {f === 'todas' ? 'Todas' : f === 'a_classificar' ? 'A classificar' : 'Classificadas'}
-                </button>
-              ))}
-            </div>
-          </div>
+          <input
+            className="rounded-control border border-border bg-surface px-3 py-1 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-1 focus:ring-brand w-56 shrink-0"
+            placeholder="Buscar venda (produto, transação, afiliado)..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
         </div>
         {vendas.length === 0 ? (
-          <Vazio mensagem={buscaDebounced.trim() || filtroOrigem !== 'todas' ? 'Nenhuma venda encontrada para esse filtro.' : 'Nenhuma venda ainda. Clique em Sincronizar com a Hotmart acima — ou importe um CSV exportado de lá.'} />
+          <Vazio mensagem={buscaDebounced.trim() ? 'Nenhuma venda encontrada para essa busca.' : 'Nenhuma venda ainda. Clique em Sincronizar com a Hotmart acima — ou importe um CSV exportado de lá.'} />
         ) : (
           <>
             <DataTable
@@ -408,12 +340,10 @@ export default function Hotmart() {
               data={vendas}
               getRowId={(v) => v.id}
               virtualize
-              onPresenceFiltersChange={setPresenca}
-              presencaServerSide
             />
-            {filtroOrigem === 'todas' && !buscaDebounced.trim() && presenca.length === 0 && !soMapeaveis && totais.qtd > vendas.length && (
+            {!buscaDebounced.trim() && totais.qtd > vendas.length && (
               <p className="text-xs text-fg-subtle text-center py-3 border-t border-border">
-                Mostrando as {vendas.length} mais recentes (de {totais.qtd} no período). Filtre (A classificar, busca ou um funil de coluna) que aí traz TODAS as que casam.
+                Mostrando as {vendas.length} mais recentes (de {totais.qtd} no período). Use a busca ou o filtro de período para achar outras.
               </p>
             )}
           </>
@@ -459,7 +389,7 @@ export default function Hotmart() {
         <div className="px-5 pt-5 pb-3 border-b border-border">
           <h2 className="text-sm font-semibold text-fg">Total por grupo de origem</h2>
           <p className="text-xs text-fg-subtle mt-0.5">
-            Vendas agrupadas pelo grupo de origem no período · BRL. Classifique as vendas pelas <span className="text-fg-muted">Regras de origem</span>.
+            Vendas agrupadas pelo grupo de origem no período · BRL. As vendas <span className="text-fg-muted">a classificar</span> você resolve em <Link to="/classificar" className="text-brand font-medium hover:underline">Classificar origens</Link>.
           </p>
         </div>
         {gruposOrigem.length === 0 ? (
@@ -492,19 +422,6 @@ export default function Hotmart() {
         )}
       </Card>
 
-      {classificar && (
-        <RegraModal
-          modo="criar"
-          inicial={REGRA_VAZIA}
-          grupos={grupos}
-          sellers={vendedores}
-          vendaRef={{ src: classificar.src, sck: classificar.sck, xcod: classificar.xcod, affiliate: classificar.affiliate }}
-          intro={<p className="text-xs text-fg-muted">Classificando a venda <span className="font-medium text-fg">{classificar.product}</span> ({fmtData(classificar.sale_date)}). A regra criada classifica esta venda <strong>e todas as outras</strong> que casarem.</p>}
-          onGrupoCriado={(g) => setGrupos((prev) => [...prev, g].sort((a, b) => a.nome.localeCompare(b.nome)))}
-          onFechar={() => setClassificar(null)}
-          onSalvou={() => { setClassificar(null); recarregarTudo() }}
-        />
-      )}
     </div>
   )
 }
