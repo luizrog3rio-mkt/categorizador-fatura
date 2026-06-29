@@ -39,24 +39,26 @@ function StatusHotmart({ status }: { status: string }) {
   return <Badge tom={tomStatus(status)}>{rotuloStatus(status)}</Badge>
 }
 
-// Origem da venda (derivada ao vivo pela view hotmart_sales_origin via de-para canal→origem)
-const ORIGEM_META: Record<string, { rotulo: string; tom: BadgeTom }> = {
-  organico: { rotulo: 'Orgânico', tom: 'revenue' },
-  trafego: { rotulo: 'Tráfego Pago', tom: 'warning' },
-  comercial: { rotulo: 'Comercial', tom: 'brand' },
-  afiliado: { rotulo: 'Afiliado', tom: 'muted' },
-  a_classificar: { rotulo: 'A classificar', tom: 'muted' },
+// Origem da venda = nome do GRUPO (texto livre que o Luiz cria em /regras) ou
+// 'a_classificar'. Cor por heurística de palavra-chave; nomes desconhecidos caem
+// no tom neutro (não dá pra ter mapa fixo — os grupos são criados livremente).
+function tomOrigem(origem: string): BadgeTom {
+  if (/org[âa]nic/i.test(origem)) return 'revenue'
+  if (/tr[áa]fego|pago|ads/i.test(origem)) return 'warning'
+  if (/comercial|vendedor/i.test(origem)) return 'brand'
+  return 'muted'
 }
 function OrigemBadge({ origem }: { origem?: string }) {
-  const m = ORIGEM_META[origem ?? 'a_classificar'] ?? ORIGEM_META.a_classificar
-  return <Badge tom={m.tom}>{m.rotulo}</Badge>
+  if (!origem || origem === 'a_classificar') return <Badge tom="muted">A classificar</Badge>
+  return <Badge tom={tomOrigem(origem)}>{origem}</Badge>
 }
 
 // Linha do "Total por afiliado" (RPC hotmart_by_affiliate, agregação no banco)
 type AfiliadoRow = { afiliado: string; qtd: number; comissao: number; bruto: number; total: number; liquido_produtor: number }
-// Linha do "Total por canal" (RPC hotmart_by_channel): vendas agrupadas pelo canal
-// de origem do modelo v2 (Grupo › Canal)
-type CanalRow = { canal: string; grupo: string; vendas: number; bruto: number; total: number; liquido: number }
+// Linha do "Total por grupo" (RPC hotmart_by_group): vendas agrupadas pelo grupo
+// de origem (modelo v3, classificação por venda via /regras)
+type GrupoRow = { grupo: string; vendas: number; bruto: number; total: number; liquido: number }
+type FiltroOrigem = 'todas' | 'a_classificar' | 'classificadas'
 
 export default function Hotmart() {
   const { empresas, empresaAtiva, isAdmin } = useApp()
@@ -70,31 +72,49 @@ export default function Hotmart() {
   const [dataAte, setDataAte] = useState('')
   const [totais, setTotais] = useState({ qtd: 0, total: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0, foraMoeda: 0 })
   const [afiliados, setAfiliados] = useState<AfiliadoRow[]>([])
-  const [canaisOrigem, setCanaisOrigem] = useState<CanalRow[]>([])
+  const [gruposOrigem, setGruposOrigem] = useState<GrupoRow[]>([])
+  const [busca, setBusca] = useState('')
+  const [buscaDebounced, setBuscaDebounced] = useState('')
+  const [filtroOrigem, setFiltroOrigem] = useState<FiltroOrigem>('todas')
 
   useEffect(() => {
     if (empresas.length && !empresaDestino) setEmpresaDestino(empresaAtiva?.id ?? empresas[0].id)
   }, [empresas, empresaAtiva, empresaDestino])
 
-  const carregar = useCallback(async () => {
-    setErro(null)
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaDebounced(busca), 400)
+    return () => clearTimeout(t)
+  }, [busca])
+
+  // Tabela de vendas: depende de empresa + período + filtro de origem + busca.
+  const carregarVendas = useCallback(async () => {
     const pStart: string | null = dataDe || null
     const pEnd: string | null = dataAte || null
-    // tabela: 300 vendas mais recentes (o PostgREST limita a 1000 mesmo)
-    let q = supabase.from('hotmart_sales_origin').select('*').order('sale_date', { ascending: false }).limit(300)
+    // tabela: 1000 vendas mais recentes (teto do PostgREST)
+    let q = supabase.from('hotmart_sales_origin').select('*').order('sale_date', { ascending: false }).limit(1000)
     if (empresaAtiva) q = q.eq('company_id', empresaAtiva.id)
     if (pStart) q = q.gte('sale_date', pStart)
     if (pEnd) q = q.lte('sale_date', pEnd)
+    if (filtroOrigem === 'a_classificar') q = q.eq('origem', 'a_classificar')
+    else if (filtroOrigem === 'classificadas') q = q.neq('origem', 'a_classificar')
+    if (buscaDebounced.trim()) {
+      const s = buscaDebounced.trim()
+      q = q.or(`product.ilike.%${s}%,src.ilike.%${s}%,sck.ilike.%${s}%,xcod.ilike.%${s}%,affiliate.ilike.%${s}%,origem.ilike.%${s}%,vendedor.ilike.%${s}%,transaction_code.ilike.%${s}%`)
+    }
     const { data, error } = await q
     if (error) { setErro('Erro ao carregar vendas: ' + error.message); return }
     setVendas((data as HotmartSale[]) ?? [])
+  }, [empresaAtiva, dataDe, dataAte, filtroOrigem, buscaDebounced])
 
-    // KPIs: agregados no banco (corretos a qualquer volume)
-    const { data: tot, error: e2 } = await supabase.rpc('hotmart_totals', {
-      p_company: empresaAtiva?.id ?? null,
-      p_start: pStart,
-      p_end: pEnd,
-    })
+  // KPIs e relatórios agregados: dependem só de empresa + período (não da busca/
+  // filtro da tabela). Separado pra não piscar os números ao digitar na busca.
+  const carregarTotais = useCallback(async () => {
+    const pStart: string | null = dataDe || null
+    const pEnd: string | null = dataAte || null
+    setErro(null)
+    const params = { p_company: empresaAtiva?.id ?? null, p_start: pStart, p_end: pEnd }
+
+    const { data: tot, error: e2 } = await supabase.rpc('hotmart_totals', params)
     if (e2) { setErro('Erro nos totais: ' + e2.message); return }
     const t = tot?.[0]
     setTotais(t
@@ -102,37 +122,32 @@ export default function Hotmart() {
       : { qtd: 0, total: 0, bruto: 0, taxas: 0, afiliados: 0, liquido: 0, foraMoeda: 0 })
 
     // Total por afiliado (agregação no banco; vazio até o refresh_commissions preencher)
-    const { data: afi, error: e3 } = await supabase.rpc('hotmart_by_affiliate', {
-      p_company: empresaAtiva?.id ?? null,
-      p_start: pStart,
-      p_end: pEnd,
-    })
+    const { data: afi, error: e3 } = await supabase.rpc('hotmart_by_affiliate', params)
     if (e3) { setErro('Erro nos afiliados: ' + e3.message); return }
     setAfiliados(((afi as AfiliadoRow[]) ?? []).map((a) => ({
       afiliado: a.afiliado, qtd: Number(a.qtd), comissao: Number(a.comissao),
       bruto: Number(a.bruto), total: Number(a.total), liquido_produtor: Number(a.liquido_produtor),
     })))
 
-    // Total por canal de origem (modelo v2: Grupo › Canal)
-    const { data: can, error: e4 } = await supabase.rpc('hotmart_by_channel', {
-      p_company: empresaAtiva?.id ?? null,
-      p_start: pStart,
-      p_end: pEnd,
-    })
-    if (e4) { setErro('Erro por canal: ' + e4.message); return }
-    setCanaisOrigem(((can as CanalRow[]) ?? []).map((v) => ({
-      canal: v.canal, grupo: v.grupo, vendas: Number(v.vendas),
+    // Total por grupo de origem (modelo v3: classificação por venda via /regras)
+    const { data: grp, error: e4 } = await supabase.rpc('hotmart_by_group', params)
+    if (e4) { setErro('Erro por grupo: ' + e4.message); return }
+    setGruposOrigem(((grp as GrupoRow[]) ?? []).map((v) => ({
+      grupo: v.grupo, vendas: Number(v.vendas),
       bruto: Number(v.bruto), total: Number(v.total), liquido: Number(v.liquido),
     })))
   }, [empresaAtiva, dataDe, dataAte])
 
-  useEffect(() => { carregar() }, [carregar])
+  const recarregarTudo = useCallback(() => { carregarVendas(); carregarTotais() }, [carregarVendas, carregarTotais])
+
+  useEffect(() => { carregarVendas() }, [carregarVendas])
+  useEffect(() => { carregarTotais() }, [carregarTotais])
 
   // Realtime: o webhook hotmart-webhook grava/atualiza hotmart_sales → refetch
   // (debounced). 3 das 4 fontes são RPCs agregadas, então re-buscar tudo é mais
   // simples e correto que merge incremental. Filtro server-side por empresa; no
   // consolidado (empresaAtiva null) ouve todas. Só re-subscreve ao trocar empresa.
-  useRealtimeRefetch('hotmart_sales', carregar, {
+  useRealtimeRefetch('hotmart_sales', recarregarTudo, {
     filter: empresaAtiva ? `company_id=eq.${empresaAtiva.id}` : undefined,
   })
 
@@ -163,7 +178,7 @@ export default function Hotmart() {
           (erros.length ? ` Avisos: ${erros.slice(0, 3).join(' ')}` : '')
       )
     setImportando(false)
-    carregar()
+    recarregarTudo()
   }
 
   // Sincronização direta via API (Edge Function hotmart-sync) — sem CSV.
@@ -180,7 +195,7 @@ export default function Hotmart() {
     if (error) { setErro('Erro na sincronização: ' + error.message); return }
     if (data?.error) { setErro('Hotmart: ' + (data.detalhe || data.error)); return }
     setMsg(`Sincronizado · ${data.encontradas} vendas no período · ${data.gravadas} gravadas/atualizadas (${data.janela_meses} meses).`)
-    carregar()
+    recarregarTudo()
   }
 
   // colunas da tabela (reordenáveis/redimensionáveis/ocultáveis via DataTable)
@@ -195,7 +210,7 @@ export default function Hotmart() {
       </span>
     ) },
     { id: 'origem', header: 'Grupo', size: 110, cell: (v) => <OrigemBadge origem={v.origem} /> },
-    { id: 'canal', header: 'Canal', size: 130, cell: (v) => <span className="text-fg-muted">{v.canal || '—'}</span> },
+    { id: 'vendedor', header: 'Vendedor', size: 130, cell: (v) => <span className="text-fg-muted">{v.vendedor || '—'}</span> },
     { id: 'src', header: 'src', size: 140, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.src || '—'}</span> },
     { id: 'sck', header: 'sck', size: 140, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.sck || '—'}</span> },
     { id: 'xcod', header: 'xcode', size: 110, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.xcod || '—'}</span> },
@@ -275,18 +290,62 @@ export default function Hotmart() {
         </div>
       )}
 
+      {/* KPIs por grupo de origem (classificação via /regras) */}
+      {gruposOrigem.length > 0 && (
+        <>
+          <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle mb-2">Por grupo de origem</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {gruposOrigem.map((g) => (
+              <KPICard
+                key={g.grupo}
+                label={g.grupo === 'a_classificar' ? 'A classificar' : g.grupo}
+                valor={`${g.vendas} · ${fmtBRL(g.liquido)}`}
+                tom={g.grupo === 'a_classificar' ? 'warning' : 'neutro'}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
       <Card>
+        <div className="px-5 pt-5 pb-3 border-b border-border flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-fg">Vendas</h2>
+            <p className="text-xs text-fg-subtle mt-0.5">
+              {vendas.length === 1000 ? 'Primeiras 1000' : vendas.length} {filtroOrigem === 'a_classificar' ? 'sem classificação' : filtroOrigem === 'classificadas' ? 'classificadas' : 'no período'}.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <input
+              className="rounded-control border border-border bg-surface px-3 py-1 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-1 focus:ring-brand w-48"
+              placeholder="Pesquisar..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+            <div className="flex gap-1 shrink-0">
+              {(['todas', 'a_classificar', 'classificadas'] as FiltroOrigem[]).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFiltroOrigem(f)}
+                  className={`px-3 py-1 rounded-control text-xs font-medium transition ${filtroOrigem === f ? 'bg-brand text-white' : 'bg-surface-2 text-fg-muted hover:bg-border'}`}
+                >
+                  {f === 'todas' ? 'Todas' : f === 'a_classificar' ? 'A classificar' : 'Classificadas'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
         {vendas.length === 0 ? (
-          <Vazio mensagem="Nenhuma venda ainda. Clique em Sincronizar com a Hotmart acima — ou importe um CSV exportado de lá." />
+          <Vazio mensagem={buscaDebounced.trim() || filtroOrigem !== 'todas' ? 'Nenhuma venda encontrada para esse filtro.' : 'Nenhuma venda ainda. Clique em Sincronizar com a Hotmart acima — ou importe um CSV exportado de lá.'} />
         ) : (
           <>
             <DataTable
               tableKey="hotmart-sales"
               columns={colunas}
-              data={vendas.slice(0, 300)}
+              data={vendas}
               getRowId={(v) => v.id}
             />
-            {totais.qtd > vendas.length && (
+            {totais.qtd > vendas.length && filtroOrigem === 'todas' && !buscaDebounced.trim() && (
               <p className="text-xs text-fg-subtle text-center py-3 border-t border-border">
                 Mostrando as {vendas.length} vendas mais recentes. Os totais acima consideram todas as {totais.qtd} aprovadas do período. Use o filtro de período para ver outros intervalos.
               </p>
@@ -332,33 +391,33 @@ export default function Hotmart() {
 
       <Card className="mt-6">
         <div className="px-5 pt-5 pb-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-fg">Total por canal de origem</h2>
+          <h2 className="text-sm font-semibold text-fg">Total por grupo de origem</h2>
           <p className="text-xs text-fg-subtle mt-0.5">
-            Vendas agrupadas por canal (Grupo › Canal) no período · BRL. Classifique os canais em <span className="text-fg-muted">Origem</span>.
+            Vendas agrupadas pelo grupo de origem no período · BRL. Classifique as vendas pelas <span className="text-fg-muted">Regras de origem</span>.
           </p>
         </div>
-        {canaisOrigem.length === 0 ? (
+        {gruposOrigem.length === 0 ? (
           <Vazio mensagem="Nenhuma venda no período." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-fg-subtle border-b border-border">
-                  <th className="font-medium px-5 py-2">Canal</th>
-                  <th className="font-medium px-3 py-2">Grupo</th>
+                  <th className="font-medium px-5 py-2">Grupo</th>
                   <th className="font-medium px-3 py-2 text-right">Vendas</th>
                   <th className="font-medium px-3 py-2 text-right">Bruto</th>
+                  <th className="font-medium px-3 py-2 text-right">Valor Total</th>
                   <th className="font-medium px-5 py-2 text-right">Líquido</th>
                 </tr>
               </thead>
               <tbody>
-                {canaisOrigem.map((c) => (
-                  <tr key={`${c.grupo}:${c.canal}`} className="border-b border-border last:border-0">
-                    <td className="px-5 py-2 text-fg">{c.canal}</td>
-                    <td className="px-3 py-2"><OrigemBadge origem={c.grupo} /></td>
-                    <td className="px-3 py-2 text-right tnum text-fg-muted">{c.vendas}</td>
-                    <td className="px-3 py-2 text-right tnum text-fg-muted">{fmtBRL(c.bruto)}</td>
-                    <td className="px-5 py-2 text-right tnum font-medium text-revenue">{fmtBRL(c.liquido)}</td>
+                {gruposOrigem.map((g) => (
+                  <tr key={g.grupo} className="border-b border-border last:border-0">
+                    <td className="px-5 py-2"><OrigemBadge origem={g.grupo} /></td>
+                    <td className="px-3 py-2 text-right tnum text-fg-muted">{g.vendas}</td>
+                    <td className="px-3 py-2 text-right tnum text-fg-muted">{fmtBRL(g.bruto)}</td>
+                    <td className="px-3 py-2 text-right tnum text-fg-muted">{fmtBRL(g.total)}</td>
+                    <td className="px-5 py-2 text-right tnum font-medium text-revenue">{fmtBRL(g.liquido)}</td>
                   </tr>
                 ))}
               </tbody>

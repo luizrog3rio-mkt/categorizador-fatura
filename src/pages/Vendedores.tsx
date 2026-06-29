@@ -5,10 +5,10 @@ import { fmtBRL } from '../lib/format'
 import type { Seller } from '../lib/types'
 import { Card, PageHeader, ErroBanner, inputCls, Button, Vazio, Alert } from '../components/ui'
 
-// Vendedores (Fase 2): SÓ cadastro + relatório de vendas por vendedor. O MAPEAMENTO
-// (sck/afiliado → vendedor) virou parte do modelo de canais e é feito na tela /origem
-// (criar um Canal do grupo Comercial com seller_id e mapear os valores nele). O
-// relatório lê da RPC hotmart_seller_report (via channel_id → seller_id da view).
+// Vendedores: SÓ cadastro + relatório de vendas por vendedor. A ATRIBUIÇÃO
+// (src/sck/xcode/afiliado → vendedor) é feita pelas regras de propagação na tela
+// /regras (agrupadas por vendedor). O relatório lê da RPC hotmart_seller_report
+// (agrupa por hotmart_sale_class.seller_id via view hotmart_sales_origin).
 
 interface SellerReport {
   vendedor: string; vendas: number; bruto: number; total: number; liquido: number; comissao_afiliado: number
@@ -104,8 +104,8 @@ export default function Vendedores() {
       </Card>
 
       <Alert tom="info">
-        Para atribuir vendas a um vendedor, vá em <Link to="/origem" className="text-brand font-medium hover:underline">Origem</Link>:
-        crie (ou edite) um Canal do grupo <strong>Comercial</strong> vinculado ao vendedor e mapeie nele os valores de <span className="text-fg-muted">sck</span>/<span className="text-fg-muted">afiliado</span> dele.
+        Para atribuir vendas a um vendedor, vá em <Link to="/regras" className="text-brand font-medium hover:underline">Regras de origem</Link>:
+        abra o vendedor e cadastre as condições (<span className="text-fg-muted">src</span>/<span className="text-fg-muted">sck</span>/<span className="text-fg-muted">xcode</span>/<span className="text-fg-muted">afiliado</span>) que classificam as vendas dele.
       </Alert>
 
       {/* relatório de vendas por vendedor */}

@@ -18,7 +18,6 @@ const Extrato = lazy(() => import('./pages/Extrato'))
 const Hotmart = lazy(() => import('./pages/Hotmart'))
 const ProdutosHotmart = lazy(() => import('./pages/ProdutosHotmart'))
 const Vendedores = lazy(() => import('./pages/Vendedores'))
-const Origem = lazy(() => import('./pages/Origem'))
 const Regras = lazy(() => import('./pages/Regras'))
 const Contas = lazy(() => import('./pages/Contas'))
 const DRE = lazy(() => import('./pages/DRE'))
@@ -59,7 +58,6 @@ function Rotas() {
         <Route path="/hotmart" element={<Hotmart />} />
         <Route path="/produtos-hotmart" element={<ProdutosHotmart />} />
         <Route path="/vendedores" element={<Vendedores />} />
-        <Route path="/origem" element={<Origem />} />
         <Route path="/regras" element={<Regras />} />
         <Route path="/contas" element={<Contas />} />
         <Route path="/dre" element={<DRE />} />
