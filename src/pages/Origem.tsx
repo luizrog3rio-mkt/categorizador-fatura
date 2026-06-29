@@ -29,6 +29,7 @@ export default function Origem() {
   const [regras, setRegras] = useState<Regra[]>([])
   const [filtro, setFiltro] = useState<Filtro>('a_classificar')
   const [busca, setBusca] = useState('')
+  const [buscaDebounced, setBuscaDebounced] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -43,6 +44,11 @@ export default function Origem() {
   const [novaRegra, setNovaRegra] = useState<NovaRegra>(REGRA_VAZIA)
   const [aplicando, setAplicando] = useState(false)
 
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaDebounced(busca), 400)
+    return () => clearTimeout(t)
+  }, [busca])
+
   const carregarKpis = useCallback(async () => {
     const { data } = await supabase.rpc('hotmart_by_group', { p_company: null, p_start: null, p_end: null })
     setTotais(((data as GrupoTotal[]) ?? []).map((g) => ({ grupo: g.grupo, vendas: Number(g.vendas), liquido: Number(g.liquido) })))
@@ -53,6 +59,10 @@ export default function Origem() {
     let vendasQ = supabase.from('hotmart_sales_origin').select('*').order('sale_date', { ascending: false }).limit(300)
     if (filtro === 'a_classificar') vendasQ = vendasQ.eq('origem', 'a_classificar')
     else if (filtro === 'classificadas') vendasQ = vendasQ.neq('origem', 'a_classificar')
+    if (buscaDebounced.trim()) {
+      const q = buscaDebounced.trim()
+      vendasQ = vendasQ.or(`product.ilike.%${q}%,src.ilike.%${q}%,sck.ilike.%${q}%,xcod.ilike.%${q}%,affiliate.ilike.%${q}%,origem.ilike.%${q}%,canal.ilike.%${q}%,vendedor.ilike.%${q}%`)
+    }
     const [r1, r2, r3, r4, r5, r6] = await Promise.all([
       supabase.from('origin_groups').select('id,nome').order('nome'),
       supabase.from('origin_channels').select('id,nome,group_id').order('nome'),
@@ -68,7 +78,7 @@ export default function Origem() {
     if (!r5.error) setTotais(((r5.data as GrupoTotal[]) ?? []).map((g) => ({ grupo: g.grupo, vendas: Number(g.vendas), liquido: Number(g.liquido) })))
     if (!r6.error) setRegras((r6.data as Regra[]) ?? [])
     setCarregando(false)
-  }, [filtro])
+  }, [filtro, buscaDebounced])
 
   useEffect(() => { carregar() }, [carregar])
   useRealtimeRefetch('hotmart_sales', carregar)
@@ -264,16 +274,9 @@ export default function Origem() {
         </div>
         {carregando ? (
           <Vazio mensagem="Carregando…" />
+        ) : vendas.length === 0 ? (
+          <Vazio mensagem={buscaDebounced.trim() ? 'Nenhuma venda encontrada para essa pesquisa.' : 'Nenhuma venda encontrada.'} />
         ) : (
-          (() => {
-            const q = busca.toLowerCase()
-            const lista = q ? vendas.filter((v) =>
-              [v.product, v.src, v.sck, v.xcod, v.affiliate, nomeGrupo(v.group_id), nomeCanal(v.channel_id), nomeSeller(v.seller_id)]
-                .some((s) => s && String(s).toLowerCase().includes(q))
-            ) : vendas
-            return lista.length === 0 ? (
-              <Vazio mensagem={q ? 'Nenhuma venda encontrada para essa pesquisa.' : 'Nenhuma venda encontrada.'} />
-            ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
@@ -291,7 +294,7 @@ export default function Origem() {
                 </tr>
               </thead>
               <tbody>
-                {lista.map((v) => (
+                {vendas.map((v) => (
                   <tr key={v.id} className="border-b border-border last:border-0 hover:bg-surface-2 align-top">
                     <td className="px-3 py-2 whitespace-nowrap text-fg-muted tnum">{fmtData(v.sale_date)}</td>
                     <td className="px-3 py-2 text-fg max-w-[200px] truncate" title={v.product}>{v.product}</td>
@@ -308,8 +311,6 @@ export default function Origem() {
               </tbody>
             </table>
           </div>
-            )
-          })()
         )}
       </Card>
 
