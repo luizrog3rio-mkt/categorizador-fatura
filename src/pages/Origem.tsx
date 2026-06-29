@@ -295,31 +295,6 @@ export default function Origem() {
         )}
       </Card>
 
-      {/* Modal criar grupo/canal */}
-      {modalCriar && (
-        <Modal
-          titulo={modalCriar.tipo === 'grupo' ? 'Novo grupo' : 'Novo canal'}
-          aberto={true}
-          onFechar={() => setModalCriar(null)}
-          largura="lg"
-          footer={
-            <div className="flex justify-end gap-2">
-              <Button variante="secondary" onClick={() => setModalCriar(null)}>Cancelar</Button>
-              <Button variante="primary" loading={salvando} disabled={!nomeNovo.trim()} onClick={confirmarCriacao}>Criar</Button>
-            </div>
-          }
-        >
-          <input
-            autoFocus
-            className={inputCls}
-            placeholder={modalCriar.tipo === 'grupo' ? 'Nome do grupo' : 'Nome do canal'}
-            value={nomeNovo}
-            onChange={(e) => setNomeNovo(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') confirmarCriacao() }}
-          />
-        </Modal>
-      )}
-
       {/* Modal criar/editar regra */}
       {modalRegra && (
         <Modal
@@ -401,6 +376,31 @@ export default function Origem() {
               </select>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Modal criar grupo/canal — renderizado DEPOIS do modal de regra para ficar por cima (mesmo z-50) */}
+      {modalCriar && (
+        <Modal
+          titulo={modalCriar.tipo === 'grupo' ? 'Novo grupo' : 'Novo canal'}
+          aberto={true}
+          onFechar={() => setModalCriar(null)}
+          largura="lg"
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variante="secondary" onClick={() => setModalCriar(null)}>Cancelar</Button>
+              <Button variante="primary" loading={salvando} disabled={!nomeNovo.trim()} onClick={confirmarCriacao}>Criar</Button>
+            </div>
+          }
+        >
+          <input
+            autoFocus
+            className={inputCls}
+            placeholder={modalCriar.tipo === 'grupo' ? 'Nome do grupo' : 'Nome do canal'}
+            value={nomeNovo}
+            onChange={(e) => setNomeNovo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') confirmarCriacao() }}
+          />
         </Modal>
       )}
     </div>
