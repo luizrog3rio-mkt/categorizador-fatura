@@ -9,6 +9,8 @@ import { Card, PageHeader, Vazio, ErroBanner, KPICard, Alert, Badge, type BadgeT
 import DataTable, { type DataColumn } from '../components/DataTable'
 import DateRangePicker from '../components/DateRangePicker'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
+import RegraModal from '../components/RegraModal'
+import { REGRA_VAZIA } from '../lib/regra'
 
 // Etapa 6 — Conciliação Hotmart. Port do Hotmart.tsx do rb7 pra hotmart_sales.
 // Feature 100% exclusiva do rb7 (não existia no app antigo). Upsert por
@@ -76,6 +78,10 @@ export default function Hotmart() {
   const [busca, setBusca] = useState('')
   const [buscaDebounced, setBuscaDebounced] = useState('')
   const [filtroOrigem, setFiltroOrigem] = useState<FiltroOrigem>('todas')
+  // classificar venda (abre o RegraModal pré-preenchido); listas pro modal
+  const [classificar, setClassificar] = useState<HotmartSale | null>(null)
+  const [grupos, setGrupos] = useState<{ id: string; nome: string }[]>([])
+  const [vendedores, setVendedores] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     if (empresas.length && !empresaDestino) setEmpresaDestino(empresaAtiva?.id ?? empresas[0].id)
@@ -85,6 +91,12 @@ export default function Hotmart() {
     const t = setTimeout(() => setBuscaDebounced(busca), 400)
     return () => clearTimeout(t)
   }, [busca])
+
+  // listas pro modal de classificar (grupos + vendedores ativos) — carregadas uma vez
+  useEffect(() => {
+    supabase.from('origin_groups').select('id,nome').order('nome').then(({ data }) => setGrupos(data ?? []))
+    supabase.from('sellers').select('id,name').eq('active', true).order('name').then(({ data }) => setVendedores(data ?? []))
+  }, [])
 
   // Tabela de vendas: depende de empresa + período + filtro de origem + busca.
   const carregarVendas = useCallback(async () => {
@@ -200,6 +212,14 @@ export default function Hotmart() {
 
   // colunas da tabela (reordenáveis/redimensionáveis/ocultáveis via DataTable)
   const colunas = useMemo<DataColumn<HotmartSale>[]>(() => [
+    { id: 'classificar', header: '', size: 104, enableReorder: false, enableHiding: false, enableResize: false, cell: (v) => (
+      <button
+        onClick={() => setClassificar(v)}
+        className="rounded-control border border-border px-2 py-1 text-xs font-medium text-brand hover:bg-brand-subtle hover:border-brand whitespace-nowrap transition"
+      >
+        Classificar
+      </button>
+    ) },
     { id: 'sale_date', header: 'Data', size: 100, cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.sale_date)}</span> },
     { id: 'product', header: 'Produto', size: 220, cell: (v) => (
       <span className="text-fg">
@@ -426,6 +446,20 @@ export default function Hotmart() {
           </div>
         )}
       </Card>
+
+      {classificar && (
+        <RegraModal
+          modo="criar"
+          inicial={REGRA_VAZIA}
+          grupos={grupos}
+          sellers={vendedores}
+          vendaRef={{ src: classificar.src, sck: classificar.sck, xcod: classificar.xcod, affiliate: classificar.affiliate }}
+          intro={<p className="text-xs text-fg-muted">Classificando a venda <span className="font-medium text-fg">{classificar.product}</span> ({fmtData(classificar.sale_date)}). A regra criada classifica esta venda <strong>e todas as outras</strong> que casarem.</p>}
+          onGrupoCriado={(g) => setGrupos((prev) => [...prev, g].sort((a, b) => a.nome.localeCompare(b.nome)))}
+          onFechar={() => setClassificar(null)}
+          onSalvou={() => { setClassificar(null); recarregarTudo() }}
+        />
+      )}
     </div>
   )
 }
