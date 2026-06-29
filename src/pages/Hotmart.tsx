@@ -78,6 +78,7 @@ export default function Hotmart() {
   const [busca, setBusca] = useState('')
   const [buscaDebounced, setBuscaDebounced] = useState('')
   const [filtroOrigem, setFiltroOrigem] = useState<FiltroOrigem>('todas')
+  const [presenca, setPresenca] = useState<{ id: string; mode: 'has' | 'empty' }[]>([])
   // classificar venda (abre o RegraModal pré-preenchido); listas pro modal
   const [classificar, setClassificar] = useState<HotmartSale | null>(null)
   const [grupos, setGrupos] = useState<{ id: string; nome: string }[]>([])
@@ -113,10 +114,15 @@ export default function Hotmart() {
       const s = buscaDebounced.trim()
       q = q.or(`product.ilike.%${s}%,src.ilike.%${s}%,sck.ilike.%${s}%,xcod.ilike.%${s}%,affiliate.ilike.%${s}%,origem.ilike.%${s}%,vendedor.ilike.%${s}%,transaction_code.ilike.%${s}%`)
     }
+    // filtros de presença (server-side): "com valor" / "vazio" por coluna
+    for (const f of presenca) {
+      if (f.mode === 'has') q = q.not(f.id, 'is', null).neq(f.id, '')
+      else q = q.or(`${f.id}.is.null,${f.id}.eq.`)
+    }
     const { data, error } = await q
     if (error) { setErro('Erro ao carregar vendas: ' + error.message); return }
     setVendas((data as HotmartSale[]) ?? [])
-  }, [empresaAtiva, dataDe, dataAte, filtroOrigem, buscaDebounced])
+  }, [empresaAtiva, dataDe, dataAte, filtroOrigem, buscaDebounced, presenca])
 
   // KPIs e relatórios agregados: dependem só de empresa + período (não da busca/
   // filtro da tabela). Separado pra não piscar os números ao digitar na busca.
@@ -221,7 +227,7 @@ export default function Hotmart() {
         )}
       </span>
     ) },
-    { id: 'origem', header: 'Grupo', size: 110, sortFn: (v) => v.origem, filterPresenca: true, cell: (v) => <OrigemBadge origem={v.origem} /> },
+    { id: 'origem', header: 'Grupo', size: 110, sortFn: (v) => v.origem, cell: (v) => <OrigemBadge origem={v.origem} /> },
     { id: 'vendedor', header: 'Vendedor', size: 130, sortFn: (v) => v.vendedor ?? '', filterPresenca: true, cell: (v) => <span className="text-fg-muted">{v.vendedor || '—'}</span> },
     { id: 'src', header: 'src', size: 140, sortFn: (v) => v.src ?? '', filterPresenca: true, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.src || '—'}</span> },
     { id: 'sck', header: 'sck', size: 140, sortFn: (v) => v.sck ?? '', filterPresenca: true, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.sck || '—'}</span> },
@@ -365,6 +371,7 @@ export default function Hotmart() {
               data={vendas}
               getRowId={(v) => v.id}
               virtualize
+              onPresenceFiltersChange={setPresenca}
             />
             {totais.qtd > vendas.length && filtroOrigem === 'todas' && !buscaDebounced.trim() && (
               <p className="text-xs text-fg-subtle text-center py-3 border-t border-border">

@@ -285,6 +285,11 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   (clicar no header alterna asc/desc; ícone seta) — convive com o arrastar (clique
   ordena, arraste reordena). **Filtro de presença** opt-in via `DataColumn.filterPresenca`
   (funil no header, aparece no hover/ativo: cicla Todos → Com valor → Vazio; usa o
-  valor do `sortFn`) — no `/hotmart` nas colunas Grupo/Vendedor/src/sck/xcode/Afiliado,
-  pra "trazer só as vendas onde a coluna tem valor". Reordenar normaliza a `columnOrder` salva (descarta ids
+  valor do `sortFn`) — no `/hotmart` nas colunas Vendedor/src/sck/xcode/Afiliado, pra
+  "trazer só as vendas onde a coluna tem valor". **É server-side no Hotmart**: o
+  DataTable só guarda o estado client-side, mas avisa o pai via
+  `onPresenceFiltersChange` e o `carregarVendas` aplica o filtro NA QUERY
+  (`.not(col,'is',null).neq(col,'')` / `.or(col.is.null,col.eq.)`). Senão o filtro só
+  veria as 1000 já carregadas — ex.: "A classificar + Afiliado com valor" tem 65
+  vendas, mas só 1 estava entre as 1000 recentes. Reordenar normaliza a `columnOrder` salva (descarta ids
   de colunas que não existem mais — ex.: `canal`→`vendedor`).

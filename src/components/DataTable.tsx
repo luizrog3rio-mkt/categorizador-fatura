@@ -91,6 +91,9 @@ interface DataTableProps<T> {
   // Mutuamente exclusivo com pageSize. `virtualize` liga; `maxHeight` (CSS) opcional.
   virtualize?: boolean
   maxHeight?: string
+  // notifica o pai quando os filtros de presença mudam — pra aplicar SERVER-SIDE
+  // (o filtro do header é client-side e só enxerga as linhas já carregadas).
+  onPresenceFiltersChange?: (filters: { id: string; mode: 'has' | 'empty' }[]) => void
 }
 
 const SEL_W = 52 // largura da coluna de checkbox (centralizado)
@@ -99,7 +102,7 @@ const FLEX_MIN = 64 // largura mínima de uma coluna de texto no modo fit
 const alignClasse = (a?: string) =>
   a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left'
 
-export default function DataTable<T>({ columns, data, tableKey, getRowId, empty, enableSelection, rowSelection, onRowSelectionChange, pageSize, virtualize, maxHeight = '70vh' }: DataTableProps<T>) {
+export default function DataTable<T>({ columns, data, tableKey, getRowId, empty, enableSelection, rowSelection, onRowSelectionChange, pageSize, virtualize, maxHeight = '70vh', onPresenceFiltersChange }: DataTableProps<T>) {
   const prefs = useColumnPrefs(tableKey)
   const colMap = useMemo(() => new Map(columns.map((c) => [c.id, c])), [columns])
 
@@ -124,6 +127,11 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
 
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+
+  // notifica o pai dos filtros de presença ativos (pra aplicar server-side)
+  useEffect(() => {
+    onPresenceFiltersChange?.(columnFilters.map((f) => ({ id: f.id, mode: f.value as 'has' | 'empty' })))
+  }, [columnFilters, onPresenceFiltersChange])
 
   const table = useReactTable({
     data,
