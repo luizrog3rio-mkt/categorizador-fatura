@@ -11,12 +11,13 @@ interface Grupo { id: string; nome: string }
 interface Canal { id: string; nome: string; group_id: string }
 interface SellerLite { id: string; name: string }
 interface GrupoTotal { grupo: string; vendas: number; liquido: number }
-interface Regra { id: string; field: 'src' | 'sck' | 'xcode' | 'afiliado'; value: string; group_id: string | null; channel_id: string | null; seller_id: string | null }
+interface Regra { id: string; src_value: string | null; sck_value: string | null; xcode_value: string | null; afiliado_value: string | null; group_id: string | null; channel_id: string | null; seller_id: string | null }
+interface NovaRegra { src_value: string; sck_value: string; xcode_value: string; afiliado_value: string; group_id: string; channel_id: string; seller_id: string }
 type Filtro = 'a_classificar' | 'classificadas' | 'todas'
 
 const NOVO = '__novo__'
 const selCls = 'w-full rounded-control border border-border bg-surface px-2 py-1 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-40'
-const CAMPOS = [{ value: 'src', label: 'src' }, { value: 'sck', label: 'sck' }, { value: 'xcode', label: 'xcode' }, { value: 'afiliado', label: 'afiliado' }] as const
+const REGRA_VAZIA: NovaRegra = { src_value: '', sck_value: '', xcode_value: '', afiliado_value: '', group_id: '', channel_id: '', seller_id: '' }
 
 export default function Origem() {
   const [grupos, setGrupos] = useState<Grupo[]>([])
@@ -36,7 +37,7 @@ export default function Origem() {
 
   // modal criar/editar regra
   const [modalRegra, setModalRegra] = useState<{ modo: 'criar' } | { modo: 'editar'; id: string } | null>(null)
-  const [novaRegra, setNovaRegra] = useState<{ field: 'src' | 'sck' | 'xcode' | 'afiliado'; value: string; group_id: string; channel_id: string; seller_id: string }>({ field: 'src', value: '', group_id: '', channel_id: '', seller_id: '' })
+  const [novaRegra, setNovaRegra] = useState<NovaRegra>(REGRA_VAZIA)
   const [aplicando, setAplicando] = useState(false)
 
   const carregarKpis = useCallback(async () => {
@@ -111,19 +112,21 @@ export default function Origem() {
   }, [modalCriar, nomeNovo, classificar])
 
   const abrirModalRegra = useCallback(() => {
-    setNovaRegra({ field: 'src', value: '', group_id: '', channel_id: '', seller_id: '' })
+    setNovaRegra(REGRA_VAZIA)
     setModalRegra({ modo: 'criar' })
   }, [])
 
   const editarRegra = useCallback((r: Regra) => {
-    setNovaRegra({ field: r.field, value: r.value, group_id: r.group_id ?? '', channel_id: r.channel_id ?? '', seller_id: r.seller_id ?? '' })
+    setNovaRegra({ src_value: r.src_value ?? '', sck_value: r.sck_value ?? '', xcode_value: r.xcode_value ?? '', afiliado_value: r.afiliado_value ?? '', group_id: r.group_id ?? '', channel_id: r.channel_id ?? '', seller_id: r.seller_id ?? '' })
     setModalRegra({ modo: 'editar', id: r.id })
   }, [])
 
+  const regraValida = (r: NovaRegra) => r.src_value.trim() || r.sck_value.trim() || r.xcode_value.trim() || r.afiliado_value.trim()
+
   const salvarRegra = useCallback(async () => {
-    if (!novaRegra.value.trim() || !modalRegra) return
+    if (!regraValida(novaRegra) || !modalRegra) return
     setSalvando(true)
-    const payload = { field: novaRegra.field, value: novaRegra.value.trim(), group_id: novaRegra.group_id || null, channel_id: novaRegra.channel_id || null, seller_id: novaRegra.seller_id || null }
+    const payload = { src_value: novaRegra.src_value.trim() || null, sck_value: novaRegra.sck_value.trim() || null, xcode_value: novaRegra.xcode_value.trim() || null, afiliado_value: novaRegra.afiliado_value.trim() || null, group_id: novaRegra.group_id || null, channel_id: novaRegra.channel_id || null, seller_id: novaRegra.seller_id || null }
     if (modalRegra.modo === 'criar') {
       const { data, error } = await supabase.from('origin_tracking_rules').insert(payload).select('*').single()
       if (error) { setErro('Erro ao salvar regra: ' + error.message); setSalvando(false); return }
@@ -203,8 +206,7 @@ export default function Origem() {
             <table className="w-full text-[11px]">
               <thead>
                 <tr className="border-b border-border text-xs text-fg-subtle uppercase tracking-wide">
-                  <th className="text-left px-4 h-9 font-medium">Campo</th>
-                  <th className="text-left px-4 h-9 font-medium">Valor</th>
+                  <th className="text-left px-4 h-9 font-medium">Condições (AND)</th>
                   <th className="text-left px-4 h-9 font-medium">Grupo</th>
                   <th className="text-left px-4 h-9 font-medium">Canal</th>
                   <th className="text-left px-4 h-9 font-medium">Vendedor</th>
@@ -212,10 +214,20 @@ export default function Origem() {
                 </tr>
               </thead>
               <tbody>
-                {regras.map((r) => (
+                {regras.map((r) => {
+                  const conds = [
+                    r.src_value      && `src=${r.src_value}`,
+                    r.sck_value      && `sck=${r.sck_value}`,
+                    r.xcode_value    && `xcode=${r.xcode_value}`,
+                    r.afiliado_value && `afiliado=${r.afiliado_value}`,
+                  ].filter(Boolean)
+                  return (
                   <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-2">
-                    <td className="px-4 py-2 font-mono text-fg-muted">{r.field}</td>
-                    <td className="px-4 py-2 text-fg">{r.value}</td>
+                    <td className="px-4 py-2 font-mono text-fg max-w-[320px]">
+                      <div className="flex flex-wrap gap-1">
+                        {conds.map((c) => <span key={c as string} className="bg-surface-2 border border-border rounded px-1.5 py-0.5 text-[10px] text-fg-muted">{c}</span>)}
+                      </div>
+                    </td>
                     <td className="px-4 py-2 text-fg-muted">{nomeGrupo(r.group_id)}</td>
                     <td className="px-4 py-2 text-fg-muted">{nomeCanal(r.channel_id)}</td>
                     <td className="px-4 py-2 text-fg-muted">{nomeSeller(r.seller_id)}</td>
@@ -226,7 +238,8 @@ export default function Origem() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )})}
+
               </tbody>
             </table>
           </div>
@@ -350,34 +363,30 @@ export default function Origem() {
           footer={
             <div className="flex justify-end gap-2">
               <Button variante="secondary" onClick={() => setModalRegra(null)}>Cancelar</Button>
-              <Button variante="primary" loading={salvando} disabled={!novaRegra.value.trim()} onClick={salvarRegra}>Salvar e aplicar</Button>
+              <Button variante="primary" loading={salvando} disabled={!regraValida(novaRegra)} onClick={salvarRegra}>Salvar e aplicar</Button>
             </div>
           }
         >
           <div className="space-y-4">
-            <div className="flex gap-3">
-              <div className="w-32 shrink-0">
-                <label className="block text-xs text-fg-muted mb-1">Campo</label>
-                <select
-                  className={inputCls}
-                  value={novaRegra.field}
-                  disabled={modalRegra?.modo === 'editar'}
-                  onChange={(e) => setNovaRegra((p) => ({ ...p, field: e.target.value as 'src' | 'sck' | 'xcode' | 'afiliado' }))}
-                >
-                  {CAMPOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-fg-muted mb-1">Valor exato</label>
-                <input
-                  autoFocus
-                  className={inputCls}
-                  placeholder="ex: comercial_luiz-otavio"
-                  value={novaRegra.value}
-                  disabled={modalRegra?.modo === 'editar'}
-                  onChange={(e) => setNovaRegra((p) => ({ ...p, value: e.target.value }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') salvarRegra() }}
-                />
+            <div>
+              <p className="text-xs text-fg-muted mb-2">Preencha ao menos um campo. A regra casa com vendas onde <strong>todos</strong> os campos preenchidos coincidem.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-fg-muted mb-1">SRC</label>
+                  <input autoFocus className={inputCls} placeholder="ex: comercial_luiz-otavio" value={novaRegra.src_value} onChange={(e) => setNovaRegra((p) => ({ ...p, src_value: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs text-fg-muted mb-1">SCK</label>
+                  <input className={inputCls} placeholder="ex: raphaella_silva" value={novaRegra.sck_value} onChange={(e) => setNovaRegra((p) => ({ ...p, sck_value: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs text-fg-muted mb-1">XCODE</label>
+                  <input className={inputCls} placeholder="ex: AF2024" value={novaRegra.xcode_value} onChange={(e) => setNovaRegra((p) => ({ ...p, xcode_value: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs text-fg-muted mb-1">Afiliado</label>
+                  <input className={inputCls} placeholder="ex: Raphaela Silva" value={novaRegra.afiliado_value} onChange={(e) => setNovaRegra((p) => ({ ...p, afiliado_value: e.target.value }))} />
+                </div>
               </div>
             </div>
             <div>
