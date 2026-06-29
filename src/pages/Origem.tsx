@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtBRL } from '../lib/format'
-import { Card, PageHeader, ErroBanner, KPICard, KPIStrip, inputCls, Button, Vazio } from '../components/ui'
+import { Card, PageHeader, ErroBanner, KPICard, KPIStrip, inputCls, Vazio } from '../components/ui'
 
 // De-para canal → origem (Orgânico / Tráfego / Comercial). O canal-base é o 1º
-// segmento do `src` do tracking (purchase.tracking.source); a origem é DERIVADA ao
-// vivo pela view hotmart_sales_origin (sem coluna na venda) — remapear reclassifica
-// tudo na hora. Espelha a tela /vendedores (sck → vendedor). Precedência da view:
-// canal mapeado > vendedor (sck_map) → comercial > 'a_classificar'. As vendas sem
-// src nem sck (~26%) ficam permanentemente em "A classificar" (teto estrutural).
+// segmento do `src` do tracking (purchase.tracking.source); quando a venda não tem
+// `src`, cai no `sck` (mesmo tratamento) — exceto se o sck for de vendedor. A origem
+// é DERIVADA ao vivo pela view hotmart_sales_origin (sem coluna na venda) — remapear
+// reclassifica tudo na hora. Espelha a tela /vendedores (sck → vendedor). Precedência
+// da view: canal(src) > vendedor(sck) → comercial > canal(sck) > 'a_classificar'. As
+// vendas sem src nem sck ficam permanentemente em "A classificar" (teto estrutural).
 
 interface CanalRow {
   canal: string
@@ -39,7 +40,6 @@ export default function Origem() {
   const [totais, setTotais] = useState<OrigemTotal[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
-  const [aplicando, setAplicando] = useState(false)
   const [soNaoMapeados, setSoNaoMapeados] = useState(false)
   const [esconderRuido, setEsconderRuido] = useState(true)
 
@@ -81,17 +81,6 @@ export default function Origem() {
     })))
   }, [])
 
-  const aplicarSugestoes = async () => {
-    const pendentes = canais.filter((r) => !r.origem && r.sugestao)
-    if (pendentes.length === 0) return
-    setAplicando(true)
-    const rows = pendentes.map((r) => ({ canal: r.canal, origem: r.sugestao as string, updated_at: new Date().toISOString() }))
-    const { error } = await supabase.from('hotmart_origin_map').upsert(rows, { onConflict: 'canal' })
-    setAplicando(false)
-    if (error) setErro('Erro ao aplicar sugestões: ' + error.message)
-    carregar()
-  }
-
   const porOrigem = useMemo(() => {
     const m = new Map<string, OrigemTotal>()
     totais.forEach((o) => m.set(o.origem, o))
@@ -102,8 +91,6 @@ export default function Origem() {
     const o = porOrigem.get(origem)
     return o ? `${o.vendas} · ${fmtBRL(o.liquido)}` : '0 · —'
   }
-
-  const sugestoesPendentes = useMemo(() => canais.filter((r) => !r.origem && r.sugestao).length, [canais])
 
   const exibidos = useMemo(() => {
     let l = canais
@@ -116,7 +103,7 @@ export default function Origem() {
     <div className="space-y-6">
       <PageHeader
         titulo="Origem das vendas"
-        subtitulo="Classifique cada canal de tracking (o 1º trecho do src) como Orgânico, Tráfego ou Comercial — as vendas herdam a origem do canal, sem mexer venda a venda"
+        subtitulo="Classifique cada canal de tracking (o 1º trecho do src — ou do sck quando não há src) como Orgânico, Tráfego ou Comercial — as vendas herdam a origem do canal, sem mexer venda a venda"
       />
 
       <ErroBanner mensagem={erro} />
@@ -142,16 +129,13 @@ export default function Origem() {
               <input type="checkbox" className="accent-brand" checked={soNaoMapeados} onChange={(e) => setSoNaoMapeados(e.target.checked)} />
               Só os a classificar
             </label>
-            <Button variante="secondary" onClick={aplicarSugestoes} loading={aplicando} disabled={sugestoesPendentes === 0}>
-              Aplicar sugestões{sugestoesPendentes > 0 ? ` (${sugestoesPendentes})` : ''}
-            </Button>
           </div>
         </div>
 
         {carregando ? (
           <Vazio mensagem="Carregando…" />
         ) : exibidos.length === 0 ? (
-          <Vazio mensagem="Nenhum canal. As vendas com tracking (src) aparecem aqui conforme o sync preenche o histórico." />
+          <Vazio mensagem="Nenhum canal. As vendas com tracking (src ou sck) aparecem aqui conforme o sync preenche o histórico." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm tnum">

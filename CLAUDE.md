@@ -166,10 +166,14 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   **derivada ao vivo** pela view `hotmart_sales_origin` (`security_invoker`; SEM coluna na venda,
   SEM trigger, NÃO toca webhook/sync) — remapear um canal reclassifica as ~14,9k vendas na hora.
   `canal` = canal-base do `src` (`hotmart_canal_base`: 1º segmento antes de `| _` espaço, folding
-  por `translate` pra ficar `immutable`; ~50 valores vs 1.318 do `src` cru). Precedência:
-  canal mapeado (`hotmart_origin_map`) > vendedor (`sck_map` → comercial) > `a_classificar`. As
-  ~26% de vendas sem `src` nem `sck` ficam em `a_classificar` (teto estrutural, exibido, não
-  chutado). RPCs `hotmart_channels` (de-para + sugestão conservadora via `hotmart_origin_suggest`
+  por `translate` pra ficar `immutable`; ~50 valores vs 1.318 do `src` cru) — **ou do `sck` quando
+  a venda não tem `src`, exceto se o sck for de vendedor** (migration `hotmart_origem_por_sck`,
+  2026-06-29: destravou ~4,2k vendas / R$202,9k cuja única pista de origem estava no `sck` — grp,
+  l.instagram.com, direto, HOTMART_*, organico_*…; o `canal_base` agrupa o sck igual ao src, ex.
+  `organico_*`→`organico`). Precedência: `canal(src) > vendedor (sck_map → comercial) > canal(sck)
+  > a_classificar` (vendedor antes do canal-sck, pra `luiz-otavio` e cia virarem comercial e não
+  poluírem a /origem). As vendas sem `src` nem `sck` ficam em `a_classificar` (teto estrutural,
+  exibido, não chutado). RPCs `hotmart_channels` (de-para + sugestão conservadora via `hotmart_origin_suggest`
   + flag `is_ruido`) e `hotmart_by_origin` (total por origem; soma bate com `hotmart_totals`). A
   tabela da Hotmart lê da view `hotmart_sales_origin` e exibe a coluna Origem.
 
