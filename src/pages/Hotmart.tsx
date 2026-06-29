@@ -212,8 +212,8 @@ export default function Hotmart() {
 
   // colunas da tabela (reordenáveis/redimensionáveis/ocultáveis via DataTable)
   const colunas = useMemo<DataColumn<HotmartSale>[]>(() => [
-    { id: 'sale_date', header: 'Data', size: 100, cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.sale_date)}</span> },
-    { id: 'product', header: 'Produto', size: 220, cell: (v) => (
+    { id: 'sale_date', header: 'Data', size: 100, sortFn: (v) => v.sale_date, cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.sale_date)}</span> },
+    { id: 'product', header: 'Produto', size: 220, sortFn: (v) => v.product?.toLowerCase(), cell: (v) => (
       <span className="text-fg">
         {v.product}
         {v.currency && v.currency !== 'BRL' && (
@@ -221,23 +221,23 @@ export default function Hotmart() {
         )}
       </span>
     ) },
-    { id: 'origem', header: 'Grupo', size: 110, cell: (v) => <OrigemBadge origem={v.origem} /> },
-    { id: 'vendedor', header: 'Vendedor', size: 130, cell: (v) => <span className="text-fg-muted">{v.vendedor || '—'}</span> },
-    { id: 'src', header: 'src', size: 140, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.src || '—'}</span> },
-    { id: 'sck', header: 'sck', size: 140, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.sck || '—'}</span> },
-    { id: 'xcod', header: 'xcode', size: 110, cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.xcod || '—'}</span> },
-    { id: 'transaction_code', header: 'Transação', size: 130, cell: (v) => <span className="text-xs text-fg-subtle tnum">{v.transaction_code}</span> },
-    { id: 'total_amount', header: 'Valor Total', size: 120, align: 'right', cell: (v) => <span className="tnum">{fmtBRL(Number(v.total_amount))}</span> },
-    { id: 'gross_amount', header: 'Bruto', size: 110, align: 'right', cell: (v) => <span className="tnum">{fmtBRL(Number(v.gross_amount))}</span> },
-    { id: 'hotmart_fee', header: 'Taxa', size: 100, align: 'right', cell: (v) => <span className="text-expense tnum">{fmtBRL(Number(v.hotmart_fee))}</span> },
-    { id: 'fee_percentage', header: '% Hotmart', size: 100, align: 'right', cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.fee_percentage != null ? `${Number(v.fee_percentage)}%` : '—'}</span> },
-    { id: 'affiliate', header: 'Afiliado', size: 150, align: 'left', grow: true, cell: (v) => <span className="text-fg-muted">{v.affiliate ?? '—'}</span> },
-    { id: 'afiliados', header: 'Afil./Coprod.', size: 120, align: 'right', cell: (v) => <span className="text-warning tnum">{fmtBRL(Number(v.affiliate_commission) + Number(v.coproduction_commission))}</span> },
-    { id: 'net_amount', header: 'Líquido', size: 120, align: 'right', cell: (v) => <span className="font-semibold text-revenue tnum">{fmtBRL(Number(v.net_amount))}</span> },
-    { id: 'release_date', header: 'Liberação', size: 110, cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.release_date)}</span> },
-    { id: 'payment_method', header: 'Pagamento', size: 130, cell: (v) => <span className="text-xs text-fg-muted whitespace-nowrap">{v.payment_method ?? '—'}</span> },
-    { id: 'installments', header: 'Parcelas', size: 90, align: 'center', cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.installments == null ? '—' : v.installments <= 1 ? 'À vista' : `${v.installments}x`}</span> },
-    { id: 'status', header: 'Status', size: 120, cell: (v) => <StatusHotmart status={v.status} /> },
+    { id: 'origem', header: 'Grupo', size: 110, sortFn: (v) => v.origem, cell: (v) => <OrigemBadge origem={v.origem} /> },
+    { id: 'vendedor', header: 'Vendedor', size: 130, sortFn: (v) => v.vendedor ?? '', cell: (v) => <span className="text-fg-muted">{v.vendedor || '—'}</span> },
+    { id: 'src', header: 'src', size: 140, sortFn: (v) => v.src ?? '', cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.src || '—'}</span> },
+    { id: 'sck', header: 'sck', size: 140, sortFn: (v) => v.sck ?? '', cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.sck || '—'}</span> },
+    { id: 'xcod', header: 'xcode', size: 110, sortFn: (v) => v.xcod ?? '', cell: (v) => <span className="text-xs text-fg-subtle break-all">{v.xcod || '—'}</span> },
+    { id: 'transaction_code', header: 'Transação', size: 130, sortFn: (v) => v.transaction_code, cell: (v) => <span className="text-xs text-fg-subtle tnum">{v.transaction_code}</span> },
+    { id: 'total_amount', header: 'Valor Total', size: 120, align: 'right', sortFn: (v) => Number(v.total_amount), cell: (v) => <span className="tnum">{fmtBRL(Number(v.total_amount))}</span> },
+    { id: 'gross_amount', header: 'Bruto', size: 110, align: 'right', sortFn: (v) => Number(v.gross_amount), cell: (v) => <span className="tnum">{fmtBRL(Number(v.gross_amount))}</span> },
+    { id: 'hotmart_fee', header: 'Taxa', size: 100, align: 'right', sortFn: (v) => Number(v.hotmart_fee), cell: (v) => <span className="text-expense tnum">{fmtBRL(Number(v.hotmart_fee))}</span> },
+    { id: 'fee_percentage', header: '% Hotmart', size: 100, align: 'right', sortFn: (v) => (v.fee_percentage != null ? Number(v.fee_percentage) : null), cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.fee_percentage != null ? `${Number(v.fee_percentage)}%` : '—'}</span> },
+    { id: 'affiliate', header: 'Afiliado', size: 150, align: 'left', grow: true, sortFn: (v) => v.affiliate ?? '', cell: (v) => <span className="text-fg-muted">{v.affiliate ?? '—'}</span> },
+    { id: 'afiliados', header: 'Afil./Coprod.', size: 120, align: 'right', sortFn: (v) => Number(v.affiliate_commission) + Number(v.coproduction_commission), cell: (v) => <span className="text-warning tnum">{fmtBRL(Number(v.affiliate_commission) + Number(v.coproduction_commission))}</span> },
+    { id: 'net_amount', header: 'Líquido', size: 120, align: 'right', sortFn: (v) => Number(v.net_amount), cell: (v) => <span className="font-semibold text-revenue tnum">{fmtBRL(Number(v.net_amount))}</span> },
+    { id: 'release_date', header: 'Liberação', size: 110, sortFn: (v) => v.release_date ?? '', cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.release_date)}</span> },
+    { id: 'payment_method', header: 'Pagamento', size: 130, sortFn: (v) => v.payment_method ?? '', cell: (v) => <span className="text-xs text-fg-muted whitespace-nowrap">{v.payment_method ?? '—'}</span> },
+    { id: 'installments', header: 'Parcelas', size: 90, align: 'center', sortFn: (v) => v.installments ?? null, cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.installments == null ? '—' : v.installments <= 1 ? 'À vista' : `${v.installments}x`}</span> },
+    { id: 'status', header: 'Status', size: 120, sortFn: (v) => v.status, cell: (v) => <StatusHotmart status={v.status} /> },
     { id: 'classificar', header: '', size: 104, enableReorder: false, enableHiding: false, enableResize: false, cell: (v) => (
       <button
         onClick={() => setClassificar(v)}

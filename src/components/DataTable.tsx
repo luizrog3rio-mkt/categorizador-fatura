@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type MouseEvent as ReactMouseEvent } from 'react'
-import { SlidersHorizontal } from 'lucide-react'
+import { SlidersHorizontal, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import {
   useReactTable,
   getCoreRowModel,
   getPaginationRowModel,
+  getSortedRowModel,
   flexRender,
   type ColumnDef,
   type Header,
   type Table as TanTable,
   type RowSelectionState,
+  type SortingState,
   type OnChangeFn,
 } from '@tanstack/react-table'
 import {
@@ -55,6 +57,7 @@ export interface DataColumn<T> {
   enableResize?: boolean // default true
   enableHiding?: boolean // default true
   grow?: boolean // no modo fit, esta coluna encolhe/trunca (texto). default: heurística (esquerda & larga)
+  sortFn?: (row: T) => string | number | null | undefined // valor p/ ordenar (clicar no header). Sem isso, a coluna não ordena.
 }
 
 interface DataTableProps<T> {
@@ -87,20 +90,26 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
     () =>
       columns.map((c) => ({
         id: c.id,
+        accessorFn: c.sortFn ? (row) => c.sortFn!(row) ?? '' : undefined,
         header: () => c.header,
         cell: (ctx) => c.cell(ctx.row.original),
         size: c.size ?? 150,
         minSize: c.minSize ?? 60,
         enableResizing: c.enableResize !== false,
         enableHiding: c.enableHiding !== false,
+        enableSorting: !!c.sortFn,
+        sortUndefined: 'last',
       })),
     [columns]
   )
+
+  const [sorting, setSorting] = useState<SortingState>([])
 
   const table = useReactTable({
     data,
     columns: columnDefs,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     ...(pageSize ? { getPaginationRowModel: getPaginationRowModel() } : {}),
     initialState: pageSize ? { pagination: { pageIndex: 0, pageSize } } : undefined,
     getRowId,
@@ -109,7 +118,9 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
       columnSizing: prefs.columnSizing,
       columnVisibility: prefs.columnVisibility,
       rowSelection: rowSelection ?? {},
+      sorting,
     },
+    onSortingChange: setSorting,
     onColumnOrderChange: prefs.onColumnOrderChange,
     onColumnSizingChange: prefs.onColumnSizingChange,
     onColumnVisibilityChange: prefs.onColumnVisibilityChange,
@@ -407,13 +418,25 @@ function CabecalhoCelula<T>({ header, align, podeReordenar, largura, padX, trunc
     zIndex: isDragging ? 1 : undefined,
   }
   const just = align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'
+  const podeOrdenar = header.column.getCanSort()
+  const ordenado = header.column.getIsSorted() // 'asc' | 'desc' | false
+  // clique ordena; arraste (>6px, via dnd-kit) reordena — não conflitam
+  const cursor = podeReordenar ? 'cursor-grab active:cursor-grabbing' : podeOrdenar ? 'cursor-pointer' : ''
   return (
     <th ref={setNodeRef} style={style} className={`relative bg-surface ${padX} h-10 text-xs font-medium uppercase tracking-wide text-fg-subtle select-none`}>
       <div
-        className={`flex items-center gap-1 ${just} ${alignClasse(align)} ${podeReordenar ? 'cursor-grab active:cursor-grabbing' : ''} ${truncar ? 'min-w-0' : ''}`}
+        className={`flex items-center gap-1 ${just} ${alignClasse(align)} ${cursor} ${truncar ? 'min-w-0' : ''}`}
+        onClick={podeOrdenar ? header.column.getToggleSortingHandler() : undefined}
         {...(podeReordenar ? { ...attributes, ...listeners } : {})}
       >
         <span className={truncar ? 'truncate' : ''}>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+        {podeOrdenar && (
+          ordenado === 'asc'
+            ? <ChevronUp size={13} className="shrink-0 text-brand" />
+            : ordenado === 'desc'
+              ? <ChevronDown size={13} className="shrink-0 text-brand" />
+              : <ChevronsUpDown size={13} className="shrink-0 text-fg-subtle/40" />
+        )}
       </div>
       {header.column.getCanResize() && (
         <div
