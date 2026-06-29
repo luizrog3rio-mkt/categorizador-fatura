@@ -22,6 +22,8 @@ import {
   Handshake,
   Filter,
   ListChecks,
+  Boxes,
+  GitCompare,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -42,7 +44,7 @@ const grupos: Grupo[] = [
     titulo: 'Cartão & Compras',
     itens: [
       { to: '/faturas', rotulo: 'Faturas de Cartão', icone: ReceiptText },
-      { to: '/compras', rotulo: 'Compras', icone: ShoppingBag },
+      { to: '/compras', rotulo: 'Compras pendentes', icone: ShoppingBag },
     ],
   },
   {
@@ -52,14 +54,14 @@ const grupos: Grupo[] = [
       { to: '/receber', rotulo: 'Contas a Receber', icone: ArrowUpCircle },
       { to: '/transferencias', rotulo: 'Transferências', icone: ArrowLeftRight },
       { to: '/extrato', rotulo: 'Extratos (OFX)', icone: FileDown },
-      { to: '/conciliacao', rotulo: 'Conciliação', icone: Link2 },
+      { to: '/conciliacao', rotulo: 'Conciliação Bancária', icone: Link2 },
     ],
   },
   {
     titulo: 'Receitas & Vendas',
     itens: [
       { to: '/hotmart', rotulo: 'Hotmart', icone: ShoppingCart },
-      { to: '/produtos-hotmart', rotulo: 'Produtos Hotmart', icone: Shuffle },
+      { to: '/produtos-hotmart', rotulo: 'Mapear produtos', icone: Shuffle },
       { to: '/vendedores', rotulo: 'Vendedores', icone: Handshake },
       { to: '/classificar', rotulo: 'Classificar origens', icone: ListChecks },
       { to: '/regras', rotulo: 'Regras de origem', icone: Filter },
@@ -69,8 +71,8 @@ const grupos: Grupo[] = [
     titulo: 'DRE & Relatórios',
     itens: [
       { to: '/dre', rotulo: 'DRE', icone: Scale },
-      { to: '/dre-produto', rotulo: 'DRE por Produto', icone: Scale },
-      { to: '/conciliacao-dre', rotulo: 'Conciliação DRE', icone: ArrowLeftRight },
+      { to: '/dre-produto', rotulo: 'DRE por Produto', icone: Boxes },
+      { to: '/conciliacao-dre', rotulo: 'DRE × Caixa', icone: GitCompare },
       { to: '/periodos-fechados', rotulo: 'Períodos Fechados', icone: Lock },
     ],
   },
