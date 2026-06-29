@@ -212,14 +212,6 @@ export default function Hotmart() {
 
   // colunas da tabela (reordenáveis/redimensionáveis/ocultáveis via DataTable)
   const colunas = useMemo<DataColumn<HotmartSale>[]>(() => [
-    { id: 'classificar', header: '', size: 104, enableReorder: false, enableHiding: false, enableResize: false, cell: (v) => (
-      <button
-        onClick={() => setClassificar(v)}
-        className="rounded-control border border-border px-2 py-1 text-xs font-medium text-brand hover:bg-brand-subtle hover:border-brand whitespace-nowrap transition"
-      >
-        Classificar
-      </button>
-    ) },
     { id: 'sale_date', header: 'Data', size: 100, cell: (v) => <span className="whitespace-nowrap text-fg-muted tnum">{fmtData(v.sale_date)}</span> },
     { id: 'product', header: 'Produto', size: 220, cell: (v) => (
       <span className="text-fg">
@@ -246,6 +238,14 @@ export default function Hotmart() {
     { id: 'payment_method', header: 'Pagamento', size: 130, cell: (v) => <span className="text-xs text-fg-muted whitespace-nowrap">{v.payment_method ?? '—'}</span> },
     { id: 'installments', header: 'Parcelas', size: 90, align: 'center', cell: (v) => <span className="text-fg-muted whitespace-nowrap tnum">{v.installments == null ? '—' : v.installments <= 1 ? 'À vista' : `${v.installments}x`}</span> },
     { id: 'status', header: 'Status', size: 120, cell: (v) => <StatusHotmart status={v.status} /> },
+    { id: 'classificar', header: '', size: 104, enableReorder: false, enableHiding: false, enableResize: false, cell: (v) => (
+      <button
+        onClick={() => setClassificar(v)}
+        className="rounded-control border border-border px-2 py-1 text-xs font-medium text-brand hover:bg-brand-subtle hover:border-brand whitespace-nowrap transition"
+      >
+        Classificar
+      </button>
+    ) },
   ], [])
 
   return (
