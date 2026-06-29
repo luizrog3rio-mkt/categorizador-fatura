@@ -15,8 +15,6 @@ interface Regra { id: string; src_value: string | null; sck_value: string | null
 interface NovaRegra { src_value: string; sck_value: string; xcode_value: string; afiliado_value: string; group_id: string; channel_id: string; seller_id: string }
 type Filtro = 'a_classificar' | 'classificadas' | 'todas'
 
-const NOVO = '__novo__'
-const selCls = 'w-full rounded-control border border-border bg-surface px-2 py-1 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-40'
 const REGRA_VAZIA: NovaRegra = { src_value: '', sck_value: '', xcode_value: '', afiliado_value: '', group_id: '', channel_id: '', seller_id: '' }
 
 export default function Origem() {
@@ -30,9 +28,6 @@ export default function Origem() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
 
-  // modal criar grupo/canal
-  const [modalCriar, setModalCriar] = useState<{ tipo: 'grupo' | 'canal'; venda: HotmartSale } | null>(null)
-  const [nomeNovo, setNomeNovo] = useState('')
   const [salvando, setSalvando] = useState(false)
 
   // modal criar/editar regra
@@ -69,47 +64,6 @@ export default function Origem() {
 
   useEffect(() => { carregar() }, [carregar])
   useRealtimeRefetch('hotmart_sales', carregar)
-
-  const classificar = useCallback(async (v: HotmartSale, patch: Partial<Pick<HotmartSale, 'group_id' | 'channel_id' | 'seller_id'>>) => {
-    const novo = {
-      transaction_code: v.transaction_code,
-      group_id: v.group_id ?? null,
-      channel_id: v.channel_id ?? null,
-      seller_id: v.seller_id ?? null,
-      ...patch,
-    }
-    setVendas((prev) => prev.map((x) => (x.id === v.id ? { ...x, group_id: novo.group_id, channel_id: novo.channel_id, seller_id: novo.seller_id } : x)))
-    const { error } = await supabase.from('hotmart_sale_class').upsert({ ...novo, updated_at: new Date().toISOString() }, { onConflict: 'transaction_code' })
-    if (error) setErro('Erro ao classificar: ' + error.message)
-    carregarKpis()
-  }, [carregarKpis])
-
-  const criarGrupo = useCallback((v: HotmartSale) => {
-    setNomeNovo(''); setModalCriar({ tipo: 'grupo', venda: v })
-  }, [])
-
-  const criarCanal = useCallback((v: HotmartSale) => {
-    if (!v.group_id) return
-    setNomeNovo(''); setModalCriar({ tipo: 'canal', venda: v })
-  }, [])
-
-  const confirmarCriacao = useCallback(async () => {
-    if (!modalCriar || !nomeNovo.trim()) return
-    setSalvando(true)
-    const { tipo, venda } = modalCriar
-    if (tipo === 'grupo') {
-      const { data, error } = await supabase.from('origin_groups').insert({ nome: nomeNovo.trim() }).select('id,nome').single()
-      if (error) { setErro('Erro ao criar grupo: ' + error.message); setSalvando(false); return }
-      setGrupos((prev) => [...prev, data as Grupo].sort((a, b) => a.nome.localeCompare(b.nome)))
-      classificar(venda, { group_id: (data as Grupo).id, channel_id: null })
-    } else {
-      const { data, error } = await supabase.from('origin_channels').insert({ nome: nomeNovo.trim(), group_id: venda.group_id }).select('id,nome,group_id').single()
-      if (error) { setErro('Erro ao criar canal: ' + error.message); setSalvando(false); return }
-      setCanais((prev) => [...prev, data as Canal].sort((a, b) => a.nome.localeCompare(b.nome)))
-      classificar(venda, { channel_id: (data as Canal).id })
-    }
-    setSalvando(false); setModalCriar(null)
-  }, [modalCriar, nomeNovo, classificar])
 
   const abrirModalRegra = useCallback(() => {
     setNovaRegra(REGRA_VAZIA)
@@ -168,7 +122,7 @@ export default function Origem() {
     <div className="space-y-6">
       <PageHeader
         titulo="Origem das vendas"
-        subtitulo={'Classifique cada venda em Grupo, Canal e Vendedor. Grupo e Canal você cria na hora pelo "+" do próprio campo.'}
+        subtitulo="Vendas classificadas pelas regras de propagação abaixo. Crie ou edite uma regra para classificar novas vendas."
       />
 
       <ErroBanner mensagem={erro} />
@@ -284,9 +238,9 @@ export default function Origem() {
                   <th className="text-left px-3 h-10 font-medium">sck</th>
                   <th className="text-left px-3 h-10 font-medium">xcode</th>
                   <th className="text-left px-3 h-10 font-medium">Afiliado</th>
-                  <th className="text-left px-3 h-10 font-medium w-40">Grupo</th>
-                  <th className="text-left px-3 h-10 font-medium w-40">Canal</th>
-                  <th className="text-left px-3 h-10 font-medium w-40">Vendedor</th>
+                  <th className="text-left px-3 h-10 font-medium">Grupo</th>
+                  <th className="text-left px-3 h-10 font-medium">Canal</th>
+                  <th className="text-left px-3 h-10 font-medium">Vendedor</th>
                   <th className="text-right px-3 h-10 font-medium">Líquido</th>
                 </tr>
               </thead>
@@ -299,26 +253,9 @@ export default function Origem() {
                     <td className="px-3 py-2 text-fg-subtle break-all max-w-[160px]">{v.sck || '—'}</td>
                     <td className="px-3 py-2 text-fg-subtle break-all max-w-[120px]">{v.xcod || '—'}</td>
                     <td className="px-3 py-2 text-fg-muted max-w-[140px] truncate" title={v.affiliate ?? ''}>{v.affiliate || '—'}</td>
-                    <td className="px-3 py-2">
-                      <select className={selCls} value={v.group_id ?? ''} onChange={(e) => (e.target.value === NOVO ? criarGrupo(v) : classificar(v, { group_id: e.target.value || null, channel_id: null }))}>
-                        <option value="">—</option>
-                        {grupos.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}
-                        <option value={NOVO}>➕ Novo grupo…</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <select className={selCls} value={v.channel_id ?? ''} disabled={!v.group_id} onChange={(e) => (e.target.value === NOVO ? criarCanal(v) : classificar(v, { channel_id: e.target.value || null }))}>
-                        <option value="">{v.group_id ? '—' : 'escolha o grupo'}</option>
-                        {canais.filter((c) => c.group_id === v.group_id).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                        {v.group_id && <option value={NOVO}>➕ Novo canal…</option>}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <select className={selCls} value={v.seller_id ?? ''} onChange={(e) => classificar(v, { seller_id: e.target.value || null })}>
-                        <option value="">—</option>
-                        {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      </select>
-                    </td>
+                    <td className="px-3 py-2 text-fg-muted">{nomeGrupo(v.group_id)}</td>
+                    <td className="px-3 py-2 text-fg-muted">{nomeCanal(v.channel_id)}</td>
+                    <td className="px-3 py-2 text-fg-muted">{nomeSeller(v.seller_id)}</td>
                     <td className="px-3 py-2 text-right font-medium text-revenue tnum whitespace-nowrap">{fmtBRL(Number(v.net_amount))}</td>
                   </tr>
                 ))}
@@ -327,31 +264,6 @@ export default function Origem() {
           </div>
         )}
       </Card>
-
-      {/* Modal criar grupo/canal */}
-      {modalCriar && (
-        <Modal
-          titulo={modalCriar.tipo === 'grupo' ? 'Novo grupo' : 'Novo canal'}
-          aberto={true}
-          onFechar={() => setModalCriar(null)}
-          largura="lg"
-          footer={
-            <div className="flex justify-end gap-2">
-              <Button variante="secondary" onClick={() => setModalCriar(null)}>Cancelar</Button>
-              <Button variante="primary" loading={salvando} disabled={!nomeNovo.trim()} onClick={confirmarCriacao}>Criar</Button>
-            </div>
-          }
-        >
-          <input
-            autoFocus
-            className={inputCls}
-            placeholder={modalCriar.tipo === 'grupo' ? 'Nome do grupo' : 'Nome do canal'}
-            value={nomeNovo}
-            onChange={(e) => setNomeNovo(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') confirmarCriacao() }}
-          />
-        </Modal>
-      )}
 
       {/* Modal criar/editar regra */}
       {modalRegra && (
