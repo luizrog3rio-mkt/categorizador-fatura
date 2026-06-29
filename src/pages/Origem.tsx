@@ -11,12 +11,12 @@ interface Grupo { id: string; nome: string }
 interface Canal { id: string; nome: string; group_id: string }
 interface SellerLite { id: string; name: string }
 interface GrupoTotal { grupo: string; vendas: number; liquido: number }
-type MatchType = 'exact' | 'contains' | 'starts_with'
+type MatchType = 'exact' | 'contains' | 'starts_with' | 'is_empty'
 interface Regra { id: string; src_value: string | null; src_match: MatchType; sck_value: string | null; sck_match: MatchType; xcode_value: string | null; xcode_match: MatchType; afiliado_value: string | null; afiliado_match: MatchType; group_id: string | null; channel_id: string | null; seller_id: string | null }
 interface NovaRegra { src_value: string; src_match: MatchType; sck_value: string; sck_match: MatchType; xcode_value: string; xcode_match: MatchType; afiliado_value: string; afiliado_match: MatchType; group_id: string; channel_id: string; seller_id: string }
 type Filtro = 'a_classificar' | 'classificadas' | 'todas'
 
-const MATCH_LABELS: Record<MatchType, string> = { exact: '=', contains: 'contém', starts_with: 'começa com' }
+const MATCH_LABELS: Record<MatchType, string> = { exact: '=', contains: 'contém', starts_with: 'começa com', is_empty: 'é vazio' }
 const REGRA_VAZIA: NovaRegra = { src_value: '', src_match: 'exact', sck_value: '', sck_match: 'exact', xcode_value: '', xcode_match: 'exact', afiliado_value: '', afiliado_match: 'exact', group_id: '', channel_id: '', seller_id: '' }
 
 export default function Origem() {
@@ -77,7 +77,11 @@ export default function Origem() {
     setModalRegra({ modo: 'editar', id: r.id })
   }, [])
 
-  const regraValida = (r: NovaRegra) => r.src_value.trim() || r.sck_value.trim() || r.xcode_value.trim() || r.afiliado_value.trim()
+  const regraValida = (r: NovaRegra) =>
+    r.src_match === 'is_empty' || r.src_value.trim() ||
+    r.sck_match === 'is_empty' || r.sck_value.trim() ||
+    r.xcode_match === 'is_empty' || r.xcode_value.trim() ||
+    r.afiliado_match === 'is_empty' || r.afiliado_value.trim()
 
   const salvarRegra = useCallback(async () => {
     if (!regraValida(novaRegra) || !modalRegra) return
@@ -296,14 +300,17 @@ export default function Origem() {
                       <option value="exact">= exato</option>
                       <option value="contains">contém</option>
                       <option value="starts_with">começa com</option>
+                      <option value="is_empty">é vazio</option>
                     </select>
-                    <input
-                      autoFocus={valKey === 'src_value'}
-                      className={inputCls + ' flex-1'}
-                      placeholder={ph}
-                      value={novaRegra[valKey]}
-                      onChange={(e) => setNovaRegra((p) => ({ ...p, [valKey]: e.target.value }))}
-                    />
+                    {novaRegra[matchKey] !== 'is_empty' && (
+                      <input
+                        autoFocus={valKey === 'src_value'}
+                        className={inputCls + ' flex-1'}
+                        placeholder={ph}
+                        value={novaRegra[valKey]}
+                        onChange={(e) => setNovaRegra((p) => ({ ...p, [valKey]: e.target.value }))}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
