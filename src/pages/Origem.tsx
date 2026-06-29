@@ -56,7 +56,7 @@ export default function Origem() {
       supabase.from('sellers').select('id,name').eq('active', true).order('name'),
       vendasQ,
       supabase.rpc('hotmart_by_group', { p_company: null, p_start: null, p_end: null }),
-      supabase.from('origin_tracking_rules').select('*').order('field').order('value'),
+      supabase.from('origin_tracking_rules').select('*').order('created_at'),
     ])
     if (r1.error) setErro('Erro ao carregar grupos: ' + r1.error.message); else setGrupos((r1.data as Grupo[]) ?? [])
     if (r2.error) setErro('Erro ao carregar canais: ' + r2.error.message); else setCanais((r2.data as Canal[]) ?? [])
