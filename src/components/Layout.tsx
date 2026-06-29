@@ -21,6 +21,7 @@ import {
   Shuffle,
   Handshake,
   Filter,
+  ListChecks,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -60,6 +61,7 @@ const grupos: Grupo[] = [
       { to: '/hotmart', rotulo: 'Hotmart', icone: ShoppingCart },
       { to: '/produtos-hotmart', rotulo: 'Produtos Hotmart', icone: Shuffle },
       { to: '/vendedores', rotulo: 'Vendedores', icone: Handshake },
+      { to: '/classificar', rotulo: 'Classificar origens', icone: ListChecks },
       { to: '/regras', rotulo: 'Regras de origem', icone: Filter },
     ],
   },
