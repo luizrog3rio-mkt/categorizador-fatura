@@ -109,7 +109,7 @@ export default function Usuarios() {
     ) },
     { id: 'role', header: 'Papel', size: 150, cell: (u) => (
       ehEu(u.id) ? (
-        <Badge tom="brand">Admin</Badge>
+        <Badge tom={u.role === 'admin' ? 'brand' : 'muted'}>{u.role === 'admin' ? 'Admin' : 'Visualizador'}</Badge>
       ) : (
         <select
           value={u.role}

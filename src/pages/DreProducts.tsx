@@ -25,6 +25,7 @@ const formVazio = (): FormState => ({ name: '', sort_order: '0', active: true })
 export default function DreProducts() {
   const { isAdmin } = useApp()
   const [produtos, setProdutos] = useState<DreProduct[]>([])
+  const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [modal, setModal] = useState(false)
@@ -36,8 +37,9 @@ export default function DreProducts() {
   const carregar = useCallback(async () => {
     setErro(null)
     const { data, error } = await supabase.from('dre_products').select('*').order('sort_order')
-    if (error) { setErro('Erro ao carregar produtos DRE: ' + error.message); return }
+    if (error) { setErro('Erro ao carregar produtos DRE: ' + error.message); setCarregando(false); return }
     setProdutos((data as DreProduct[]) ?? [])
+    setCarregando(false)
   }, [])
 
   useEffect(() => { carregar() }, [carregar])
@@ -112,7 +114,7 @@ export default function DreProducts() {
 
       <Card className="p-5">
         {produtos.length === 0 ? (
-          <Vazio mensagem="Nenhum produto DRE cadastrado. Crie o primeiro no botão acima." />
+          <Vazio mensagem={carregando ? 'Carregando…' : 'Nenhum produto DRE cadastrado. Crie o primeiro no botão acima.'} />
         ) : (
           <div className="divide-y divide-border">
             {produtos.map((p, i) => (

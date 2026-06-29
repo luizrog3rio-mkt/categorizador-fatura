@@ -28,6 +28,7 @@ interface TransferLinha {
 export default function Transferencias() {
   const { empresas, empresaAtiva, isAdmin } = useApp()
   const [entries, setEntries] = useState<Entry[]>([])
+  const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [dataDe, setDataDe] = useState('')
   const [dataAte, setDataAte] = useState('')
@@ -42,8 +43,9 @@ export default function Transferencias() {
       .select('*, account:accounts!account_id(*)')
       .not('transfer_id', 'is', null)
       .order('due_date', { ascending: false })
-    if (error) { setErro('Erro ao carregar transferências: ' + error.message); return }
-    setEntries((data as Entry[]) ?? [])
+    if (error) setErro('Erro ao carregar transferências: ' + error.message)
+    else setEntries((data as Entry[]) ?? [])
+    setCarregando(false)
   }, [])
 
   useEffect(() => { carregar() }, [carregar])
@@ -164,7 +166,7 @@ export default function Transferencias() {
 
       <Card>
         {visiveis.length === 0 ? (
-          <Vazio mensagem={temFiltro ? 'Nenhuma transferência para esse filtro.' : 'Nenhuma transferência registrada ainda. Crie uma em Contas a Pagar/Receber → botão "Transferência".'} />
+          <Vazio mensagem={carregando ? 'Carregando…' : temFiltro ? 'Nenhuma transferência para esse filtro.' : 'Nenhuma transferência registrada ainda. Crie uma em Contas a Pagar/Receber → botão "Transferência".'} />
         ) : (
           <DataTable tableKey="transferencias" columns={colunas} data={visiveis} getRowId={(t) => t.transfer_id} />
         )}

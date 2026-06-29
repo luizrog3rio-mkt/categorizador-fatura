@@ -37,6 +37,7 @@ export default function PurchaseItemsTab({
   onDelete,
   isPending,
   readOnly = false,
+  carregando = false,
 }: {
   items: PurchaseItem[]
   onAdd: (item: NovoItem) => void
@@ -44,6 +45,7 @@ export default function PurchaseItemsTab({
   onDelete: (id: string) => void
   isPending: boolean
   readOnly?: boolean
+  carregando?: boolean
 }) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
@@ -228,8 +230,14 @@ export default function PurchaseItemsTab({
 
       {items.length === 0 && (
         <Card className="py-12 px-6 text-center text-fg-subtle">
-          <div className="flex justify-center mb-2"><ShoppingCart size={36} /></div>
-          <p className="text-sm">Nenhum item lançado ainda</p>
+          {carregando ? (
+            <p className="text-sm">Carregando…</p>
+          ) : (
+            <>
+              <div className="flex justify-center mb-2"><ShoppingCart size={36} /></div>
+              <p className="text-sm">Nenhum item lançado ainda</p>
+            </>
+          )}
         </Card>
       )}
     </div>

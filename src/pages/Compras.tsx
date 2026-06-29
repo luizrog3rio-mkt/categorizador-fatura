@@ -11,6 +11,7 @@ import type { PurchaseItem } from '../lib/types'
 export default function Compras() {
   const { session, isAdmin, recarregarPendentes } = useApp()
   const [items, setItems] = useState<PurchaseItem[]>([])
+  const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
@@ -22,6 +23,7 @@ export default function Compras() {
       .order('created_at')
     if (error) setErro('Erro ao carregar compras pendentes: ' + error.message)
     setItems(data ?? [])
+    setCarregando(false)
   }, [])
 
   useEffect(() => { carregar() }, [carregar])
@@ -72,6 +74,7 @@ export default function Compras() {
         onDelete={deleteItem}
         isPending
         readOnly={!isAdmin}
+        carregando={carregando}
       />
     </div>
   )

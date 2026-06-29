@@ -16,6 +16,7 @@ export default function Empresas() {
   const [empresas, setEmpresas] = useState<Company[]>([])
   const [contagem, setContagem] = useState<Record<string, number>>({})
   const [erro, setErro] = useState<string | null>(null)
+  const [carregando, setCarregando] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [form, setForm] = useState<{ id?: string; name: string; cnpj: string }>({ name: '', cnpj: '' })
@@ -23,8 +24,9 @@ export default function Empresas() {
   const carregar = useCallback(async () => {
     setErro(null)
     const { data, error } = await supabase.from('companies').select('*').order('name')
-    if (error) { setErro('Erro ao carregar empresas: ' + error.message); return }
+    if (error) { setErro('Erro ao carregar empresas: ' + error.message); setCarregando(false); return }
     setEmpresas(data ?? [])
+    setCarregando(false)
     // contagem de contas por empresa — dá contexto ao excluir (FK RESTRICT)
     const { data: accs } = await supabase.from('accounts').select('company_id')
     const m: Record<string, number> = {}
@@ -103,7 +105,7 @@ export default function Empresas() {
 
       <Card>
         {empresas.length === 0 ? (
-          <Vazio mensagem="Nenhuma empresa cadastrada." />
+          <Vazio mensagem={carregando ? 'Carregando…' : 'Nenhuma empresa cadastrada.'} />
         ) : (
           <DataTable tableKey="empresas" columns={colunas} data={empresas} getRowId={(c) => c.id} />
         )}

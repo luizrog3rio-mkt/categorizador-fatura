@@ -38,6 +38,7 @@ export default function PeriodosFechados() {
   const { isAdmin, empresaAtiva, session } = useApp()
   const [periodos] = useState<string[]>(gerarUltimos24Meses)
   const [fechados, setFechados] = useState<ClosedPeriod[]>([])
+  const [emails, setEmails] = useState<Record<string, string>>({})
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -63,6 +64,14 @@ export default function PeriodosFechados() {
       setErro(error.message)
     } else {
       setFechados(data ?? [])
+      // resolve closed_by (uuid) -> email pelos profiles, pra não mostrar UUID cru
+      const ids = [...new Set((data ?? []).map((d) => d.closed_by).filter(Boolean))]
+      if (ids.length) {
+        const { data: profs } = await supabase.from('profiles').select('id,email').in('id', ids)
+        const m: Record<string, string> = {}
+        profs?.forEach((p) => { m[p.id] = p.email })
+        setEmails(m)
+      }
     }
     setCarregando(false)
   }, [empresaAtiva])
@@ -105,7 +114,7 @@ export default function PeriodosFechados() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <PageHeader titulo="Períodos Fechados" subtitulo="Controle de competências encerradas para lançamentos" />
 
       {erro && <ErroBanner mensagem={erro} />}
@@ -151,7 +160,7 @@ export default function PeriodosFechados() {
                       <td className="px-4 py-3 text-fg-muted">
                         {cp ? (
                           <span>
-                            {cp.closed_by}
+                            {cp.closed_by === session?.user?.id ? 'você' : (emails[cp.closed_by] ?? 'usuário')}
                             {' · '}
                             {fmtData(cp.closed_at)}
                           </span>

@@ -46,13 +46,14 @@ export default function Fatura() {
   const [activeTab, setActiveTab] = useState<Aba>('lancamentos')
   const [search, setSearch] = useState('')
   const [erro, setErro] = useState<string | null>(null)
+  const [carregando, setCarregando] = useState(true)
   const [importando, setImportando] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const carregar = useCallback(async () => {
     if (!id) return
     const { data: inv, error: e0 } = await supabase.from('invoices').select('*').eq('id', id).single()
-    if (e0) { setErro('Erro ao carregar fatura: ' + e0.message); return }
+    if (e0) { setErro('Erro ao carregar fatura: ' + e0.message); setCarregando(false); return }
     setInvoice(inv)
 
     const { data: txs, error: e1 } = await supabase
@@ -60,7 +61,7 @@ export default function Fatura() {
       .select('*')
       .eq('invoice_id', id)
       .order('created_at')
-    if (e1) { setErro('Erro ao carregar lançamentos: ' + e1.message); return }
+    if (e1) { setErro('Erro ao carregar lançamentos: ' + e1.message); setCarregando(false); return }
     setTransactions(
       (txs ?? []).map((t) => ({
         id: t.id,
@@ -86,8 +87,9 @@ export default function Fatura() {
       .select('*')
       .eq('invoice_id', id)
       .order('created_at')
-    if (e2) { setErro('Erro ao carregar compras: ' + e2.message); return }
+    if (e2) { setErro('Erro ao carregar compras: ' + e2.message); setCarregando(false); return }
     setPurchaseItems(items ?? [])
+    setCarregando(false)
   }, [id])
 
   useEffect(() => { carregar() }, [carregar])
@@ -248,6 +250,18 @@ export default function Fatura() {
       ),
     },
   ], [filtered.length, totalFiltered, chartAccounts, isAdmin, setConta])
+
+  // Skeleton até a fatura chegar — evita o flash de "Fatura · 0 lançamentos" + tabela
+  // vazia que parece uma fatura sem dados antes de o conteúdo real aparecer.
+  if (carregando && !invoice) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 rounded-card bg-surface-2 animate-pulse" />
+        <div className="h-40 rounded-card bg-surface-2 animate-pulse" />
+        <div className="h-96 rounded-card bg-surface-2 animate-pulse" />
+      </div>
+    )
+  }
 
   return (
     <div>

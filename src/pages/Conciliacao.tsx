@@ -26,17 +26,20 @@ export default function Conciliacao() {
   const [linhas, setLinhas] = useState<BankLine[]>([])
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
   const [erro, setErro] = useState<string | null>(null)
+  const [carregando, setCarregando] = useState(false)
 
   // dados de UMA conta (imperativo — chamado ao selecionar/após ações, sem effect)
   const carregarDados = useCallback(async (acc: string) => {
     setSugestoes([])
     if (!acc) { setSummary(null); setLinhas([]); return }
+    setCarregando(true)
     const { data: s } = await supabase.rpc('reconciliation_summary', { p_account: acc })
     setSummary((s as ReconSummary[] | null)?.[0] ?? null)
     const { data: bl, error } = await supabase.from('bank_transactions')
       .select('id,date,amount,memo,entry_id').eq('account_id', acc).order('date', { ascending: false })
     if (error) setErro('Erro ao carregar o extrato: ' + error.message)
     setLinhas((bl as BankLine[] | null) ?? [])
+    setCarregando(false)
   }, [])
 
   const carregarContas = useCallback(async () => {
@@ -152,7 +155,7 @@ export default function Conciliacao() {
           <Card className="overflow-hidden">
             <div className="px-4 py-3 border-b border-border font-bold text-sm text-fg">Linhas do extrato</div>
             {linhas.length === 0 ? (
-              <Vazio mensagem="Sem linhas de extrato nesta conta. Importe um OFX na tela Extratos (OFX) para começar." />
+              <Vazio mensagem={carregando ? 'Carregando…' : 'Sem linhas de extrato nesta conta. Importe um OFX na tela Extratos (OFX) para começar.'} />
             ) : (
               <table className="w-full text-sm">
                 <tbody>
