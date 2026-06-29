@@ -166,13 +166,21 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `origem_rules_multi_condition` (`20260629161019`, troca o par (field,value) por 4 colunas
   `*_value`), `origem_rules_match_type` (`20260629163109`, colunas `*_match` ILIKE),
   `origem_rules_is_empty_match` (`20260629163852`).
-  - **Tela `/regras`** ("Regras de origem", grupo Receitas & Vendas, ícone `Filter`): regras
-    **agrupadas POR VENDEDOR** — cada vendedor é um card/acordeão (mostra contagem de condições e o
-    grupo, ou "vários grupos" quando os destinos divergem — caso do vendedor de marketing que espalha
-    em Orgânico/Tráfego conforme o `src`). Abre → lista as condições (chips) + grupo de cada +
-    Editar/Excluir + **"+ adicionar condição"** (já com o vendedor preenchido). Vendedores sem regra
-    aparecem como card vazio. Botão **"Aplicar agora"** (`apply_origin_rules`). Criar grupo inline pelo
-    modal (renderizado DEPOIS do modal de regra pra ficar por cima — ambos `z-50`).
+  - **Tela `/regras`** ("Regras de origem", grupo Receitas & Vendas, ícone `Filter`): regras em
+    **ABAS por grupo** (uma aba por `origin_groups` + "Sem grupo" se houver regra com `group_id` null;
+    aba efetiva derivada, sem effect). A aba de um grupo que **tem vendedores** (Comercial) sub-agrupa
+    **por vendedor** — card/acordeão por seller ativo (todos aparecem, mesmo sem regra, pra adicionar),
+    com "+ adicionar condição" já preenchendo grupo+vendedor; regras sem vendedor nesse grupo caem num
+    card "Sem vendedor". As demais abas (Tráfego Pago, Orgânico, ...) **listam as condições direto**, sem
+    vendedor (chips + Editar/Excluir + "+ adicionar condição"). Heurística da aba: mostra por-vendedor
+    se alguma regra do grupo tem `seller_id`. Botão **"+ Novo grupo"** (cria aba) e **"Aplicar agora"**
+    (`apply_origin_rules`). Criar grupo pelo modal (renderizado DEPOIS do modal de regra pra ficar por
+    cima — ambos `z-50`). Sellers carregados só com `active=true`.
+    - **Rafa Brito tirado do rol de vendedores** (2026-06-29, é o dono da empresa, não vendedor): UPDATE
+      não-destrutivo `seller_id=null` nas 12 regras de marketing dele E nas ~9,4 mil vendas em
+      `hotmart_sale_class` (o **grupo** Orgânico/Tráfego/Sem Grupo permanece — só perde a pessoa) +
+      `sellers.active=false` (reversível, não deletado). Modelo confirmado: Comercial = com vendedor; o
+      resto (marketing) = sem vendedor.
   - Origem **derivada ao vivo** pela view `hotmart_sales_origin` (`security_invoker`, SEM coluna em
     hotmart_sales): expõe `origem` (=**nome livre do grupo** marcado, senão `a_classificar`), `canal`,
     `vendedor` + os ids. RPCs que lêem a view: `hotmart_by_group` (grupo, vendas, bruto, total,
