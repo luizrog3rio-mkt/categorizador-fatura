@@ -389,7 +389,7 @@ export default function Hotmart() {
         <div className="px-5 pt-5 pb-3 border-b border-border">
           <h2 className="text-sm font-semibold text-fg">Total por grupo de origem</h2>
           <p className="text-xs text-fg-subtle mt-0.5">
-            Vendas agrupadas pelo grupo de origem no período · BRL. As vendas <span className="text-fg-muted">a classificar</span> você resolve em <Link to="/classificar" className="text-brand font-medium hover:underline">Classificar origens</Link>.
+            Vendas agrupadas pelo grupo de origem no período · BRL. As vendas <span className="text-fg-muted">a classificar</span> você resolve em <Link to="/origens/classificar" className="text-brand font-medium hover:underline">Origens · A classificar</Link>.
           </p>
         </div>
         {gruposOrigem.length === 0 ? (

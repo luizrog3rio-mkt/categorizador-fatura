@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider, useApp } from './contexts/AppContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -17,9 +17,10 @@ const Transferencias = lazy(() => import('./pages/Transferencias'))
 const Extrato = lazy(() => import('./pages/Extrato'))
 const Hotmart = lazy(() => import('./pages/Hotmart'))
 const ProdutosHotmart = lazy(() => import('./pages/ProdutosHotmart'))
-const Vendedores = lazy(() => import('./pages/Vendedores'))
-const Regras = lazy(() => import('./pages/Regras'))
-const Classificar = lazy(() => import('./pages/Classificar'))
+const OrigensLayout = lazy(() => import('./pages/origens/OrigensLayout'))
+const AbaClassificar = lazy(() => import('./pages/origens/AbaClassificar'))
+const AbaRegras = lazy(() => import('./pages/origens/AbaRegras'))
+const AbaVendedores = lazy(() => import('./pages/origens/AbaVendedores'))
 const Contas = lazy(() => import('./pages/Contas'))
 const DRE = lazy(() => import('./pages/DRE'))
 const DreProduto = lazy(() => import('./pages/DreProduto'))
@@ -58,9 +59,16 @@ function Rotas() {
         <Route path="/conciliacao" element={<Conciliacao />} />
         <Route path="/hotmart" element={<Hotmart />} />
         <Route path="/produtos-hotmart" element={<ProdutosHotmart />} />
-        <Route path="/vendedores" element={<Vendedores />} />
-        <Route path="/regras" element={<Regras />} />
-        <Route path="/classificar" element={<Classificar />} />
+        <Route path="/origens" element={<OrigensLayout />}>
+          <Route index element={<Navigate to="classificar" replace />} />
+          <Route path="classificar" element={<AbaClassificar />} />
+          <Route path="regras" element={<AbaRegras />} />
+          <Route path="vendedores" element={<AbaVendedores />} />
+        </Route>
+        {/* redirects das rotas antigas (replace = ~301 numa SPA, cobre bookmarks) */}
+        <Route path="/classificar" element={<Navigate to="/origens/classificar" replace />} />
+        <Route path="/regras" element={<Navigate to="/origens/regras" replace />} />
+        <Route path="/vendedores" element={<Navigate to="/origens/vendedores" replace />} />
         <Route path="/contas" element={<Contas />} />
         <Route path="/dre" element={<DRE />} />
         <Route path="/dre-produto" element={<DreProduto />} />

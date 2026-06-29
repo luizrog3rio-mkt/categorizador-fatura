@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { useApp } from '../contexts/AppContext'
-import { Card, PageHeader, ErroBanner, Vazio, Button } from '../components/ui'
-import RegraModal from '../components/RegraModal'
-import { REGRA_VAZIA, type NovaRegra } from '../lib/regra'
+import { supabase } from '../../lib/supabase'
+import { useApp } from '../../contexts/AppContext'
+import { Card, ErroBanner, Vazio, Button } from '../../components/ui'
+import RegraModal from '../../components/RegraModal'
+import { REGRA_VAZIA, type NovaRegra } from '../../lib/regra'
 
-// Classificar origens — tela ORIENTADA A VALORES (não a linhas). Em vez de percorrer
-// milhares de vendas, lista os VALORES DISTINTOS de src/sck/afiliado entre as vendas a
-// classificar, ordenados por volume (RPC origin_unmapped_values). Cada valor vira 1
-// regra (RegraModal compartilhado) que propaga no servidor. O trabalho vira dezenas de
-// cliques no topo do Pareto, não 14k linhas.
+// Aba "A classificar" da página Origens (era a tela /classificar). ORIENTADA A
+// VALORES (não a linhas): lista os VALORES DISTINTOS de src/sck/afiliado entre as
+// vendas a classificar, por volume (RPC origin_unmapped_values). Cada valor vira 1
+// regra (RegraModal compartilhado) que propaga no servidor.
 
 type Dim = 'src' | 'sck' | 'afiliado'
 const DIMS: { key: Dim; rotulo: string }[] = [
@@ -24,7 +23,7 @@ interface Grupo { id: string; nome: string }
 interface SellerLite { id: string; name: string }
 interface Valor { valor: string; qtd: number }
 
-export default function Classificar() {
+export default function AbaClassificar() {
   const { empresaAtiva } = useApp()
   const [dim, setDim] = useState<Dim>('src')
   const [valores, setValores] = useState<Valor[]>([])
@@ -64,11 +63,6 @@ export default function Classificar() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        titulo="Classificar origens"
-        subtitulo="Os valores de tracking ainda a classificar, por volume. Crie uma regra a partir do topo — cada regra classifica todas as vendas que casam (e as futuras)."
-      />
-
       <ErroBanner mensagem={erro} />
 
       <Card>

@@ -17,9 +17,15 @@ const pageLoaders: Record<string, Loader> = {
   '/conciliacao': () => import('../pages/Conciliacao'),
   '/hotmart': () => import('../pages/Hotmart'),
   '/produtos-hotmart': () => import('../pages/ProdutosHotmart'),
-  '/vendedores': () => import('../pages/Vendedores'),
-  '/regras': () => import('../pages/Regras'),
-  '/classificar': () => import('../pages/Classificar'),
+  // Origens: o hover no item do menu esquenta o shell + a aba default (classificar)
+  '/origens': () => Promise.all([import('../pages/origens/OrigensLayout'), import('../pages/origens/AbaClassificar')]),
+  '/origens/classificar': () => import('../pages/origens/AbaClassificar'),
+  '/origens/regras': () => import('../pages/origens/AbaRegras'),
+  '/origens/vendedores': () => import('../pages/origens/AbaVendedores'),
+  // rotas antigas (redirect) — mesmo chunk das abas, prefetch não fura
+  '/classificar': () => import('../pages/origens/AbaClassificar'),
+  '/regras': () => import('../pages/origens/AbaRegras'),
+  '/vendedores': () => import('../pages/origens/AbaVendedores'),
   '/contas': () => import('../pages/Contas'),
   '/dre': () => import('../pages/DRE'),
   '/dre-produto': () => import('../pages/DreProduto'),

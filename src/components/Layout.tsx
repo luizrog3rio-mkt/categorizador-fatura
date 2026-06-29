@@ -19,9 +19,7 @@ import {
   Lock,
   ArrowLeftRight,
   Shuffle,
-  Handshake,
   Filter,
-  ListChecks,
   Boxes,
   GitCompare,
 } from 'lucide-react'
@@ -62,9 +60,7 @@ const grupos: Grupo[] = [
     itens: [
       { to: '/hotmart', rotulo: 'Hotmart', icone: ShoppingCart },
       { to: '/produtos-hotmart', rotulo: 'Mapear produtos', icone: Shuffle },
-      { to: '/vendedores', rotulo: 'Vendedores', icone: Handshake },
-      { to: '/classificar', rotulo: 'Classificar origens', icone: ListChecks },
-      { to: '/regras', rotulo: 'Regras de origem', icone: Filter },
+      { to: '/origens', rotulo: 'Origens', icone: Filter },
     ],
   },
   {

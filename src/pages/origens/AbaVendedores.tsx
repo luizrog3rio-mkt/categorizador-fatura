@@ -1,20 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
-import { supabase } from '../lib/supabase'
-import { fmtBRL } from '../lib/format'
-import type { Seller } from '../lib/types'
-import { Card, PageHeader, ErroBanner, inputCls, Button, Vazio, Alert } from '../components/ui'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
+import { fmtBRL } from '../../lib/format'
+import type { Seller } from '../../lib/types'
+import { Card, ErroBanner, inputCls, Button, Vazio, Alert } from '../../components/ui'
 
-// Vendedores: SÓ cadastro + relatório de vendas por vendedor. A ATRIBUIÇÃO
-// (src/sck/xcode/afiliado → vendedor) é feita pelas regras de propagação na tela
-// /regras (agrupadas por vendedor). O relatório lê da RPC hotmart_seller_report
-// (agrupa por hotmart_sale_class.seller_id via view hotmart_sales_origin).
+// Aba "Vendedores" da página Origens (era a tela /vendedores). SÓ cadastro + relatório
+// de vendas por vendedor. A ATRIBUIÇÃO (src/sck/xcode/afiliado → vendedor) é feita pelas
+// regras na aba Regras. O relatório lê da RPC hotmart_seller_report (agrupa por
+// hotmart_sale_class.seller_id via view hotmart_sales_origin).
 
 interface SellerReport {
   vendedor: string; vendas: number; bruto: number; total: number; liquido: number; comissao_afiliado: number
 }
 
-export default function Vendedores() {
+export default function AbaVendedores() {
   const [sellers, setSellers] = useState<Seller[]>([])
   const [relatorio, setRelatorio] = useState<SellerReport[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -41,6 +41,14 @@ export default function Vendedores() {
 
   useEffect(() => { carregar() }, [carregar])
 
+  // nome do vendedor -> id, pra cross-linkar a linha do relatório com as regras dele
+  // (a RPC hotmart_seller_report não retorna seller_id; casa pelo nome)
+  const idPorNome = useMemo(() => {
+    const m = new Map<string, string>()
+    sellers.forEach((s) => m.set(s.name, s.id))
+    return m
+  }, [sellers])
+
   const addSeller = async () => {
     const nome = novoNome.trim()
     if (!nome) return
@@ -60,19 +68,15 @@ export default function Vendedores() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        titulo="Vendedores"
-        subtitulo="Cadastre os vendedores e acompanhe as vendas atribuídas a cada um. A atribuição de cada venda ao vendedor é feita pelas regras em Regras de origem."
-      />
-
       <ErroBanner mensagem={erro} />
 
       {/* cadastro de vendedores */}
       <Card className="p-5">
         <div className="flex items-end gap-3 flex-wrap">
           <div className="flex-1 min-w-60">
-            <label className="block text-sm font-medium mb-1">Novo vendedor</label>
+            <label htmlFor="novo-vendedor" className="block text-sm font-medium mb-1">Novo vendedor</label>
             <input
+              id="novo-vendedor"
               className={inputCls}
               placeholder="Nome do vendedor"
               value={novoNome}
@@ -104,7 +108,7 @@ export default function Vendedores() {
       </Card>
 
       <Alert tom="info">
-        Para atribuir vendas a um vendedor, vá em <Link to="/regras" className="text-brand font-medium hover:underline">Regras de origem</Link>:
+        Para atribuir vendas a um vendedor, vá na aba <Link to="/origens/regras" className="text-brand font-medium hover:underline">Regras</Link>:
         abra o vendedor e cadastre as condições (<span className="text-fg-muted">src</span>/<span className="text-fg-muted">sck</span>/<span className="text-fg-muted">xcode</span>/<span className="text-fg-muted">afiliado</span>) que classificam as vendas dele.
       </Alert>
 
@@ -117,7 +121,7 @@ export default function Vendedores() {
         {carregando ? (
           <Vazio mensagem="Carregando…" />
         ) : relatorio.length === 0 ? (
-          <Vazio mensagem="Nenhuma venda atribuída ainda. Cadastre as regras de cada vendedor em Regras de origem." />
+          <Vazio mensagem="Nenhuma venda atribuída ainda. Cadastre as regras de cada vendedor na aba Regras." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm tnum">
@@ -133,7 +137,11 @@ export default function Vendedores() {
               <tbody>
                 {relatorio.map((v) => (
                   <tr key={v.vendedor} className="border-b border-border last:border-0 hover:bg-surface-2">
-                    <td className="px-4 py-2 text-fg">{v.vendedor}</td>
+                    <td className="px-4 py-2 text-fg">
+                      {idPorNome.has(v.vendedor)
+                        ? <Link to={`/origens/regras?vendedor=${idPorNome.get(v.vendedor)}`} className="text-brand hover:underline" title="Ver/editar as regras deste vendedor">{v.vendedor}</Link>
+                        : v.vendedor}
+                    </td>
                     <td className="px-4 py-2 text-right text-fg-muted">{v.vendas}</td>
                     <td className="px-4 py-2 text-right text-fg-muted">{fmtBRL(v.bruto)}</td>
                     <td className="px-4 py-2 text-right text-warning">{v.comissao_afiliado ? fmtBRL(v.comissao_afiliado) : '—'}</td>

@@ -177,7 +177,25 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `origem_rules_multi_condition` (`20260629161019`, troca o par (field,value) por 4 colunas
   `*_value`), `origem_rules_match_type` (`20260629163109`, colunas `*_match` ILIKE),
   `origem_rules_is_empty_match` (`20260629163852`).
-  - **Tela `/regras`** ("Regras de origem", grupo Receitas & Vendas, ícone `Filter`): regras em
+  - **FUSÃO em `/origens` (2026-06-29):** as 3 telas do fluxo de origem foram unidas numa página
+    única **`/origens`** com ABAS via **rotas-filhas reais** do react-router: **`/origens/classificar`**
+    (era `/classificar` → `src/pages/origens/AbaClassificar.tsx`), **`/origens/regras`** (era `/regras`
+    → `AbaRegras.tsx`) e **`/origens/vendedores`** (era `/vendedores` → `AbaVendedores.tsx`). Shell
+    `src/pages/origens/OrigensLayout.tsx` (1 `PageHeader` "Origens" + faixa de abas `NavLink` + `Outlet`;
+    subtítulo por-segmento derivado puro via `useLocation`, sem state). As 3 telas viraram componentes-aba
+    **movidos quase intactos** (cortado só o `PageHeader`; imports `../`→`../../`) — **zero lógica de
+    RPC/motor tocada**. **Um único item de menu "Origens"** (ícone `Filter`) em Receitas & Vendas (5→3
+    itens; ícones `Handshake`/`ListChecks` saíram). As rotas antigas `/classificar`/`/regras`/`/vendedores`
+    são `<Navigate replace>` pra `/origens/*` (bookmarks seguem; `routePrefetch` re-mapeado, antigas
+    apontam pro mesmo chunk). **Cross-links:** no relatório da `AbaVendedores` cada nome linka pra
+    `/origens/regras?vendedor=<id>` (mapeia nome→id pela lista `sellers`; a RPC não traz `seller_id`), e a
+    `AbaRegras` lê o `?vendedor` (lazy-init do `expandido`, sem effect) abrindo a aba do grupo dele + o
+    acordeão; cada card de vendedor tem "ver relatório" → `/origens/vendedores`. **Isolamento de estado de
+    graça:** a aba inativa desmonta → `carregar()` roda de novo ao revisitar (invalidação cross-aba
+    automática, sem cache/Context). As descrições abaixo das telas `/regras` e `/classificar` valem
+    integralmente pras abas homônimas; o `RegraModal` segue compartilhado e intocado (também usado em
+    `/hotmart`). Design escolhido por painel multi-agente (URL-first + cross-links), build limpo, smoke OK.
+  - **Tela `/regras`** (agora aba `/origens/regras`, ícone do grupo `Filter`): regras em
     **ABAS por grupo** (uma aba por `origin_groups` + "Sem grupo" se houver regra com `group_id` null;
     aba efetiva derivada, sem effect). A aba de um grupo que **tem vendedores** (Comercial) sub-agrupa
     **por vendedor** — card/acordeão por seller ativo (todos aparecem, mesmo sem regra, pra adicionar),

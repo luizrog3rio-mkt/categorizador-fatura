@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import { Card, PageHeader, ErroBanner, Vazio, Button, Alert } from '../components/ui'
-import RegraModal from '../components/RegraModal'
-import { REGRA_VAZIA, regraParaForm, type NovaRegra, type MatchType, type RegraDB } from '../lib/regra'
+import { supabase } from '../../lib/supabase'
+import { Card, ErroBanner, Vazio, Button, Alert } from '../../components/ui'
+import RegraModal from '../../components/RegraModal'
+import { REGRA_VAZIA, regraParaForm, type NovaRegra, type MatchType, type RegraDB } from '../../lib/regra'
 
-// Regras de propagação — organizadas em ABAS por grupo de origem. A aba de um grupo
-// que tem vendedores (Comercial) sub-agrupa por vendedor; as demais (Tráfego Pago,
-// Orgânico, ...) listam as condições direto, sem vendedor. Mesma tabela
-// origin_tracking_rules — só muda a visão. O modal é compartilhado (RegraModal).
+// Aba "Regras" da página Origens (era a tela /regras). Regras de propagação em ABAS
+// por grupo; a aba de um grupo com vendedores (Comercial) sub-agrupa por vendedor.
+// Mesma tabela origin_tracking_rules — só muda a visão. Modal compartilhado (RegraModal).
+// Cross-link: ?vendedor=<id> (vindo do relatório em Vendedores) já abre o acordeão dele.
 
 interface Grupo { id: string; nome: string }
 interface SellerLite { id: string; name: string }
@@ -25,7 +26,9 @@ const condsDaRegra = (r: RegraDB) => [
 
 type ModalState = { modo: 'criar'; inicial: NovaRegra } | { modo: 'editar'; id: string; inicial: NovaRegra }
 
-export default function Regras() {
+export default function AbaRegras() {
+  const [searchParams] = useSearchParams()
+  const vendedorParam = searchParams.get('vendedor')
   const [grupos, setGrupos] = useState<Grupo[]>([])
   const [sellers, setSellers] = useState<SellerLite[]>([])
   const [regras, setRegras] = useState<RegraDB[]>([])
@@ -34,7 +37,8 @@ export default function Regras() {
   const [aplicando, setAplicando] = useState(false)
   const [resultado, setResultado] = useState<number | null>(null)
   const [abaAtiva, setAbaAtiva] = useState<string>('')
-  const [expandido, setExpandido] = useState<Set<string>>(new Set())
+  // cross-link: se veio ?vendedor=<id>, já abre o acordeão dele (lazy-init, sem effect)
+  const [expandido, setExpandido] = useState<Set<string>>(() => new Set(vendedorParam ? [vendedorParam] : []))
   const [modal, setModal] = useState<ModalState | null>(null)
 
   const carregar = useCallback(async () => {
@@ -59,8 +63,18 @@ export default function Regras() {
     return lista
   }, [grupos, regras])
 
-  // Aba efetiva: a selecionada se ainda existir, senão a primeira (derivado, sem effect)
-  const abaEfetiva = abas.some((a) => a.id === abaAtiva) ? abaAtiva : (abas[0]?.id ?? '')
+  // Aba inicial: se veio ?vendedor=<id>, abre a aba do grupo que contém esse seller
+  // (degrada pra default se não achar). Derivado sem effect.
+  const abaDoVendedor = useMemo(() => {
+    if (!vendedorParam) return ''
+    const r = regras.find((x) => x.seller_id === vendedorParam)
+    return r?.group_id ?? ''
+  }, [vendedorParam, regras])
+
+  // Aba efetiva: a selecionada se existir, senão a do ?vendedor, senão a primeira
+  const abaEfetiva = abas.some((a) => a.id === abaAtiva)
+    ? abaAtiva
+    : (abas.some((a) => a.id === abaDoVendedor) ? abaDoVendedor : (abas[0]?.id ?? ''))
 
   const regrasDaAba = useMemo(
     () => regras.filter((r) => (r.group_id ?? SEM_GRUPO) === abaEfetiva),
@@ -116,11 +130,6 @@ export default function Regras() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        titulo="Regras de propagação"
-        subtitulo="Condições (src / sck / xcode / afiliado) que classificam as vendas automaticamente. Comercial é por vendedor; os demais grupos são por origem."
-      />
-
       <ErroBanner mensagem={erro} />
       {resultado !== null && (
         <Alert tom="success">{resultado > 0 ? `${resultado} venda(s) classificada(s) no total pelas regras.` : 'Nenhuma venda classificada — crie regras que casem as vendas.'}</Alert>
@@ -165,11 +174,14 @@ export default function Regras() {
                 const aberto = expandido.has(s.id)
                 return (
                   <Card key={s.id} className="overflow-hidden">
-                    <button onClick={() => toggle(s.id)} className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface-2 transition text-left">
-                      {aberto ? <ChevronDown size={18} className="text-fg-subtle shrink-0" /> : <ChevronRight size={18} className="text-fg-subtle shrink-0" />}
-                      <span className="font-medium text-fg">{s.name}</span>
-                      <span className="text-xs text-fg-subtle tnum">{rs.length === 0 ? 'sem regras' : `${rs.length} ${rs.length === 1 ? 'condição' : 'condições'}`}</span>
-                    </button>
+                    <div className="flex items-center">
+                      <button onClick={() => toggle(s.id)} className="flex-1 flex items-center gap-3 px-5 py-3.5 hover:bg-surface-2 transition text-left">
+                        {aberto ? <ChevronDown size={18} className="text-fg-subtle shrink-0" /> : <ChevronRight size={18} className="text-fg-subtle shrink-0" />}
+                        <span className="font-medium text-fg">{s.name}</span>
+                        <span className="text-xs text-fg-subtle tnum">{rs.length === 0 ? 'sem regras' : `${rs.length} ${rs.length === 1 ? 'condição' : 'condições'}`}</span>
+                      </button>
+                      <Link to="/origens/vendedores" className="shrink-0 px-4 text-xs text-brand hover:text-brand/70 transition" title="Ver o relatório de vendas deste vendedor">ver relatório</Link>
+                    </div>
                     {aberto && (
                       <div className="border-t border-border px-5 py-3 space-y-1.5">
                         {rs.map(renderLinha)}
