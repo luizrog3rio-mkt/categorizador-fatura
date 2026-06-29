@@ -172,7 +172,7 @@ export default function DateRangePicker({ de, ate, onChange, align = 'left' }: {
               </div>
 
               <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
-                <button type="button" onClick={limpar} className="text-xs text-fg-muted hover:text-expense">
+                <button type="button" onClick={limpar} className="text-xs text-fg-muted hover:text-brand">
                   Limpar
                 </button>
                 <button type="button" onClick={() => setAberto(false)} className="text-xs font-medium text-brand hover:text-brand-strong">

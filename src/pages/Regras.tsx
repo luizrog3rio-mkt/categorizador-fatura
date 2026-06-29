@@ -81,6 +81,7 @@ export default function Regras() {
   const editarRegra = (r: RegraDB) => setModal({ modo: 'editar', id: r.id, inicial: regraParaForm(r) })
 
   const excluirRegra = async (id: string) => {
+    if (!window.confirm('Excluir esta regra? As vendas que só ela classificava voltam para "a classificar".')) return
     const { error } = await supabase.from('origin_tracking_rules').delete().eq('id', id)
     if (error) { setErro('Erro ao excluir regra: ' + error.message); return }
     // reapply_all devolve pro "a classificar" as vendas que só essa regra classificava

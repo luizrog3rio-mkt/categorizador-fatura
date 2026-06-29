@@ -770,7 +770,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             </div>
           )}
           {temFiltro && (
-            <button type="button" onClick={limparFiltros} className="text-sm text-fg-muted hover:text-expense underline pb-2">
+            <button type="button" onClick={limparFiltros} className="text-sm text-fg-muted hover:text-brand underline pb-2">
               Limpar filtros
             </button>
           )}
