@@ -79,6 +79,7 @@ export default function Hotmart() {
   const [buscaDebounced, setBuscaDebounced] = useState('')
   const [filtroOrigem, setFiltroOrigem] = useState<FiltroOrigem>('todas')
   const [presenca, setPresenca] = useState<{ id: string; mode: 'has' | 'empty' }[]>([])
+  const [soMapeaveis, setSoMapeaveis] = useState(false) // só vendas com afiliado/src/sck
   const [carregandoVendas, setCarregandoVendas] = useState(false)
   // classificar venda (abre o RegraModal pré-preenchido); listas pro modal
   const [classificar, setClassificar] = useState<HotmartSale | null>(null)
@@ -106,7 +107,7 @@ export default function Hotmart() {
   const carregarVendas = useCallback(async () => {
     const pStart: string | null = dataDe || null
     const pEnd: string | null = dataAte || null
-    const temFiltro = filtroOrigem !== 'todas' || !!buscaDebounced.trim() || presenca.length > 0
+    const temFiltro = filtroOrigem !== 'todas' || !!buscaDebounced.trim() || presenca.length > 0 || soMapeaveis
     const build = () => {
       let q = supabase.from('hotmart_sales_origin').select('*')
         .order('sale_date', { ascending: false })
@@ -124,6 +125,8 @@ export default function Hotmart() {
         if (f.mode === 'has') q = q.not(f.id, 'is', null).neq(f.id, '')
         else q = q.or(`${f.id}.is.null,${f.id}.eq.`)
       }
+      // só mapeáveis: tem afiliado OU src OU sck (vazios são null nessas colunas)
+      if (soMapeaveis) q = q.or('affiliate.not.is.null,src.not.is.null,sck.not.is.null')
       return q
     }
     setCarregandoVendas(true)
@@ -144,7 +147,7 @@ export default function Hotmart() {
       if (ok) setVendas(acc)
     }
     setCarregandoVendas(false)
-  }, [empresaAtiva, dataDe, dataAte, filtroOrigem, buscaDebounced, presenca])
+  }, [empresaAtiva, dataDe, dataAte, filtroOrigem, buscaDebounced, presenca, soMapeaveis])
 
   // KPIs e relatórios agregados: dependem só de empresa + período (não da busca/
   // filtro da tabela). Separado pra não piscar os números ao digitar na busca.
@@ -362,10 +365,17 @@ export default function Hotmart() {
             <p className="text-xs text-fg-subtle mt-0.5">
               {carregandoVendas
                 ? 'Carregando…'
-                : `${vendas.length} ${filtroOrigem === 'a_classificar' ? 'sem classificação' : filtroOrigem === 'classificadas' ? 'classificadas' : (buscaDebounced.trim() || presenca.length > 0) ? 'no filtro' : vendas.length === 1000 ? 'mais recentes (de ' + totais.qtd + ')' : 'no período'}.`}
+                : `${vendas.length} ${filtroOrigem === 'a_classificar' ? 'sem classificação' : filtroOrigem === 'classificadas' ? 'classificadas' : (buscaDebounced.trim() || presenca.length > 0 || soMapeaveis) ? 'no filtro' : vendas.length === 1000 ? 'mais recentes (de ' + totais.qtd + ')' : 'no período'}${soMapeaveis ? ' · só mapeáveis' : ''}.`}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setSoMapeaveis((s) => !s)}
+              title="Mostra só as vendas que têm afiliado, src ou sck (as que dá pra mapear)"
+              className={`px-3 py-1 rounded-control text-xs font-medium transition ${soMapeaveis ? 'bg-brand text-white' : 'bg-surface-2 text-fg-muted hover:bg-border'}`}
+            >
+              Só mapeáveis
+            </button>
             <input
               className="rounded-control border border-border bg-surface px-3 py-1 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-1 focus:ring-brand w-48"
               placeholder="Pesquisar..."
@@ -397,7 +407,7 @@ export default function Hotmart() {
               virtualize
               onPresenceFiltersChange={setPresenca}
             />
-            {filtroOrigem === 'todas' && !buscaDebounced.trim() && presenca.length === 0 && totais.qtd > vendas.length && (
+            {filtroOrigem === 'todas' && !buscaDebounced.trim() && presenca.length === 0 && !soMapeaveis && totais.qtd > vendas.length && (
               <p className="text-xs text-fg-subtle text-center py-3 border-t border-border">
                 Mostrando as {vendas.length} mais recentes (de {totais.qtd} no período). Filtre (A classificar, busca ou um funil de coluna) que aí traz TODAS as que casam.
               </p>
