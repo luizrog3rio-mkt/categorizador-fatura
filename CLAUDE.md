@@ -97,12 +97,11 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `mapSale` grava em `hotmart_sales.sck`. Valor ruidoso: visitor-id (`<ts>_<id>`) / UTM (`a|b|c`)
   **ou** código fixo de vendedor (`raphaella_silva`, `maikom_vinicius`, `luiz_otavio`…, com
   variantes de grafia). O `affiliate` (nome canônico da Hotmart, ex. "Raphaela Silva") e o `sck`
-  ("raphaella_silva") são a **MESMA pessoa** com grafias diferentes. `sellers` (cadastro) é
-  mantido; o vínculo sck/afiliado → vendedor virou parte do **de-para de canais**
-  (`origin_tracking_map`, dimensões `sck`/`afiliado` → canal Comercial com `seller_id`). Backfill
-  do sck por `refresh_sck` (cron temporário auto-terminável); vendas novas pegam sck pelo sync
-  diário. ⚠️ As tabelas `hotmart_sck_map`/`hotmart_affiliate_map` e as RPCs `hotmart_scks`/
-  `hotmart_affiliates`/`hotmart_by_person`/`hotmart_by_seller` (modelo v1) foram **REMOVIDAS** (2026-06-29).
+  ("raphaella_silva") são a **MESMA pessoa** com grafias diferentes. `sellers` (cadastro) é mantido;
+  a atribuição de vendedor agora é **por venda** (coluna Vendedor na tela `/origem` →
+  `hotmart_sale_class.seller_id`) — ver "Origem da venda" abaixo. Backfill do sck por `refresh_sck`
+  (cron temporário auto-terminável); vendas novas pegam sck pelo sync diário. ⚠️ As tabelas de de-para
+  `hotmart_sck_map`/`hotmart_affiliate_map` (v1) e `origin_tracking_map` (v2) foram **REMOVIDAS** (2026-06-29).
 - **Tracking extra `src`/`external_code`**: `mapSale` grava `hotmart_sales.src`
   (=`tracking.source`) e `external_code` (=`tracking.external_code`) — origem/
   campanha, **NÃO carregam vendedor** (só o `sck` carrega; `xcode` a API não
@@ -153,36 +152,31 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   (`hotmart_sales` na publication; hook `src/hooks/useRealtimeRefetch.ts` →
   `carregar()` debounced). Os ~24 WARNs do lint não sobem (o `setState` do hook é
   assíncrono). Pegadinhas-fonte em `docs/HOTMART-REFERENCIA.md` §2.4.
-- **Origem da venda — modelo de 2 níveis (Grupo › Canal)** (migration `origem_canais_v2`,
-  2026-06-29; **modelo único — v1 removido**): TODO o
-  mapeamento de origem vive na tela **`/origem`** (grupo Receitas & Vendas). Dois níveis:
-  **Grupo** (macro: `organico`/`trafego`/`comercial`/`afiliado`) e **Canal** (nomeado: "Meta Ads",
-  "WhatsApp", "Raphaella"…; cada canal pertence a 1 grupo e pode ter `seller_id`). 3 tabelas novas:
-  `origin_channels` (nome+grupo+seller_id), `origin_tracking_map` (de-para unificado
-  `(dimensao,valor) → canal`; dimensões `canal`=canal_base de src/sck, `sck`=cru p/ vendedor,
-  `afiliado`), `origin_sale_override` (override manual por venda). Tudo **derivado ao vivo** pela view
-  `hotmart_sales_origin` v3 (`security_invoker`; SEM coluna em hotmart_sales, SEM trigger). A view
-  expõe `origem` (=GRUPO, nome mantido p/ compat), `canal` e `channel_id`. **Precedência**:
-  `override(venda) > vendedor(sck cru) > afiliado > canal(src) > canal(sck) > a_classificar`.
-  - **sck/afiliado por valor CRU** (matching exato): `canal_base("raphaella_silva")` e
-    `canal_base("raphaella_pinheiro")` colidem em "raphaella" — não dá p/ vendedor. `canal` por
-    `canal_base` (agrupa: `organico_*`→`organico`, `HOTMART_*`→`hotmart`).
-  - **Afiliado**: interno (= vendedor) → canal Comercial; externo → grupo `afiliado` (regra do Luiz:
-    afiliado que é funcionário vende "comercial"; afiliado externo é "afiliado").
-  - Anti-dupla-contagem garantido (`view_total = tabela_total`); soma de `hotmart_by_group` = `hotmart_totals`.
-  RPCs novas: `hotmart_by_group`, `hotmart_by_channel`, `origin_channels_list`, `origin_tracking_unmapped`.
-  Tela `/origem`: KPIs por grupo + cadastro/edição/exclusão de canais + de-para dos não-mapeados +
-  tabela de vendas (src/sck/xcode/afiliado/grupo/canal) com **Reclassificar** (override). Realtime
-  via `useRealtimeRefetch`. A **`/vendedores`** virou só **cadastro de vendedor + relatório por vendedor**
-  (RPC `hotmart_seller_report`, lê a view via `channel_id → seller_id`); o vínculo sck/afiliado→vendedor
-  agora é feito na `/origem` (criar canal Comercial com `seller_id` e mapear os valores nele). A **`/hotmart`**
-  exibe Grupo+Canal e usa `hotmart_by_channel` (+ `hotmart_by_affiliate`, mantida — lê `hotmart_sales` direto).
-  **Modelo v1 REMOVIDO** (migration `origem_drop_legado`, version `20260629142205`): dropados
-  `hotmart_origin_map`/`hotmart_sck_map`/`hotmart_affiliate_map` + RPCs `hotmart_channels`/`hotmart_scks`/
-  `hotmart_affiliates`/`hotmart_by_origin`/`hotmart_by_seller`/`hotmart_by_person`. Mantidos:
-  `hotmart_canal_base`/`hotmart_origin_suggest` (reaproveitados pela v2), `hotmart_by_affiliate`, `hotmart_totals`.
-  ⚠️ **Dados de mapeamento ZERADOS em 2026-06-29** (canais/de-paras/overrides apagados a pedido do Luiz p/
-  remapear do zero; os 7 `sellers` preservados) — a origem está **100% `a_classificar`** até o remapeamento manual.
+- **Origem da venda — classificação POR VENDA (Grupo › Canal + Vendedor)** (modelo v3, migration
+  `origem_classificacao_por_venda`, version `20260629150351`): a origem é marcada **venda a venda** na
+  tela **`/origem`** (grupo Receitas & Vendas), em 3 dimensões — **Grupo**, **Canal**, **Vendedor**.
+  **Grupo** (`origin_groups`) e **Canal** (`origin_channels`, com `group_id` → cada canal pertence a 1
+  grupo) são **listas que o Luiz cria** (inline, pelo "➕" do select da linha); **Vendedor** = `sellers`.
+  A classificação grava em **`hotmart_sale_class`** (`transaction_code → group_id/channel_id/seller_id`,
+  todos opcionais; trocar o grupo limpa o canal). Origem **derivada ao vivo** pela view
+  `hotmart_sales_origin` (`security_invoker`, SEM coluna em hotmart_sales): expõe `origem` (=nome do
+  grupo — marcado direto ou herdado do canal; senão `a_classificar`), `canal`, `vendedor` + os ids.
+  RPCs que lêem a view: `hotmart_by_group`, `hotmart_by_channel`, `hotmart_seller_report` (agrupa por
+  `hotmart_sale_class.seller_id`). Tela `/origem`: KPIs por grupo (dinâmicos) + tabela de Vendas com
+  **3 selects inline por linha** (criar grupo/canal via `window.prompt` por ora). `/hotmart` mostra
+  Grupo+Canal + colunas `src`/`sck`/`xcode` e usa `hotmart_by_channel`; `/vendedores` = cadastro +
+  relatório (`hotmart_seller_report`). **Regras de propagação por src/sck virão depois** (o Luiz vai
+  vendo os padrões e passando as regras — por isso o de-para por tracking saiu por ora).
+  - **Histórico (tudo 2026-06-29, mesmo dia):** origem **v1** (`hotmart_origin_map`+`hotmart_sck_map`+
+    `hotmart_affiliate_map`) e **v2** (canais de 2 níveis + de-para `origin_tracking_map` +
+    `origin_sale_override`, com precedência override>vendedor>afiliado>canal) foram SUBSTITUÍDAS pela
+    classificação por venda **v3**. Removidos: as 3 tabelas v1, `origin_tracking_map`,
+    `origin_sale_override`, `origin_channels.grupo`(enum)/`seller_id`, e as RPCs `hotmart_channels`/
+    `scks`/`affiliates`/`by_origin`/`by_seller`/`by_person`/`origin_channels_list`/`origin_tracking_unmapped`.
+    Mantidos: utils `hotmart_canal_base`/`hotmart_origin_suggest` (sem uso agora, guardados p/ as regras
+    futuras), `hotmart_by_affiliate`, `hotmart_totals`. ⚠️ Dados de origem **ZERADOS** (os 7 `sellers`
+    preservados) — origem **100% `a_classificar`** até o Luiz classificar na tela. **Modelo ainda em
+    alinhamento com o Luiz** — pode evoluir.
 
 ## Convenções
 

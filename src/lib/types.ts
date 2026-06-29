@@ -137,9 +137,12 @@ export interface HotmartSale {
   xcod: string | null           // origin.xcode (webhook-only; a API não traz)
   external_code: string | null  // purchase.tracking.external_code
   imported_at: string
-  origem?: string               // derivado pela view: GRUPO (organico/trafego/comercial/afiliado/a_classificar)
+  origem?: string               // derivado pela view: nome do GRUPO (ou 'a_classificar')
   canal?: string | null         // derivado pela view: nome do canal de origem
-  channel_id?: string | null    // derivado pela view: id do canal de origem
+  vendedor?: string | null      // derivado pela view: nome do vendedor
+  group_id?: string | null      // classificação por venda (hotmart_sale_class)
+  channel_id?: string | null    // classificação por venda
+  seller_id?: string | null     // classificação por venda
 }
 
 // Vendedor direto (atribuição por sck, não-afiliado) + de-para sck → vendedor
