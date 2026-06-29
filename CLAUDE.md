@@ -283,5 +283,8 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   pra altura variável). O `/hotmart` usa **`virtualize`** (mostra as 1000 num scroll
   contínuo sem travar). **Ordenação** opt-in por coluna via `DataColumn.sortFn`
   (clicar no header alterna asc/desc; ícone seta) — convive com o arrastar (clique
-  ordena, arraste reordena). Reordenar normaliza a `columnOrder` salva (descarta ids
+  ordena, arraste reordena). **Filtro de presença** opt-in via `DataColumn.filterPresenca`
+  (funil no header, aparece no hover/ativo: cicla Todos → Com valor → Vazio; usa o
+  valor do `sortFn`) — no `/hotmart` nas colunas Grupo/Vendedor/src/sck/xcode/Afiliado,
+  pra "trazer só as vendas onde a coluna tem valor". Reordenar normaliza a `columnOrder` salva (descarta ids
   de colunas que não existem mais — ex.: `canal`→`vendedor`).

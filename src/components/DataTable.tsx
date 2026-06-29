@@ -1,18 +1,28 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type MouseEvent as ReactMouseEvent } from 'react'
-import { SlidersHorizontal, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { SlidersHorizontal, ChevronUp, ChevronDown, ChevronsUpDown, Filter } from 'lucide-react'
 import {
   useReactTable,
   getCoreRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  getFilteredRowModel,
   flexRender,
   type ColumnDef,
   type Header,
   type Table as TanTable,
   type RowSelectionState,
   type SortingState,
+  type ColumnFiltersState,
+  type FilterFn,
   type OnChangeFn,
 } from '@tanstack/react-table'
+
+// filtro "presença": 'has' = coluna com valor; 'empty' = vazia/—
+const presenceFilter: FilterFn<unknown> = (row, columnId, value) => {
+  const v = row.getValue(columnId)
+  const tem = v != null && String(v).trim() !== ''
+  return value === 'empty' ? !tem : tem
+}
 import {
   DndContext,
   closestCenter,
@@ -59,6 +69,7 @@ export interface DataColumn<T> {
   enableHiding?: boolean // default true
   grow?: boolean // no modo fit, esta coluna encolhe/trunca (texto). default: heurística (esquerda & larga)
   sortFn?: (row: T) => string | number | null | undefined // valor p/ ordenar (clicar no header). Sem isso, a coluna não ordena.
+  filterPresenca?: boolean // funil no header: filtra Todos / Com valor / Vazio. Usa o valor do sortFn.
 }
 
 interface DataTableProps<T> {
@@ -96,7 +107,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
     () =>
       columns.map((c) => ({
         id: c.id,
-        accessorFn: c.sortFn ? (row) => c.sortFn!(row) ?? '' : undefined,
+        ...(c.sortFn ? { accessorFn: (row: T) => c.sortFn!(row) ?? '' } : {}),
         header: () => c.header,
         cell: (ctx) => c.cell(ctx.row.original),
         size: c.size ?? 150,
@@ -105,17 +116,21 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
         enableHiding: c.enableHiding !== false,
         enableSorting: !!c.sortFn,
         sortUndefined: 'last',
+        enableColumnFilter: !!c.filterPresenca,
+        ...(c.filterPresenca ? { filterFn: presenceFilter as FilterFn<T> } : {}),
       })),
     [columns]
   )
 
   const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
   const table = useReactTable({
     data,
     columns: columnDefs,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     ...(pageSize ? { getPaginationRowModel: getPaginationRowModel() } : {}),
     initialState: pageSize ? { pagination: { pageIndex: 0, pageSize } } : undefined,
     getRowId,
@@ -125,8 +140,10 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
       columnVisibility: prefs.columnVisibility,
       rowSelection: rowSelection ?? {},
       sorting,
+      columnFilters,
     },
     onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
     onColumnOrderChange: prefs.onColumnOrderChange,
     onColumnSizingChange: prefs.onColumnSizingChange,
     onColumnVisibilityChange: prefs.onColumnVisibilityChange,
@@ -335,6 +352,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
                           header={header}
                           align={colMap.get(header.column.id)?.align}
                           podeReordenar={colMap.get(header.column.id)?.enableReorder !== false}
+                          podeFiltrar={!!colMap.get(header.column.id)?.filterPresenca}
                           largura={wcss(larguraPx(header.column))}
                           padX={padX}
                           truncar={!!truncCol(header.column.id, header.column.getSize())}
@@ -453,7 +471,7 @@ function IndeterminateCheckbox({ checked, indeterminate, onChange, disabled, onC
   )
 }
 
-function CabecalhoCelula<T>({ header, align, podeReordenar, largura, padX, truncar }: { header: Header<T, unknown>; align?: string; podeReordenar: boolean; largura: string; padX: string; truncar: boolean }) {
+function CabecalhoCelula<T>({ header, align, podeReordenar, podeFiltrar, largura, padX, truncar }: { header: Header<T, unknown>; align?: string; podeReordenar: boolean; podeFiltrar: boolean; largura: string; padX: string; truncar: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: header.column.id,
     disabled: !podeReordenar,
@@ -470,8 +488,14 @@ function CabecalhoCelula<T>({ header, align, podeReordenar, largura, padX, trunc
   const ordenado = header.column.getIsSorted() // 'asc' | 'desc' | false
   // clique ordena; arraste (>6px, via dnd-kit) reordena — não conflitam
   const cursor = podeReordenar ? 'cursor-grab active:cursor-grabbing' : podeOrdenar ? 'cursor-pointer' : ''
+  // filtro de presença: cicla undefined → 'has' (com valor) → 'empty' (vazio) → undefined
+  const filtro = header.column.getFilterValue() as 'has' | 'empty' | undefined
+  const ciclarFiltro = (e: ReactMouseEvent) => {
+    e.stopPropagation()
+    header.column.setFilterValue(filtro === undefined ? 'has' : filtro === 'has' ? 'empty' : undefined)
+  }
   return (
-    <th ref={setNodeRef} style={style} className={`relative bg-surface ${padX} h-10 text-xs font-medium uppercase tracking-wide text-fg-subtle select-none`}>
+    <th ref={setNodeRef} style={style} className={`group relative bg-surface ${padX} h-10 text-xs font-medium uppercase tracking-wide text-fg-subtle select-none`}>
       <div
         className={`flex items-center gap-1 ${just} ${alignClasse(align)} ${cursor} ${truncar ? 'min-w-0' : ''}`}
         onClick={podeOrdenar ? header.column.getToggleSortingHandler() : undefined}
@@ -484,6 +508,16 @@ function CabecalhoCelula<T>({ header, align, podeReordenar, largura, padX, trunc
             : ordenado === 'desc'
               ? <ChevronDown size={13} className="shrink-0 text-brand" />
               : <ChevronsUpDown size={13} className="shrink-0 text-fg-subtle/40" />
+        )}
+        {podeFiltrar && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={ciclarFiltro}
+            title={filtro === 'has' ? 'Mostrando só COM valor — clique p/ só vazios' : filtro === 'empty' ? 'Mostrando só VAZIOS — clique p/ limpar' : 'Filtrar: só com valor'}
+            className={`shrink-0 transition ${filtro ? 'opacity-100 text-brand' : 'opacity-0 group-hover:opacity-100 text-fg-subtle hover:text-fg'}`}
+          >
+            <Filter size={12} className={filtro === 'empty' ? 'rotate-180' : ''} />
+          </button>
         )}
       </div>
       {header.column.getCanResize() && (
