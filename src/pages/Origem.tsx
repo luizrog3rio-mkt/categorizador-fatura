@@ -14,6 +14,7 @@ interface Grupo { id: string; nome: string }
 interface Canal { id: string; nome: string; group_id: string }
 interface SellerLite { id: string; name: string }
 interface GrupoTotal { grupo: string; vendas: number; liquido: number }
+type Filtro = 'a_classificar' | 'classificadas' | 'todas'
 
 const NOVO = '__novo__'
 const selCls = 'w-full rounded-control border border-border bg-surface px-2 py-1 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-40'
@@ -24,6 +25,7 @@ export default function Origem() {
   const [sellers, setSellers] = useState<SellerLite[]>([])
   const [vendas, setVendas] = useState<HotmartSale[]>([])
   const [totais, setTotais] = useState<GrupoTotal[]>([])
+  const [filtro, setFiltro] = useState<Filtro>('a_classificar')
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [modalCriar, setModalCriar] = useState<{ tipo: 'grupo' | 'canal'; venda: HotmartSale } | null>(null)
@@ -37,11 +39,14 @@ export default function Origem() {
 
   const carregar = useCallback(async () => {
     setErro(null)
+    let vendasQ = supabase.from('hotmart_sales_origin').select('*').order('sale_date', { ascending: false }).limit(300)
+    if (filtro === 'a_classificar') vendasQ = vendasQ.eq('origem', 'a_classificar')
+    else if (filtro === 'classificadas') vendasQ = vendasQ.neq('origem', 'a_classificar')
     const [r1, r2, r3, r4, r5] = await Promise.all([
       supabase.from('origin_groups').select('id,nome').order('nome'),
       supabase.from('origin_channels').select('id,nome,group_id').order('nome'),
       supabase.from('sellers').select('id,name').eq('active', true).order('name'),
-      supabase.from('hotmart_sales_origin').select('*').order('sale_date', { ascending: false }).limit(300),
+      vendasQ,
       supabase.rpc('hotmart_by_group', { p_company: null, p_start: null, p_end: null }),
     ])
     if (r1.error) setErro('Erro ao carregar grupos: ' + r1.error.message); else setGrupos((r1.data as Grupo[]) ?? [])
@@ -50,7 +55,7 @@ export default function Origem() {
     if (r4.error) setErro('Erro ao carregar vendas: ' + r4.error.message); else setVendas((r4.data as HotmartSale[]) ?? [])
     if (!r5.error) setTotais(((r5.data as GrupoTotal[]) ?? []).map((g) => ({ grupo: g.grupo, vendas: Number(g.vendas), liquido: Number(g.liquido) })))
     setCarregando(false)
-  }, [])
+  }, [filtro])
 
   useEffect(() => { carregar() }, [carregar])
   useRealtimeRefetch('hotmart_sales', carregar)
@@ -124,9 +129,26 @@ export default function Origem() {
       )}
 
       <Card>
-        <div className="px-5 pt-5 pb-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-fg">Vendas</h2>
-          <p className="text-xs text-fg-subtle mt-0.5">300 vendas mais recentes. Marque Grupo › Canal › Vendedor em cada linha.</p>
+        <div className="px-5 pt-5 pb-3 border-b border-border flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-fg">Vendas</h2>
+            <p className="text-xs text-fg-subtle mt-0.5">
+              {filtro === 'a_classificar' && 'Até 300 sem classificação. Marque Grupo › Canal › Vendedor em cada linha.'}
+              {filtro === 'classificadas' && 'Até 300 já classificadas.'}
+              {filtro === 'todas' && 'Até 300 mais recentes.'}
+            </p>
+          </div>
+          <div className="flex gap-1 shrink-0">
+            {(['a_classificar', 'classificadas', 'todas'] as Filtro[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFiltro(f)}
+                className={`px-3 py-1 rounded-control text-xs font-medium transition ${filtro === f ? 'bg-brand text-white' : 'bg-surface-2 text-fg-muted hover:bg-border'}`}
+              >
+                {f === 'a_classificar' ? 'A classificar' : f === 'classificadas' ? 'Classificadas' : 'Todas'}
+              </button>
+            ))}
+          </div>
         </div>
         {carregando ? (
           <Vazio mensagem="Carregando…" />
