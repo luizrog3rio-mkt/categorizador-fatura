@@ -11,11 +11,13 @@ interface Grupo { id: string; nome: string }
 interface Canal { id: string; nome: string; group_id: string }
 interface SellerLite { id: string; name: string }
 interface GrupoTotal { grupo: string; vendas: number; liquido: number }
-interface Regra { id: string; src_value: string | null; sck_value: string | null; xcode_value: string | null; afiliado_value: string | null; group_id: string | null; channel_id: string | null; seller_id: string | null }
-interface NovaRegra { src_value: string; sck_value: string; xcode_value: string; afiliado_value: string; group_id: string; channel_id: string; seller_id: string }
+type MatchType = 'exact' | 'contains' | 'starts_with'
+interface Regra { id: string; src_value: string | null; src_match: MatchType; sck_value: string | null; sck_match: MatchType; xcode_value: string | null; xcode_match: MatchType; afiliado_value: string | null; afiliado_match: MatchType; group_id: string | null; channel_id: string | null; seller_id: string | null }
+interface NovaRegra { src_value: string; src_match: MatchType; sck_value: string; sck_match: MatchType; xcode_value: string; xcode_match: MatchType; afiliado_value: string; afiliado_match: MatchType; group_id: string; channel_id: string; seller_id: string }
 type Filtro = 'a_classificar' | 'classificadas' | 'todas'
 
-const REGRA_VAZIA: NovaRegra = { src_value: '', sck_value: '', xcode_value: '', afiliado_value: '', group_id: '', channel_id: '', seller_id: '' }
+const MATCH_LABELS: Record<MatchType, string> = { exact: '=', contains: 'contém', starts_with: 'começa com' }
+const REGRA_VAZIA: NovaRegra = { src_value: '', src_match: 'exact', sck_value: '', sck_match: 'exact', xcode_value: '', xcode_match: 'exact', afiliado_value: '', afiliado_match: 'exact', group_id: '', channel_id: '', seller_id: '' }
 
 export default function Origem() {
   const [grupos, setGrupos] = useState<Grupo[]>([])
@@ -71,7 +73,7 @@ export default function Origem() {
   }, [])
 
   const editarRegra = useCallback((r: Regra) => {
-    setNovaRegra({ src_value: r.src_value ?? '', sck_value: r.sck_value ?? '', xcode_value: r.xcode_value ?? '', afiliado_value: r.afiliado_value ?? '', group_id: r.group_id ?? '', channel_id: r.channel_id ?? '', seller_id: r.seller_id ?? '' })
+    setNovaRegra({ src_value: r.src_value ?? '', src_match: r.src_match, sck_value: r.sck_value ?? '', sck_match: r.sck_match, xcode_value: r.xcode_value ?? '', xcode_match: r.xcode_match, afiliado_value: r.afiliado_value ?? '', afiliado_match: r.afiliado_match, group_id: r.group_id ?? '', channel_id: r.channel_id ?? '', seller_id: r.seller_id ?? '' })
     setModalRegra({ modo: 'editar', id: r.id })
   }, [])
 
@@ -80,7 +82,7 @@ export default function Origem() {
   const salvarRegra = useCallback(async () => {
     if (!regraValida(novaRegra) || !modalRegra) return
     setSalvando(true)
-    const payload = { src_value: novaRegra.src_value.trim() || null, sck_value: novaRegra.sck_value.trim() || null, xcode_value: novaRegra.xcode_value.trim() || null, afiliado_value: novaRegra.afiliado_value.trim() || null, group_id: novaRegra.group_id || null, channel_id: novaRegra.channel_id || null, seller_id: novaRegra.seller_id || null }
+    const payload = { src_value: novaRegra.src_value.trim() || null, src_match: novaRegra.src_match, sck_value: novaRegra.sck_value.trim() || null, sck_match: novaRegra.sck_match, xcode_value: novaRegra.xcode_value.trim() || null, xcode_match: novaRegra.xcode_match, afiliado_value: novaRegra.afiliado_value.trim() || null, afiliado_match: novaRegra.afiliado_match, group_id: novaRegra.group_id || null, channel_id: novaRegra.channel_id || null, seller_id: novaRegra.seller_id || null }
     if (modalRegra.modo === 'criar') {
       const { data, error } = await supabase.from('origin_tracking_rules').insert(payload).select('*').single()
       if (error) { setErro('Erro ao salvar regra: ' + error.message); setSalvando(false); return }
@@ -170,10 +172,10 @@ export default function Origem() {
               <tbody>
                 {regras.map((r) => {
                   const conds = [
-                    r.src_value      && `src=${r.src_value}`,
-                    r.sck_value      && `sck=${r.sck_value}`,
-                    r.xcode_value    && `xcode=${r.xcode_value}`,
-                    r.afiliado_value && `afiliado=${r.afiliado_value}`,
+                    r.src_value      && `src ${MATCH_LABELS[r.src_match]} ${r.src_value}`,
+                    r.sck_value      && `sck ${MATCH_LABELS[r.sck_match]} ${r.sck_value}`,
+                    r.xcode_value    && `xcode ${MATCH_LABELS[r.xcode_match]} ${r.xcode_value}`,
+                    r.afiliado_value && `afiliado ${MATCH_LABELS[r.afiliado_match]} ${r.afiliado_value}`,
                   ].filter(Boolean)
                   return (
                   <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-2">
@@ -282,23 +284,28 @@ export default function Origem() {
           <div className="space-y-4">
             <div>
               <p className="text-xs text-fg-muted mb-2">Preencha ao menos um campo. A regra casa com vendas onde <strong>todos</strong> os campos preenchidos coincidem.</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-fg-muted mb-1">SRC</label>
-                  <input autoFocus className={inputCls} placeholder="ex: comercial_luiz-otavio" value={novaRegra.src_value} onChange={(e) => setNovaRegra((p) => ({ ...p, src_value: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="block text-xs text-fg-muted mb-1">SCK</label>
-                  <input className={inputCls} placeholder="ex: raphaella_silva" value={novaRegra.sck_value} onChange={(e) => setNovaRegra((p) => ({ ...p, sck_value: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="block text-xs text-fg-muted mb-1">XCODE</label>
-                  <input className={inputCls} placeholder="ex: AF2024" value={novaRegra.xcode_value} onChange={(e) => setNovaRegra((p) => ({ ...p, xcode_value: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="block text-xs text-fg-muted mb-1">Afiliado</label>
-                  <input className={inputCls} placeholder="ex: Raphaela Silva" value={novaRegra.afiliado_value} onChange={(e) => setNovaRegra((p) => ({ ...p, afiliado_value: e.target.value }))} />
-                </div>
+              <div className="space-y-2">
+                {([['SRC', 'src_value', 'src_match', 'ex: FB'], ['SCK', 'sck_value', 'sck_match', 'ex: raphaella_silva'], ['XCODE', 'xcode_value', 'xcode_match', 'ex: AF2024'], ['Afiliado', 'afiliado_value', 'afiliado_match', 'ex: Raphaela Silva']] as const).map(([label, valKey, matchKey, ph]) => (
+                  <div key={valKey} className="flex items-center gap-2">
+                    <span className="w-14 shrink-0 text-xs text-fg-muted font-mono">{label}</span>
+                    <select
+                      className="shrink-0 rounded-control border border-border bg-surface px-2 py-1 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-brand"
+                      value={novaRegra[matchKey]}
+                      onChange={(e) => setNovaRegra((p) => ({ ...p, [matchKey]: e.target.value as MatchType }))}
+                    >
+                      <option value="exact">= exato</option>
+                      <option value="contains">contém</option>
+                      <option value="starts_with">começa com</option>
+                    </select>
+                    <input
+                      autoFocus={valKey === 'src_value'}
+                      className={inputCls + ' flex-1'}
+                      placeholder={ph}
+                      value={novaRegra[valKey]}
+                      onChange={(e) => setNovaRegra((p) => ({ ...p, [valKey]: e.target.value }))}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
             <div>
