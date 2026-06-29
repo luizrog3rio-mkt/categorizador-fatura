@@ -3,6 +3,7 @@ import { SlidersHorizontal } from 'lucide-react'
 import {
   useReactTable,
   getCoreRowModel,
+  getPaginationRowModel,
   flexRender,
   type ColumnDef,
   type Header,
@@ -67,6 +68,9 @@ interface DataTableProps<T> {
   enableSelection?: boolean
   rowSelection?: RowSelectionState
   onRowSelectionChange?: OnChangeFn<RowSelectionState>
+  // paginação client-side (opt-in): quando definido, renderiza só `pageSize` linhas
+  // por vez + controles de navegação. Evita travar com milhares de linhas no DOM.
+  pageSize?: number
 }
 
 const SEL_W = 52 // largura da coluna de checkbox (centralizado)
@@ -75,7 +79,7 @@ const FLEX_MIN = 64 // largura mínima de uma coluna de texto no modo fit
 const alignClasse = (a?: string) =>
   a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left'
 
-export default function DataTable<T>({ columns, data, tableKey, getRowId, empty, enableSelection, rowSelection, onRowSelectionChange }: DataTableProps<T>) {
+export default function DataTable<T>({ columns, data, tableKey, getRowId, empty, enableSelection, rowSelection, onRowSelectionChange, pageSize }: DataTableProps<T>) {
   const prefs = useColumnPrefs(tableKey)
   const colMap = useMemo(() => new Map(columns.map((c) => [c.id, c])), [columns])
 
@@ -97,6 +101,8 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
     data,
     columns: columnDefs,
     getCoreRowModel: getCoreRowModel(),
+    ...(pageSize ? { getPaginationRowModel: getPaginationRowModel() } : {}),
+    initialState: pageSize ? { pagination: { pageIndex: 0, pageSize } } : undefined,
     getRowId,
     state: {
       columnOrder: prefs.columnOrder,
@@ -334,6 +340,31 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
           <div className="pointer-events-none absolute top-px bottom-px right-px w-12 rounded-r-card bg-gradient-to-l from-fg/[0.07] to-transparent" />
         )}
       </div>
+      {pageSize && data.length > pageSize && (
+        <div className="flex items-center justify-between gap-4 mt-3 text-xs text-fg-muted">
+          <span className="tnum">
+            {table.getState().pagination.pageIndex * pageSize + 1}–
+            {Math.min((table.getState().pagination.pageIndex + 1) * pageSize, data.length)} de {data.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="rounded-control border border-border px-2.5 py-1 font-medium hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Anterior
+            </button>
+            <span className="tnum">Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}</span>
+            <button
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="rounded-control border border-border px-2.5 py-1 font-medium hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

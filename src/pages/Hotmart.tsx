@@ -344,10 +344,11 @@ export default function Hotmart() {
               columns={colunas}
               data={vendas}
               getRowId={(v) => v.id}
+              pageSize={50}
             />
             {totais.qtd > vendas.length && filtroOrigem === 'todas' && !buscaDebounced.trim() && (
               <p className="text-xs text-fg-subtle text-center py-3 border-t border-border">
-                Mostrando as {vendas.length} vendas mais recentes. Os totais acima consideram todas as {totais.qtd} aprovadas do período. Use o filtro de período para ver outros intervalos.
+                Carregadas as {vendas.length} vendas mais recentes (de {totais.qtd} aprovadas no período). Os totais acima consideram todas. Refine pela busca ou pelo período.
               </p>
             )}
           </>
