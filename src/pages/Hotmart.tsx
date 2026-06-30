@@ -77,10 +77,20 @@ export default function Hotmart() {
   const [busca, setBusca] = useState('')
   const [buscaDebounced, setBuscaDebounced] = useState('')
   const [carregandoVendas, setCarregandoVendas] = useState(false)
+  const [saudeAlertas, setSaudeAlertas] = useState<{ sinal: string; detalhe: string }[]>([])
 
   useEffect(() => {
     if (empresas.length && !empresaDestino) setEmpresaDestino(empresaAtiva?.id ?? empresas[0].id)
   }, [empresas, empresaAtiva, empresaDestino])
+
+  // saúde dos crons (observabilidade): avisa só quando um cron estagnou (o dado que ele
+  // produz parou de avançar) — o pg_cron diz "succeeded" mesmo se a edge function falhar.
+  useEffect(() => {
+    supabase.rpc('hotmart_cron_health').then(({ data }) => {
+      setSaudeAlertas(((data ?? []) as { sinal: string; detalhe: string; estagnado: boolean }[])
+        .filter((r) => r.estagnado).map((r) => ({ sinal: r.sinal, detalhe: r.detalhe })))
+    })
+  }, [])
 
   useEffect(() => {
     const t = setTimeout(() => setBuscaDebounced(busca), 400)
@@ -268,6 +278,18 @@ export default function Hotmart() {
       />
 
       <ErroBanner mensagem={erro} />
+
+      {saudeAlertas.length > 0 && (
+        <div className="mb-4">
+          <Alert tom="warning" titulo="Atenção: um cron pode ter parado">
+            <ul className="list-disc pl-4 space-y-0.5 mt-1">
+              {saudeAlertas.map((a) => (
+                <li key={a.sinal}><span className="font-medium">{a.sinal}</span> — {a.detalhe}</li>
+              ))}
+            </ul>
+          </Alert>
+        </div>
+      )}
 
       <Card className="p-5 mb-6">
         <div className="flex flex-wrap items-end gap-4">
