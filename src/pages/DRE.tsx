@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL } from '../lib/format'
 import { exportTabelaCSV, exportTabelaXLSX } from '../lib/exportTabela'
-import { Card, PageHeader, ErroBanner, Vazio, KPICard, KPIStrip, Button, inputCls } from '../components/ui'
+import { Card, PageHeader, ErroBanner, Vazio, KPICard, KPIStrip, Button, Alert, inputCls } from '../components/ui'
 
 // DRE gerencial por margem de contribuição — consome a RPC dre_by_competency
 // que devolve linhas do plano de contas com valores por mês (m1…m12).
@@ -58,6 +58,8 @@ export default function DRE() {
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
+  // lançamentos sem Plano de Contas — somem da DRE (o JOIN os engole). Mostramos um alerta.
+  const [naoClass, setNaoClass] = useState<{ qtd: number; valor: number } | null>(null)
 
   const carregar = useCallback(async () => {
     if (!empresaAtiva?.id) return
@@ -74,6 +76,17 @@ export default function DRE() {
       return
     }
     setDados((data as DreRow[] | null) ?? [])
+
+    // lançamentos da empresa SEM conta do plano (invisíveis na DRE) — count exato + soma
+    // (sob 1000 no caso real; acima disso o valor subconta, mas o alerta ja cumpre o aviso)
+    const { data: nc, count } = await supabase
+      .from('entries')
+      .select('amount', { count: 'exact' })
+      .eq('company_id', empresaAtiva.id)
+      .is('chart_of_account_id', null)
+      .not('status', 'in', '(cancelled,refunded)')
+    const valor = (nc ?? []).reduce((s, r) => s + Number((r as { amount: number }).amount), 0)
+    setNaoClass(count && count > 0 ? { qtd: count, valor } : null)
   }, [empresaAtiva, ano])
 
   useEffect(() => { carregar() }, [carregar])
@@ -261,6 +274,18 @@ export default function DRE() {
             <KPICard label="EBITDA" valor={fmtBRL(calc.ebitda.total)} tom={calc.ebitda.total >= 0 ? 'revenue' : 'expense'} />
             <KPICard label="Lucro Líquido" valor={fmtBRL(calc.lucroLiq.total)} tom={calc.lucroLiq.total >= 0 ? 'revenue' : 'expense'} />
           </KPIStrip>
+        </div>
+      )}
+
+      {/* Alerta: lançamentos sem Plano de Contas somem da DRE (o JOIN os engole em silêncio) */}
+      {!carregando && naoClass && (
+        <div className="mb-4">
+          <Alert tom="warning" titulo="Lançamentos fora desta DRE">
+            <strong className="tnum">{naoClass.qtd}</strong> lançamento(s) desta empresa, somando{' '}
+            <strong className="tnum">{fmtBRL(naoClass.valor)}</strong>, estão <strong>sem Plano de Contas</strong> e
+            não entram na DRE. Classifique-os em Contas a Pagar/Receber (campo "Conta do Plano de Contas") para
+            aparecerem aqui.
+          </Alert>
         </div>
       )}
 

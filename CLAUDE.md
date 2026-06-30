@@ -59,6 +59,19 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   fatura→conta, sinal pelo `kind`. Anti-dupla-contagem: a DRE exclui entries de
   fatura agregada (`invoice_account_id`). NÃO entra na `dre_by_product` (cartão
   sem produto) nem na conciliação de caixa.
+- **DRE por competência inclui Hotmart (auditoria 2026-06-30, migration
+  `dre_competencia_inclui_hotmart` `20260630110613`):** a `dre_by_competency` (tela DRE
+  principal) mostrava Receita Bruta R$0 pra todo o grupo — lia só `entries`+cartão e a
+  receita do grupo é 100% Hotmart (prejuízo fabricado de milhões). Fix: 3 linhas sintéticas
+  de Hotmart por mês (bruto→receita, taxa→dedução, comissões→custo variável), filtro
+  empresa+BRL+aprovado; sem dupla contagem (Hotmart não está em entries). **Hotmart agora
+  entra nas DUAS DREs** (revoga a regra antiga "só na produto"); a competência ainda tem
+  cartão a mais. ⚠️ **`entries`/`transactions` SEM `chart_of_account_id` somem da DRE** (o
+  JOIN os engole); a tela DRE mostra um Alert "N lançamentos (R$X) sem Plano de Contas" pra
+  não enganar. Achados ABERTOS da auditoria (não corrigidos): despesa subconta ~85% por esses
+  órfãos; `competency_date` nulo derruba lançamento; as 4 superfícies de resultado (Dashboard/
+  DRE-comp/DRE-prod/Conciliação) usam réguas diferentes; vários itens de segurança (hotmart-sync
+  só valida regex de Bearer; `profiles.role` default 'admin' + auto-editável).
 - **DRE por produto — atribuição (migration `dre_product_link_chart_account`
   `20260630012653`):** o produto de cada linha vem de 3 fontes — Hotmart pelo mapa
   SKU→produto (`hotmart_product_map`, tela "Mapear produtos"); lançamentos manuais
