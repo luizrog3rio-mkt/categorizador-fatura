@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { fmtBRL } from '../lib/format'
 import type { DreProduct } from '../lib/types'
 import { Card, PageHeader, ErroBanner, KPICard, KPIStrip, inputCls } from '../components/ui'
+import { useToast } from '../components/Toast'
 
 // De-para SKU cru do Hotmart → produto da DRE. Alimenta a "DRE por produto":
 // receita por produto = soma do Hotmart de cada SKU mapeado. SKU "A classificar"
@@ -18,6 +19,7 @@ interface ResumoSku {
 }
 
 export default function ProdutosHotmart() {
+  const toast = useToast()
   const [lista, setLista] = useState<ResumoSku[]>([])
   const [produtos, setProdutos] = useState<DreProduct[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -45,6 +47,7 @@ export default function ProdutosHotmart() {
       .from('hotmart_product_map')
       .upsert({ product: sku, dre_product_id: dreProductId, updated_at: new Date().toISOString() }, { onConflict: 'product' })
     if (error) { setErro('Erro ao salvar o mapeamento: ' + error.message); carregar() }
+    else toast(dreProductId ? 'Produto mapeado' : 'Mapeamento removido')
   }
 
   const resumo = useMemo(() => {

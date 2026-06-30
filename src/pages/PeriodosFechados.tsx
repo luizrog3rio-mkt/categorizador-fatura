@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { Card, PageHeader, ErroBanner, Modal, Badge, Alert, btnPrimario, btnSecundario } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { fmtData } from '../lib/format'
 
 interface ClosedPeriod {
@@ -36,6 +37,7 @@ function mesAtual(): string {
 
 export default function PeriodosFechados() {
   const { isAdmin, empresaAtiva, session } = useApp()
+  const toast = useToast()
   const [periodos] = useState<string[]>(gerarUltimos24Meses)
   const [fechados, setFechados] = useState<ClosedPeriod[]>([])
   const [emails, setEmails] = useState<Record<string, string>>({})
@@ -96,6 +98,7 @@ export default function PeriodosFechados() {
       setErro(error.message)
     } else {
       setModalFechar(null)
+      toast(`${labelPeriodo(period)} fechado`)
       await carregar()
     }
   }
@@ -108,7 +111,9 @@ export default function PeriodosFechados() {
     if (error) {
       setErro(error.message)
     } else {
+      const lbl = labelPeriodo(cp.period)
       setModalReabrir(null)
+      toast(`${lbl} reaberto`, 'info')
       await carregar()
     }
   }

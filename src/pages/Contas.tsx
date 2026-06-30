@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, primeiroDiaMes, ultimoDiaMes } from '../lib/format'
 import type { Account, AccountType, AccountBalance, AccountLedgerRow } from '../lib/types'
-import { Card, PageHeader, Modal, Vazio, ErroBanner, Badge, inputCls, btnPrimario, type BadgeTom } from '../components/ui'
+import { Card, PageHeader, Modal, Vazio, ErroBanner, Badge, Button, inputCls, btnPrimario, type BadgeTom } from '../components/ui'
+import { useToast } from '../components/Toast'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
 interface ContaComSaldo extends Account {
@@ -34,8 +35,10 @@ const rotulos: Record<AccountType, string> = {
 
 export default function Contas() {
   const { empresas, empresaAtiva, isAdmin } = useApp()
+  const toast = useToast()
   const [contas, setContas] = useState<ContaComSaldo[]>([])
   const [carregando, setCarregando] = useState(true)
+  const [salvando, setSalvando] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroAtivo, setFiltroAtivo] = useState('')
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
@@ -77,6 +80,8 @@ export default function Contas() {
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault()
+    if (salvando) return
+    setSalvando(true)
     setErro(null)
     const payload = {
       company_id: form.company_id,
@@ -91,8 +96,10 @@ export default function Contas() {
     const { error } = form.id
       ? await supabase.from('accounts').update(payload).eq('id', form.id)
       : await supabase.from('accounts').insert(payload)
+    setSalvando(false)
     if (error) { setErro('Erro ao salvar conta: ' + error.message); return }
     setModalAberto(false)
+    toast(form.id ? 'Conta atualizada' : 'Conta criada')
     carregar()
   }
 
@@ -304,7 +311,7 @@ export default function Contas() {
             <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
             Ativa
           </label>
-          <button type="submit" className={btnPrimario + ' w-full justify-center'}>Salvar</button>
+          <Button type="submit" variante="primary" loading={salvando} className="w-full">Salvar</Button>
         </form>
       </Modal>
 
