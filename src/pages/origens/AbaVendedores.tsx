@@ -49,6 +49,11 @@ export default function AbaVendedores() {
     return m
   }, [sellers])
 
+  const totais = useMemo(() => relatorio.reduce(
+    (a, v) => ({ vendas: a.vendas + v.vendas, bruto: a.bruto + v.bruto, comissao: a.comissao + v.comissao_afiliado, liquido: a.liquido + v.liquido }),
+    { vendas: 0, bruto: 0, comissao: 0, liquido: 0 },
+  ), [relatorio])
+
   const addSeller = async () => {
     const nome = novoNome.trim()
     if (!nome) return
@@ -149,6 +154,15 @@ export default function AbaVendedores() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-border-strong font-semibold text-fg">
+                  <td className="px-4 py-2.5">Total · {relatorio.length} {relatorio.length === 1 ? 'vendedor' : 'vendedores'}</td>
+                  <td className="px-4 py-2.5 text-right">{totais.vendas}</td>
+                  <td className="px-4 py-2.5 text-right">{fmtBRL(totais.bruto)}</td>
+                  <td className="px-4 py-2.5 text-right text-warning">{totais.comissao ? fmtBRL(totais.comissao) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right text-revenue">{fmtBRL(totais.liquido)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}

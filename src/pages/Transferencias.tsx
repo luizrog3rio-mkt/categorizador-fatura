@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData } from '../lib/format'
 import type { Entry } from '../lib/types'
-import { Card, PageHeader, Vazio, ErroBanner, inputCls } from '../components/ui'
+import { Card, PageHeader, Vazio, ErroBanner, KPICard, KPIStrip, inputCls } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import DateRangePicker from '../components/DateRangePicker'
 
@@ -140,6 +140,13 @@ export default function Transferencias() {
       />
 
       <ErroBanner mensagem={erro} />
+
+      <div className="mb-4">
+        <KPIStrip cols={2}>
+          <KPICard label="Transferências" valor={visiveis.length} caption={temFiltro ? 'no filtro' : 'no total'} />
+          <KPICard label="Valor movimentado" valor={fmtBRL(totalValor)} tom="neutro" />
+        </KPIStrip>
+      </div>
 
       <Card className="p-4 mb-4">
         <div className="flex flex-wrap items-end gap-4">
