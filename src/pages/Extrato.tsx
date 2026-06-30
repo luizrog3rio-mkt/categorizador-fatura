@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Upload, Trash2 } from 'lucide-react'
+import { Upload, Trash2, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { importarExtratoOFX } from '../lib/importarExtrato'
 import { fmtBRL, fmtData } from '../lib/format'
+import { exportTabelaCSV, exportTabelaXLSX } from '../lib/exportTabela'
 import type { Account, BankTransaction } from '../lib/types'
 import { Card, PageHeader, Vazio, ErroBanner, Modal, Alert, Button, KPICard, KPIStrip, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
@@ -108,11 +109,25 @@ export default function Extrato() {
     ) },
   ], [])
 
+  const exportar = (formato: 'xlsx' | 'csv') => {
+    const header = ['Data', 'Descrição', 'Valor', 'Conciliado']
+    const linhas: (string | number)[][] = transacoes.map((t) => [fmtData(t.date), t.memo ?? '', Number(t.amount), t.entry_id ? 'Sim' : 'Não'])
+    const conta = contas.find((c) => c.id === contaSelecionada)?.name ?? 'conta'
+    if (formato === 'xlsx') exportTabelaXLSX(header, linhas, `extrato_${conta.replace(/\s+/g, '-')}`, 'Extrato').catch(console.error)
+    else exportTabelaCSV(header, linhas, `extrato_${conta.replace(/\s+/g, '-')}`)
+  }
+
   return (
     <div>
       <PageHeader
         titulo="Extratos (OFX)"
         subtitulo="Importe extratos de conta corrente — conciliação bancária, fim da digitação manual"
+        acao={transacoes.length > 0 ? (
+          <div className="flex gap-2">
+            <Button variante="secondary" onClick={() => exportar('xlsx')}><Download size={16} /> Excel</Button>
+            <Button variante="ghost" onClick={() => exportar('csv')}>CSV</Button>
+          </div>
+        ) : undefined}
       />
 
       <ErroBanner mensagem={erro} />

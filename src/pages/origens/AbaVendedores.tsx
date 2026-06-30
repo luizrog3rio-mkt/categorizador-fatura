@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Download } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { fmtBRL } from '../../lib/format'
+import { exportTabelaCSV, exportTabelaXLSX } from '../../lib/exportTabela'
 import type { Seller } from '../../lib/types'
 import { Card, ErroBanner, inputCls, Button, Vazio, Alert } from '../../components/ui'
 
@@ -53,6 +55,13 @@ export default function AbaVendedores() {
     (a, v) => ({ vendas: a.vendas + v.vendas, bruto: a.bruto + v.bruto, comissao: a.comissao + v.comissao_afiliado, liquido: a.liquido + v.liquido }),
     { vendas: 0, bruto: 0, comissao: 0, liquido: 0 },
   ), [relatorio])
+
+  const exportar = (formato: 'xlsx' | 'csv') => {
+    const header = ['Vendedor', 'Vendas', 'Bruto', 'Total pago', 'Comissão afiliado', 'Líquido']
+    const linhas: (string | number)[][] = relatorio.map((v) => [v.vendedor, v.vendas, v.bruto, v.total, v.comissao_afiliado, v.liquido])
+    if (formato === 'xlsx') exportTabelaXLSX(header, linhas, 'vendas-por-vendedor', 'Vendedores').catch(console.error)
+    else exportTabelaCSV(header, linhas, 'vendas-por-vendedor')
+  }
 
   const addSeller = async () => {
     const nome = novoNome.trim()
@@ -119,9 +128,17 @@ export default function AbaVendedores() {
 
       {/* relatório de vendas por vendedor */}
       <Card>
-        <div className="px-5 pt-5 pb-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-fg">Vendas por vendedor</h2>
-          <p className="text-xs text-fg-subtle mt-0.5">Vendas atribuídas a cada vendedor pelas regras de origem (BRL · aprovadas).</p>
+        <div className="px-5 pt-5 pb-3 border-b border-border flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-fg">Vendas por vendedor</h2>
+            <p className="text-xs text-fg-subtle mt-0.5">Vendas atribuídas a cada vendedor pelas regras de origem (BRL · aprovadas).</p>
+          </div>
+          {relatorio.length > 0 && (
+            <div className="flex gap-2 shrink-0">
+              <Button variante="secondary" onClick={() => exportar('xlsx')}><Download size={16} /> Excel</Button>
+              <Button variante="ghost" onClick={() => exportar('csv')}>CSV</Button>
+            </div>
+          )}
         </div>
         {carregando ? (
           <Vazio mensagem="Carregando…" />

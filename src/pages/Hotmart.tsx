@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Upload, RefreshCw } from 'lucide-react'
+import { Upload, RefreshCw, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { parseHotmartCSV } from '../lib/hotmart'
 import { fmtBRL, fmtData } from '../lib/format'
+import { exportTabelaCSV, exportTabelaXLSX } from '../lib/exportTabela'
 import type { HotmartSale } from '../lib/types'
 import { Card, PageHeader, Vazio, ErroBanner, KPICard, Alert, Badge, type BadgeTom, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import { Link } from 'react-router-dom'
@@ -232,11 +233,34 @@ export default function Hotmart() {
     { id: 'status', header: 'Status', size: 120, sortFn: (v) => v.status, cell: (v) => <StatusHotmart status={v.status} /> },
   ], [])
 
+  // Exporta as vendas CARREGADAS (respeita empresa/período/filtro/busca).
+  const exportar = (formato: 'xlsx' | 'csv') => {
+    const header = ['Data', 'Produto', 'Moeda', 'Grupo', 'Vendedor', 'src', 'sck', 'xcode', 'Afiliado', 'Transação', 'Valor Total', 'Bruto', 'Taxa', '% Hotmart', 'Afil./Coprod.', 'Líquido', 'Liberação', 'Pagamento', 'Parcelas', 'Status']
+    const linhas: (string | number)[][] = vendas.map((v) => [
+      fmtData(v.sale_date), v.product ?? '', v.currency ?? '', v.origem ?? '', v.vendedor ?? '',
+      v.src ?? '', v.sck ?? '', v.xcod ?? '', v.affiliate ?? '', v.transaction_code,
+      Number(v.total_amount), Number(v.gross_amount), Number(v.hotmart_fee),
+      v.fee_percentage != null ? Number(v.fee_percentage) : '',
+      Number(v.affiliate_commission ?? 0) + Number(v.coproduction_commission ?? 0),
+      Number(v.net_amount), fmtData(v.release_date), v.payment_method ?? '',
+      v.installments == null ? '' : v.installments, v.status,
+    ])
+    const nome = `hotmart_${(empresaAtiva?.name ?? 'todas').replace(/\s+/g, '-')}`
+    if (formato === 'xlsx') exportTabelaXLSX(header, linhas, nome, 'Hotmart').catch(console.error)
+    else exportTabelaCSV(header, linhas, nome)
+  }
+
   return (
     <div>
       <PageHeader
         titulo="Conciliação Hotmart"
         subtitulo="Bruto vs líquido · taxas por venda · afiliados e coprodução"
+        acao={vendas.length > 0 ? (
+          <div className="flex gap-2">
+            <button onClick={() => exportar('xlsx')} className={btnSecundario}><Download size={16} /> Excel</button>
+            <button onClick={() => exportar('csv')} className={btnSecundario}>CSV</button>
+          </div>
+        ) : undefined}
       />
 
       <ErroBanner mensagem={erro} />
