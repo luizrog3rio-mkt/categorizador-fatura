@@ -59,6 +59,17 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   fatura→conta, sinal pelo `kind`. Anti-dupla-contagem: a DRE exclui entries de
   fatura agregada (`invoice_account_id`). NÃO entra na `dre_by_product` (cartão
   sem produto) nem na conciliação de caixa.
+- **DRE por produto — atribuição (migration `dre_product_link_chart_account`
+  `20260630012653`):** o produto de cada linha vem de 3 fontes — Hotmart pelo mapa
+  SKU→produto (`hotmart_product_map`, tela "Mapear produtos"); lançamentos manuais
+  acima da margem por **`coalesce(entries.dre_product_id, chart_of_accounts.dre_product_id)`**
+  (o produto **herda da conta do plano**; o seletor por lançamento é só override);
+  abaixo da margem o produto é sempre NULL (nível empresa). A coluna nova
+  **`chart_of_accounts.dre_product_id`** (FK→`dre_products`) é o vínculo conta→produto,
+  editável no seletor "Produto DRE" do Plano de Contas. O flag legado
+  `rateio_por_produto` era **morto** (nenhuma função/UI lia) → **reaproveitado** = "tem
+  produto?" (derivado de `dre_product_id is not null` no save). Quem fica sem produto cai
+  em "(A classificar)". `dre_by_product` é `security invoker`.
 - **RLS = modelo de EQUIPE**: `using (true) with check (true)` para
   authenticated em todas as tabelas (Fase 1b/1c). Os ~11 WARNs
   `rls_policy_always_true` dos advisors são **aceitos por design**.
