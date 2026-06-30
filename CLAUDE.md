@@ -261,9 +261,22 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
     `carregarTotais` (só empresa+período) pra não piscar KPIs ao digitar. `OrigemBadge` dá **cor por
     heurística do nome do grupo** (org→verde, tráfego→âmbar, comercial→azul, resto neutro) — NÃO mapa
     fixo, porque os grupos têm nome livre. `/vendedores` = cadastro + relatório (`hotmart_seller_report`).
-  - **CANAL removido da UI** (2026-06-29): `origin_channels`/`channel_id` ainda existem no banco mas
-    **fora de toda tela** (regras e tabelas só lidam com Grupo + Vendedor). `hotmart_by_channel` segue
-    no banco mas **sem uso na UI**. Trocar grupo não mexe mais em canal.
+  - **CANAL REMOVIDO de vez** (UI em 2026-06-29, banco em 2026-06-30 pela auditoria, migration
+    `origem_remove_cluster_canal` `20260630160952`): a tabela `origin_channels`, a coluna `channel_id`
+    (em `hotmart_sale_class` e `origin_tracking_rules`), a RPC `hotmart_by_channel` e os utils mortos
+    `hotmart_canal_base`/`hotmart_origin_suggest` foram **dropados** (tudo era nulo/órfão). A view
+    `hotmart_sales_origin` e `reapply_all`/`apply_origin_rules_one`/`hotmart_by_group`/
+    `hotmart_seller_report`/`origin_unmapped_values` foram **recriadas sem canal** (origem = só o grupo).
+    Modelo final: **Grupo + Vendedor**, sem canal.
+  - **Auto-classificação de venda nova (auditoria 2026-06-30, migration `origem_auto_classifica_venda_nova`
+    `20260630144220`):** trigger `trg_hotmart_classify_new` (AFTER INSERT em `hotmart_sales`) chama
+    `apply_origin_rules_one(tx)` — classificação incremental de 1 venda com a MESMA precedência da
+    `reapply_all` (mais específica vence, empate por `created_at`, nunca clobbera `manual`). Antes não
+    havia trigger → venda nova ficava `a_classificar` até alguém mexer numa regra (relatórios
+    sub-contavam silenciosamente). Trigger defensivo (erro de classificação não bloqueia a gravação da
+    venda); casa por `src`/`sck`/`xcod` já gravados (regra só-de-afiliado ainda depende do reapply).
+    `apply_origin_rules_one` e `trg_classify_new_sale` são INTERNAS (EXECUTE revogado de todos —
+    migration `seguranca_lockdown_funcoes_origem` `20260630161801`; o trigger roda como owner).
   - **Histórico (tudo 2026-06-29):** v1 (`hotmart_origin_map`+`hotmart_sck_map`+`hotmart_affiliate_map`)
     → v2 (canais 2 níveis + de-para `origin_tracking_map` + `origin_sale_override`) → **v3**
     (classificação manual POR VENDA com 3 selects inline em `/origem`, migration
@@ -271,7 +284,8 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
     ao longo do caminho: as 3 tabelas v1, `origin_tracking_map`, `origin_sale_override`,
     `origin_channels.grupo`(enum)/`seller_id`, a tela `/origem`, e várias RPCs antigas
     (`hotmart_channels`/`scks`/`affiliates`/`by_origin`/`by_seller`/`by_person`/`origin_channels_list`/
-    `origin_tracking_unmapped`). Mantidos sem uso: utils `hotmart_canal_base`/`hotmart_origin_suggest`.
+    `origin_tracking_unmapped`). Os utils `hotmart_canal_base`/`hotmart_origin_suggest` (antes mantidos
+    sem uso) e todo o cluster CANAL foram **dropados na auditoria 2026-06-30** (ver acima).
     ⚠️ Dados de origem foram **ZERADOS** na transição v3 (os 7 `sellers` preservados) — origem começou
     **100% `a_classificar`** e vai sendo preenchida pelas regras. **Modelo ainda em alinhamento com o
     Luiz** — pode evoluir.
