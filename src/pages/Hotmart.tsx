@@ -6,7 +6,7 @@ import { parseHotmartCSV } from '../lib/hotmart'
 import { fmtBRL, fmtData } from '../lib/format'
 import { exportTabelaCSV, exportTabelaXLSX } from '../lib/exportTabela'
 import type { HotmartSale } from '../lib/types'
-import { Card, PageHeader, Vazio, ErroBanner, KPICard, Alert, Badge, type BadgeTom, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { Card, PageHeader, Vazio, ErroBanner, KPICard, Alert, Badge, type BadgeTom, btnPrimario, btnSecundario } from '../components/ui'
 import { Link } from 'react-router-dom'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import DateRangePicker from '../components/DateRangePicker'
@@ -62,9 +62,8 @@ type AfiliadoRow = { afiliado: string; qtd: number; comissao: number; bruto: num
 type GrupoRow = { grupo: string; vendas: number; bruto: number; total: number; liquido: number }
 
 export default function Hotmart() {
-  const { empresas, empresaAtiva, isAdmin } = useApp()
+  const { empresaAtiva, isAdmin } = useApp()
   const [vendas, setVendas] = useState<HotmartSale[]>([])
-  const [empresaDestino, setEmpresaDestino] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
@@ -78,10 +77,6 @@ export default function Hotmart() {
   const [buscaDebounced, setBuscaDebounced] = useState('')
   const [carregandoVendas, setCarregandoVendas] = useState(false)
   const [saudeAlertas, setSaudeAlertas] = useState<{ sinal: string; detalhe: string }[]>([])
-
-  useEffect(() => {
-    if (empresas.length && !empresaDestino) setEmpresaDestino(empresaAtiva?.id ?? empresas[0].id)
-  }, [empresas, empresaAtiva, empresaDestino])
 
   // saúde dos crons (observabilidade): avisa só quando um cron estagnou (o dado que ele
   // produz parou de avançar) — o pg_cron diz "succeeded" mesmo se a edge function falhar.
@@ -167,7 +162,7 @@ export default function Hotmart() {
   })
 
   const importar = async (file: File) => {
-    if (!empresaDestino) { setMsg('Selecione a empresa de destino.'); return }
+    if (!empresaAtiva) { setMsg('Selecione uma empresa específica no topo (não "Consolidado") para importar.'); return }
     setImportando(true)
     setMsg(null)
     setErro(null)
@@ -182,7 +177,7 @@ export default function Hotmart() {
       // dedupe no lote (última ocorrência vence): com merge, código repetido no
       // mesmo arquivo derrubaria o upsert inteiro (erro 21000 do Postgres)
       const porCodigo = new Map(parsed.map((v) => [v.transaction_code, v]))
-      const linhas = [...porCodigo.values()].map((v) => ({ ...v, company_id: empresaDestino }))
+      const linhas = [...porCodigo.values()].map((v) => ({ ...v, company_id: empresaAtiva.id }))
       const { error, data } = await supabase
         .from('hotmart_sales')
         .upsert(linhas, { onConflict: 'transaction_code' })
@@ -203,12 +198,12 @@ export default function Hotmart() {
   // Sincronização direta via API (Edge Function hotmart-sync) — sem CSV.
   // Janela de ~2 meses por clique (produto de alto volume).
   const sincronizar = async () => {
-    if (!empresaDestino) { setMsg('Selecione a empresa de destino.'); return }
+    if (!empresaAtiva) { setMsg('Selecione uma empresa específica no topo (não "Consolidado") para sincronizar.'); return }
     setSincronizando(true)
     setMsg(null)
     setErro(null)
     const { data, error } = await supabase.functions.invoke('hotmart-sync', {
-      body: { company_id: empresaDestino, months: 2 },
+      body: { company_id: empresaAtiva.id, months: 2 },
     })
     setSincronizando(false)
     if (error) { setErro('Erro na sincronização: ' + error.message); return }
@@ -293,26 +288,26 @@ export default function Hotmart() {
 
       <Card className="p-5 mb-6">
         <div className="flex flex-wrap items-end gap-4">
-          {empresas.length > 1 && (
-            <div className="min-w-48">
-              <label className="block text-sm font-medium mb-1">Empresa de destino</label>
-              <select className={inputCls} value={empresaDestino} onChange={(e) => setEmpresaDestino(e.target.value)}>
-                {empresas.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
+          {/* destino = a EMPRESA global (sem seletor duplicado). So mostra pra qual empresa grava. */}
+          <div className="min-w-48">
+            <label className="block text-sm font-medium mb-1">Sincronizar / importar para</label>
+            <div className="h-9 flex items-center px-3 rounded-control bg-surface-2 text-sm text-fg-muted truncate">
+              {empresaAtiva ? empresaAtiva.name : '— selecione uma empresa no topo —'}
             </div>
-          )}
-          <button onClick={sincronizar} disabled={sincronizando || !isAdmin} className={btnPrimario}>
+          </div>
+          <button onClick={sincronizar} disabled={sincronizando || !isAdmin || !empresaAtiva} className={btnPrimario}
+            title={!empresaAtiva ? 'Selecione uma empresa específica (não "Consolidado") no seletor EMPRESA do topo' : undefined}>
             <RefreshCw size={16} className={sincronizando ? 'animate-spin' : ''} />
             {sincronizando ? 'Sincronizando…' : 'Sincronizar com a Hotmart'}
           </button>
-          <label className={btnSecundario + ' focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-1' + (!isAdmin ? ' opacity-50 pointer-events-none' : ' cursor-pointer')} title="Importar um CSV exportado da Hotmart (alternativa à sincronização)">
+          <label className={btnSecundario + ' focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-1' + (!isAdmin || !empresaAtiva ? ' opacity-50 pointer-events-none' : ' cursor-pointer')} title={!empresaAtiva ? 'Selecione uma empresa específica no topo' : 'Importar um CSV exportado da Hotmart (alternativa à sincronização)'}>
             <Upload size={16} />
             {importando ? 'Importando…' : 'CSV'}
             <input
               type="file"
               accept=".csv,.CSV,.txt"
               className="sr-only"
-              disabled={importando}
+              disabled={importando || !empresaAtiva}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) importar(f); e.target.value = '' }}
             />
           </label>
@@ -321,6 +316,9 @@ export default function Hotmart() {
             <DateRangePicker de={dataDe} ate={dataAte} align="right" onChange={(d, a) => { setDataDe(d); setDataAte(a) }} />
           </div>
         </div>
+        {!empresaAtiva && (
+          <p className="text-xs text-warning mt-3">⚠️ Em "Consolidado", sincronizar e importar ficam desabilitados (eles gravam em UMA empresa). Selecione a empresa no seletor EMPRESA do topo.</p>
+        )}
         {msg && <div className="mt-4"><Alert tom="info">{msg}</Alert></div>}
       </Card>
 
