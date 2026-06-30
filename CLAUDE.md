@@ -185,7 +185,13 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   de data OMITE estornos (por isso o cron de refresh por transação). A allowlist
   de receita (regex PT+EN) vive em `hotmart_totals` e em `lib/hotmart.ts`.
 - Upsert MERGE por `transaction_code` (reimport/sync atualiza status —
-  reembolso/chargeback refletem).
+  reembolso/chargeback refletem). ⚠️ **`company_id` é CONGELADO** (auditoria 2026-06-30, trigger
+  `trg_congela_company_hotmart` `20260630212201`): definido no 1º INSERT, NÃO muda por re-sync/
+  import/webhook (antes o upsert re-atribuía a empresa → 38 vendas pararam no "RAFAEL BRITO" por
+  engano, corrigidas). Há **uma só conta Hotmart** → tudo é RB7 DIGITAL (alvo do cron). A tela
+  `/hotmart` NÃO tem mais seletor "Empresa de destino": sync/import gravam na **EMPRESA global**
+  (desabilitados em "Consolidado"). Pra mover venda entre empresas na mão (raro): `set local
+  app.permite_trocar_empresa_hotmart = 'on'` antes do UPDATE (escape do trigger).
 - **Webhook 2.0 em tempo real** (no repo desde 2026-06-26; **ATIVO em produção
   desde 2026-06-26** — `HOTMART_HOTTOK` configurado, cadastrado no painel Hotmart,
   recebendo eventos reais; verificado na auditoria 2026-06-30: 305 eventos
