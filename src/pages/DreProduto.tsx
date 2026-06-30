@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL } from '../lib/format'
 import type { DreProduct } from '../lib/types'
-import { Card, PageHeader, ErroBanner, Vazio, inputCls } from '../components/ui'
+import { Card, PageHeader, ErroBanner, Vazio, KPICard, KPIStrip, inputCls } from '../components/ui'
 
 // DRE gerencial POR PRODUTO (modelo do contador, aba "DRE Gerencial"): produtos
 // nas colunas. Acima da Margem rateia por produto (receita/deduções/custos var,
@@ -156,6 +156,17 @@ export default function DreProduto() {
         <Card>
           <Vazio mensagem={!empresaAtiva?.id ? 'Selecione uma empresa para visualizar a DRE por produto.' : 'Sem dados para o período selecionado.'} />
         </Card>
+      )}
+
+      {!carregando && temDados && (
+        <div className="mb-4">
+          <KPIStrip cols={4}>
+            <KPICard label="Receita Líquida" valor={fmtBRL(view.tot.rl)} tom="revenue" />
+            <KPICard label="Margem de Contribuição" valor={fmtBRL(view.tot.mc)} tom={view.tot.mc >= 0 ? 'revenue' : 'expense'} />
+            <KPICard label="EBITDA" valor={fmtBRL(view.ebitda)} tom={view.ebitda >= 0 ? 'revenue' : 'expense'} />
+            <KPICard label="Lucro Líquido" valor={fmtBRL(view.lucro)} tom={view.lucro >= 0 ? 'revenue' : 'expense'} />
+          </KPIStrip>
+        </div>
       )}
 
       {!carregando && temDados && (

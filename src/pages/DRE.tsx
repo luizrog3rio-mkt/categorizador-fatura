@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL } from '../lib/format'
-import { Card, PageHeader, ErroBanner, Vazio, inputCls } from '../components/ui'
+import { Card, PageHeader, ErroBanner, Vazio, KPICard, KPIStrip, inputCls } from '../components/ui'
 
 // DRE gerencial por margem de contribuição — consome a RPC dre_by_competency
 // que devolve linhas do plano de contas com valores por mês (m1…m12).
@@ -222,6 +222,18 @@ export default function DRE() {
               : 'Sem dados para o período selecionado.'
           } />
         </Card>
+      )}
+
+      {/* Resumo escaneável (período selecionado) */}
+      {!carregando && temDados && (
+        <div className="mb-4">
+          <KPIStrip cols={4}>
+            <KPICard label="Receita Líquida" valor={fmtBRL(calc.receitaLiq.total)} tom="revenue" />
+            <KPICard label="Margem de Contribuição" valor={fmtBRL(calc.mc.total)} tom={calc.mc.total >= 0 ? 'revenue' : 'expense'} />
+            <KPICard label="EBITDA" valor={fmtBRL(calc.ebitda.total)} tom={calc.ebitda.total >= 0 ? 'revenue' : 'expense'} />
+            <KPICard label="Lucro Líquido" valor={fmtBRL(calc.lucroLiq.total)} tom={calc.lucroLiq.total >= 0 ? 'revenue' : 'expense'} />
+          </KPIStrip>
+        </div>
       )}
 
       {/* Tabela */}
