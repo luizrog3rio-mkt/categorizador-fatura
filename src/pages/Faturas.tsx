@@ -6,15 +6,19 @@ import { useApp } from '../contexts/AppContext'
 import { importarFaturaOFX } from '../lib/importarFatura'
 import { fmt } from '../lib/fatura'
 import { PageHeader, ErroBanner, Modal, btnPrimario, inputCls } from '../components/ui'
+import { useConfirm } from '../components/Confirm'
+import { useToast } from '../components/Toast'
 import type { Account, Invoice } from '../lib/types'
 
 // Lista de faturas — padronizada no design system do app (PageHeader + Card +
 // botões/Modal compartilhados). Comportamento preservado do port: import grava
 // account_id (cartão selecionável quando houver mais de um), erros em banner,
-// exclusão com o window.confirm de texto exato (contrato #8).
+// exclusão com confirmação de texto exato (contrato #8; agora no Modal do DS).
 export default function Faturas() {
   const { session, isAdmin } = useApp()
   const navigate = useNavigate()
+  const confirmar = useConfirm()
+  const toast = useToast()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [importando, setImportando] = useState(false)
@@ -67,12 +71,14 @@ export default function Faturas() {
     if (fileInput.current) fileInput.current.value = ''
   }
 
-  // contrato #8: confirm com este texto exato antes de excluir fatura
+  // contrato #8: confirm com este texto exato antes de excluir fatura (agora no
+  // Modal do DS, mas a mensagem é preservada palavra por palavra)
   const excluir = async (inv: Invoice) => {
-    if (!window.confirm(`Excluir a fatura "${inv.name ?? ''}" e todas as suas transações? Essa ação não tem desfazer.`)) return
+    if (!(await confirmar({ titulo: 'Excluir fatura', confirmar: 'Excluir', perigo: true, mensagem: `Excluir a fatura "${inv.name ?? ''}" e todas as suas transações? Essa ação não tem desfazer.` }))) return
     const { error } = await supabase.from('invoices').delete().eq('id', inv.id)
     if (error) { setErro('Erro ao excluir fatura: ' + error.message); return }
     setInvoices((prev) => prev.filter((i) => i.id !== inv.id))
+    toast('Fatura excluída', 'info')
   }
 
   return (

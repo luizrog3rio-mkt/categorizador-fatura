@@ -6,6 +6,7 @@ import { fmtBRL, fmtData } from '../lib/format'
 import type { Account } from '../lib/types'
 import { Card, PageHeader, ErroBanner, Vazio, Badge, KPICard, KPIStrip, Button, inputCls } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { useConfirm } from '../components/Confirm'
 
 // Conciliação bancária — casa linhas do extrato (bank_transactions) com contas a
 // pagar/receber (entries) via as RPCs reconcile_*. Inerte até importar OFX numa
@@ -22,6 +23,7 @@ interface Sugestao {
 export default function Conciliacao() {
   const { empresaAtiva, isAdmin } = useApp()
   const toast = useToast()
+  const confirmar = useConfirm()
   const [contas, setContas] = useState<Account[]>([])
   const [contaId, setContaId] = useState('')
   const [summary, setSummary] = useState<ReconSummary | null>(null)
@@ -79,7 +81,7 @@ export default function Conciliacao() {
   }
 
   const desfazer = async (bankTx: string) => {
-    if (!window.confirm('Desfazer a conciliação desta linha? O lançamento volta a "a pagar".')) return
+    if (!(await confirmar({ titulo: 'Desfazer conciliação', mensagem: 'Desfazer a conciliação desta linha? O lançamento volta a "a pagar".', confirmar: 'Desfazer', perigo: true }))) return
     const { error } = await supabase.rpc('unreconcile_entry', { p_bank_tx: bankTx, p_revert_status: true })
     if (error) { setErro('Erro ao desfazer: ' + error.message); return }
     toast('Conciliação desfeita', 'info')

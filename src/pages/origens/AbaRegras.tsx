@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { Card, ErroBanner, Vazio, Button, Alert } from '../../components/ui'
 import RegraModal from '../../components/RegraModal'
+import { useConfirm } from '../../components/Confirm'
 import { REGRA_VAZIA, regraParaForm, type NovaRegra, type MatchType, type RegraDB } from '../../lib/regra'
 
 // Aba "Regras" da página Origens (era a tela /regras). Regras de propagação em ABAS
@@ -28,6 +29,7 @@ type ModalState = { modo: 'criar'; inicial: NovaRegra } | { modo: 'editar'; id: 
 
 export default function AbaRegras() {
   const [searchParams] = useSearchParams()
+  const confirmar = useConfirm()
   const vendedorParam = searchParams.get('vendedor')
   const [grupos, setGrupos] = useState<Grupo[]>([])
   const [sellers, setSellers] = useState<SellerLite[]>([])
@@ -95,7 +97,7 @@ export default function AbaRegras() {
   const editarRegra = (r: RegraDB) => setModal({ modo: 'editar', id: r.id, inicial: regraParaForm(r) })
 
   const excluirRegra = async (id: string) => {
-    if (!window.confirm('Excluir esta regra? As vendas que só ela classificava voltam para "a classificar".')) return
+    if (!(await confirmar({ titulo: 'Excluir regra', mensagem: 'Excluir esta regra? As vendas que só ela classificava voltam para "a classificar".', confirmar: 'Excluir', perigo: true }))) return
     const { error } = await supabase.from('origin_tracking_rules').delete().eq('id', id)
     if (error) { setErro('Erro ao excluir regra: ' + error.message); return }
     // reapply_all devolve pro "a classificar" as vendas que só essa regra classificava

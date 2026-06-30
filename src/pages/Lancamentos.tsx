@@ -8,6 +8,7 @@ import type { ChartOfAccount, DreProduct } from '../lib/types'
 import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, KPICard, KPIStrip, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import { useToast } from '../components/Toast'
+import { useConfirm } from '../components/Confirm'
 import type { RowSelectionState } from '@tanstack/react-table'
 import DateRangePicker from '../components/DateRangePicker'
 
@@ -150,6 +151,7 @@ const STATUS_MAP: Record<string, EntryStatus> = {
 export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const { empresas, empresaAtiva, session, isAdmin } = useApp()
   const toast = useToast()
+  const confirmar = useConfirm()
   const [lancamentos, setLancamentos] = useState<Entry[]>([])
   const [contas, setContas] = useState<Account[]>([])
   const [filtroStatus, setFiltroStatus] = useState('')
@@ -382,14 +384,14 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     const msg = ehTransfer
       ? 'Excluir esta transferência? As duas pernas (saída e entrada) serão removidas.'
       : `Excluir "${l.description}"?`
-    if (!window.confirm(msg)) return
+    if (!(await confirmar({ titulo: ehTransfer ? 'Excluir transferência' : 'Excluir lançamento', mensagem: msg, confirmar: 'Excluir', perigo: true }))) return
     const { error } = ehTransfer
       ? await supabase.from('entries').delete().eq('transfer_id', l.transfer_id!)
       : await supabase.from('entries').delete().eq('id', l.id)
     if (error) { setErro('Erro ao excluir lançamento: ' + error.message); return }
     toast(ehTransfer ? 'Transferência excluída' : 'Lançamento excluído', 'info')
     carregar()
-  }, [carregar, toast])
+  }, [carregar, toast, confirmar])
 
   // Transferência entre contas: cria DOIS lançamentos pagos amarrados por um
   // transfer_id — saída (payable) na origem + entrada (receivable) no destino,
@@ -586,7 +588,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         (recorrentes.length
           ? `\n\n${recorrentes.length} ${recorrentes.length === 1 ? 'é recorrente e vai gerar' : 'são recorrentes e vão gerar'} o lançamento do próximo mês.`
           : '')
-      if (!window.confirm(aviso)) return
+      if (!(await confirmar({ titulo: 'Marcar como pago', mensagem: aviso }))) return
       const { error } = await supabase.from('entries').update({ status: 'paid', payment_date: hoje() }).in('id', selectedIds)
       if (error) { setErro('Erro ao marcar como pago em massa: ' + error.message); return }
       const errs = await Promise.all(
@@ -620,7 +622,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     if (selectedIds.length === 0 || !companyId) return
     const emp = empresas.find((e) => e.id === companyId)
     const n = selectedIds.length
-    if (!window.confirm(`Mover ${n} ${n === 1 ? 'lançamento' : 'lançamentos'} para a empresa "${emp?.name ?? ''}"?`)) return
+    if (!(await confirmar({ titulo: 'Mover empresa', mensagem: `Mover ${n} ${n === 1 ? 'lançamento' : 'lançamentos'} para a empresa "${emp?.name ?? ''}"?` }))) return
     const { error } = await supabase.from('entries').update({ company_id: companyId }).in('id', selectedIds)
     if (error) { setErro('Erro ao alterar a empresa em massa: ' + error.message); return }
     setRowSelection({})

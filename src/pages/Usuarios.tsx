@@ -3,6 +3,8 @@ import { Plus, Trash2, Ban, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { Card, PageHeader, Modal, Badge, Vazio, ErroBanner, inputCls, btnPrimario } from '../components/ui'
+import { useConfirm } from '../components/Confirm'
+import { useToast } from '../components/Toast'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
 interface UsuarioAdmin {
@@ -27,6 +29,8 @@ const msgErro = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export default function Usuarios() {
   const { session } = useApp()
+  const confirmar = useConfirm()
+  const toast = useToast()
   const [usuarios, setUsuarios] = useState<UsuarioAdmin[]>([])
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -57,6 +61,7 @@ export default function Usuarios() {
       await chamar('create', form)
       setModal(false)
       setForm({ email: '', password: '', role: 'viewer' })
+      toast('Usuário criado')
       carregar()
     } catch (e) {
       setErro(msgErro(e))
@@ -77,26 +82,28 @@ export default function Usuarios() {
 
   const toggleBan = useCallback(async (u: UsuarioAdmin) => {
     const acao = u.banned ? 'reativar' : 'desativar'
-    if (!window.confirm(`Quer ${acao} o acesso de ${u.email}?`)) return
+    if (!(await confirmar({ titulo: `${u.banned ? 'Reativar' : 'Desativar'} acesso`, mensagem: `Quer ${acao} o acesso de ${u.email}?`, confirmar: u.banned ? 'Reativar' : 'Desativar', perigo: !u.banned }))) return
     setErro(null)
     try {
       await chamar('set_banned', { user_id: u.id, banned: !u.banned })
       setUsuarios((prev) => prev.map((x) => (x.id === u.id ? { ...x, banned: !u.banned } : x)))
+      toast(u.banned ? 'Acesso reativado' : 'Acesso desativado', 'info')
     } catch (e) {
       setErro(msgErro(e))
     }
-  }, [])
+  }, [confirmar, toast])
 
   const excluir = useCallback(async (u: UsuarioAdmin) => {
-    if (!window.confirm(`Excluir a conta de ${u.email}?\n\nEssa ação não tem desfazer — todos os dados criados por ela permanecem no sistema.`)) return
+    if (!(await confirmar({ titulo: 'Excluir conta', confirmar: 'Excluir', perigo: true, mensagem: `Excluir a conta de ${u.email}?\n\nEssa ação não tem desfazer — todos os dados criados por ela permanecem no sistema.` }))) return
     setErro(null)
     try {
       await chamar('delete', { user_id: u.id })
       setUsuarios((prev) => prev.filter((x) => x.id !== u.id))
+      toast('Conta excluída', 'info')
     } catch (e) {
       setErro(msgErro(e))
     }
-  }, [])
+  }, [confirmar, toast])
 
   const ehEu = useCallback((id: string) => id === session?.user.id, [session])
 

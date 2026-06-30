@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import type { ChartOfAccount } from '../lib/types'
 import { Card, PageHeader, Modal, Vazio, ErroBanner, Badge, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { useConfirm } from '../components/Confirm'
+import { useToast } from '../components/Toast'
 
 // Naturezas disponíveis (espelha o CHECK do banco)
 type Nature = ChartOfAccount['nature']
@@ -69,6 +71,8 @@ const FORM_VAZIO: FormState = {
 
 export default function PlanoDeContas() {
   const { isAdmin } = useApp()
+  const confirmar = useConfirm()
+  const toast = useToast()
   const [contas, setContas] = useState<ChartRow[]>([])
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -134,6 +138,18 @@ export default function PlanoDeContas() {
       return
     }
     if (form.id) {
+      // anti-ciclo: o pai não pode ser a própria conta nem um descendente dela
+      const descendentes = new Set<string>([form.id])
+      for (let mudou = true; mudou;) {
+        mudou = false
+        for (const c of contas) {
+          if (c.parent_id && descendentes.has(c.parent_id) && !descendentes.has(c.id)) { descendentes.add(c.id); mudou = true }
+        }
+      }
+      if (payload.parent_id && descendentes.has(payload.parent_id)) {
+        setErro('Uma conta não pode ser filha de si mesma ou de uma conta abaixo dela na hierarquia.')
+        return
+      }
       const { error } = await supabase
         .from('chart_of_accounts')
         .update(payload)
@@ -146,17 +162,19 @@ export default function PlanoDeContas() {
       if (error) { setErro('Erro ao criar: ' + error.message); return }
     }
     setModal(false)
+    toast(form.id ? 'Conta atualizada' : 'Conta criada')
     carregar()
   }
 
   const desativar = async (c: ChartRow) => {
     const acao = c.active ? 'desativar' : 'reativar'
-    if (!window.confirm(`Deseja ${acao} a conta "${c.code} – ${c.name}"?`)) return
+    if (!(await confirmar({ titulo: `${c.active ? 'Desativar' : 'Reativar'} conta`, mensagem: `Deseja ${acao} a conta "${c.code} – ${c.name}"?`, confirmar: c.active ? 'Desativar' : 'Reativar', perigo: c.active }))) return
     const { error } = await supabase
       .from('chart_of_accounts')
       .update({ active: !c.active })
       .eq('id', c.id)
     if (error) { setErro(`Erro ao ${acao}: ` + error.message); return }
+    toast(c.active ? 'Conta desativada' : 'Conta reativada', 'info')
     carregar()
   }
 

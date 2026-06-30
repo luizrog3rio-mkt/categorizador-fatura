@@ -5,6 +5,8 @@ import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData } from '../lib/format'
 import type { Entry } from '../lib/types'
 import { Card, PageHeader, Vazio, ErroBanner, KPICard, KPIStrip, inputCls } from '../components/ui'
+import { useConfirm } from '../components/Confirm'
+import { useToast } from '../components/Toast'
 import DataTable, { type DataColumn } from '../components/DataTable'
 import DateRangePicker from '../components/DateRangePicker'
 
@@ -27,6 +29,8 @@ interface TransferLinha {
 
 export default function Transferencias() {
   const { empresas, empresaAtiva, isAdmin } = useApp()
+  const confirmar = useConfirm()
+  const toast = useToast()
   const [entries, setEntries] = useState<Entry[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -95,11 +99,12 @@ export default function Transferencias() {
   const totalValor = useMemo(() => visiveis.reduce((s, t) => s + t.amount, 0), [visiveis])
 
   const excluir = useCallback(async (t: TransferLinha) => {
-    if (!window.confirm('Excluir esta transferência? As duas pernas (saída e entrada) serão removidas.')) return
+    if (!(await confirmar({ titulo: 'Excluir transferência', mensagem: 'Excluir esta transferência? As duas pernas (saída e entrada) serão removidas.', confirmar: 'Excluir', perigo: true }))) return
     const { error } = await supabase.from('entries').delete().eq('transfer_id', t.transfer_id)
     if (error) { setErro('Erro ao excluir transferência: ' + error.message); return }
+    toast('Transferência excluída', 'info')
     carregar()
-  }, [carregar])
+  }, [carregar, confirmar, toast])
 
   const multiEmpresa = empresas.length > 1
 

@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import type { Company } from '../lib/types'
 import { Card, PageHeader, Modal, Vazio, ErroBanner, inputCls, btnPrimario } from '../components/ui'
+import { useConfirm } from '../components/Confirm'
+import { useToast } from '../components/Toast'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
 // Cadastro das empresas (CNPJs) do grupo. A tabela `companies` tem RLS de
@@ -13,6 +15,8 @@ import DataTable, { type DataColumn } from '../components/DataTable'
 
 export default function Empresas() {
   const { isAdmin, recarregarEmpresas } = useApp()
+  const confirmar = useConfirm()
+  const toast = useToast()
   const [empresas, setEmpresas] = useState<Company[]>([])
   const [contagem, setContagem] = useState<Record<string, number>>({})
   const [erro, setErro] = useState<string | null>(null)
@@ -53,12 +57,13 @@ export default function Empresas() {
     setSalvando(false)
     if (error) { setErro('Erro ao salvar empresa: ' + error.message); return }
     setModalAberto(false)
+    toast(form.id ? 'Empresa atualizada' : 'Empresa criada')
     await carregar()
     await recarregarEmpresas()
   }
 
   const excluir = useCallback(async (c: Company) => {
-    if (!window.confirm(`Excluir a empresa "${c.name}"?`)) return
+    if (!(await confirmar({ titulo: 'Excluir empresa', mensagem: `Excluir a empresa "${c.name}"?`, confirmar: 'Excluir', perigo: true }))) return
     setErro(null)
     const { error } = await supabase.from('companies').delete().eq('id', c.id)
     if (error) {
@@ -70,9 +75,10 @@ export default function Empresas() {
       )
       return
     }
+    toast('Empresa excluída', 'info')
     await carregar()
     await recarregarEmpresas()
-  }, [carregar, recarregarEmpresas])
+  }, [carregar, recarregarEmpresas, confirmar, toast])
 
   const colunas = useMemo<DataColumn<Company>[]>(() => [
     { id: 'name', header: 'Empresa', size: 300, cell: (c) => <span className="font-medium text-fg">{c.name}</span> },

@@ -3,6 +3,8 @@ import { Plus, Pencil, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { Card, PageHeader, Modal, Badge, Vazio, ErroBanner, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { useConfirm } from '../components/Confirm'
+import { useToast } from '../components/Toast'
 
 interface DreProduct {
   id: string
@@ -24,6 +26,8 @@ const formVazio = (): FormState => ({ name: '', sort_order: '0', active: true })
 
 export default function DreProducts() {
   const { isAdmin } = useApp()
+  const confirmar = useConfirm()
+  const toast = useToast()
   const [produtos, setProdutos] = useState<DreProduct[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -75,13 +79,15 @@ export default function DreProducts() {
     }
     setSalvando(false)
     setModal(false)
+    toast(form.id ? 'Produto atualizado' : 'Produto criado')
     carregar()
   }
 
   const excluir = async (p: DreProduct) => {
-    if (!window.confirm(`Excluir o produto DRE "${p.name}"?`)) return
+    if (!(await confirmar({ titulo: 'Excluir produto DRE', mensagem: `Excluir o produto DRE "${p.name}"?`, confirmar: 'Excluir', perigo: true }))) return
     const { error } = await supabase.from('dre_products').delete().eq('id', p.id)
     if (error) { setErro('Erro ao excluir: ' + error.message); return }
+    toast('Produto excluído', 'info')
     carregar()
   }
 
