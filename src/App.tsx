@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider, useApp } from './contexts/AppContext'
+import { ToastProvider } from './components/Toast'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 
@@ -87,7 +88,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppProvider>
-        <Rotas />
+        <ToastProvider>
+          <Rotas />
+        </ToastProvider>
       </AppProvider>
     </BrowserRouter>
   )

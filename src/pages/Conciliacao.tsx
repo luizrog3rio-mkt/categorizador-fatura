@@ -5,6 +5,7 @@ import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData } from '../lib/format'
 import type { Account } from '../lib/types'
 import { Card, PageHeader, ErroBanner, Vazio, Badge, KPICard, KPIStrip, Button, inputCls } from '../components/ui'
+import { useToast } from '../components/Toast'
 
 // Conciliação bancária — casa linhas do extrato (bank_transactions) com contas a
 // pagar/receber (entries) via as RPCs reconcile_*. Inerte até importar OFX numa
@@ -20,6 +21,7 @@ interface Sugestao {
 
 export default function Conciliacao() {
   const { empresaAtiva, isAdmin } = useApp()
+  const toast = useToast()
   const [contas, setContas] = useState<Account[]>([])
   const [contaId, setContaId] = useState('')
   const [summary, setSummary] = useState<ReconSummary | null>(null)
@@ -59,24 +61,28 @@ export default function Conciliacao() {
 
   const selecionar = (id: string) => { setContaId(id); carregarDados(id) }
 
-  const sugerir = async () => {
+  const sugerir = async (notificar = true) => {
     if (!contaId) return
     const { data, error } = await supabase.rpc('reconciliation_suggest', { p_account: contaId, p_tolerance_days: 3, p_amount_tol: 0 })
     if (error) { setErro('Erro ao sugerir matches: ' + error.message); return }
-    setSugestoes((data as Sugestao[] | null) ?? [])
+    const lista = (data as Sugestao[] | null) ?? []
+    setSugestoes(lista)
+    if (notificar) toast(lista.length ? `${lista.length} ${lista.length === 1 ? 'sugestão encontrada' : 'sugestões encontradas'}` : 'Nenhum match automático encontrado', lista.length ? 'success' : 'info')
   }
 
   const conciliar = async (bankTx: string, entry: string) => {
     const { error } = await supabase.rpc('reconcile_entry', { p_bank_tx: bankTx, p_entry: entry, p_mark_paid: true })
     if (error) { setErro('Erro ao conciliar: ' + error.message); return }
     await carregarDados(contaId)
-    sugerir()
+    toast('Linha conciliada')
+    sugerir(false)
   }
 
   const desfazer = async (bankTx: string) => {
     if (!window.confirm('Desfazer a conciliação desta linha? O lançamento volta a "a pagar".')) return
     const { error } = await supabase.rpc('unreconcile_entry', { p_bank_tx: bankTx, p_revert_status: true })
     if (error) { setErro('Erro ao desfazer: ' + error.message); return }
+    toast('Conciliação desfeita', 'info')
     carregarDados(contaId)
   }
 
@@ -98,7 +104,7 @@ export default function Conciliacao() {
                 </select>
               </div>
               {isAdmin && (
-                <Button variante="primary" onClick={sugerir} disabled={!summary || summary.pendentes === 0}>
+                <Button variante="primary" onClick={() => sugerir()} disabled={!summary || summary.pendentes === 0}>
                   <Sparkles size={16} /> Sugerir matches
                 </Button>
               )}

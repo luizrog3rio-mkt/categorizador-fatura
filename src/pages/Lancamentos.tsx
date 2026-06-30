@@ -7,6 +7,7 @@ import type { Account, Entry, EntryType, EntryStatus } from '../lib/types'
 import type { ChartOfAccount, DreProduct } from '../lib/types'
 import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, KPICard, KPIStrip, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
+import { useToast } from '../components/Toast'
 import type { RowSelectionState } from '@tanstack/react-table'
 import DateRangePicker from '../components/DateRangePicker'
 
@@ -148,6 +149,7 @@ const STATUS_MAP: Record<string, EntryStatus> = {
 
 export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const { empresas, empresaAtiva, session, isAdmin } = useApp()
+  const toast = useToast()
   const [lancamentos, setLancamentos] = useState<Entry[]>([])
   const [contas, setContas] = useState<Account[]>([])
   const [filtroStatus, setFiltroStatus] = useState('')
@@ -344,6 +346,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       if (errRec) setErro('Lançamento salvo, mas não foi possível gerar a recorrência do próximo mês: ' + errRec.message)
     }
     setModalAberto(false)
+    toast(form.id ? 'Lançamento atualizado' : 'Lançamento criado')
     carregar()
   }
 
@@ -370,8 +373,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       })
       if (errRec) setErro('Pago com sucesso, mas não foi possível gerar a recorrência do próximo mês: ' + errRec.message)
     }
+    toast(tipo === 'payable' ? 'Conta paga' : 'Recebimento registrado')
     carregar()
-  }, [carregar, inserirProximoMes])
+  }, [carregar, inserirProximoMes, toast, tipo])
 
   const excluir = useCallback(async (l: Entry) => {
     const ehTransfer = !!l.transfer_id
@@ -383,8 +387,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       ? await supabase.from('entries').delete().eq('transfer_id', l.transfer_id!)
       : await supabase.from('entries').delete().eq('id', l.id)
     if (error) { setErro('Erro ao excluir lançamento: ' + error.message); return }
+    toast(ehTransfer ? 'Transferência excluída' : 'Lançamento excluído', 'info')
     carregar()
-  }, [carregar])
+  }, [carregar, toast])
 
   // Transferência entre contas: cria DOIS lançamentos pagos amarrados por um
   // transfer_id — saída (payable) na origem + entrada (receivable) no destino,
@@ -606,6 +611,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       if (error) { setErro('Erro ao alterar status em massa: ' + error.message); return }
     }
     setRowSelection({})
+    toast(`${n} ${n === 1 ? 'lançamento atualizado' : 'lançamentos atualizados'}`)
     carregar()
   }
 
@@ -618,6 +624,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     const { error } = await supabase.from('entries').update({ company_id: companyId }).in('id', selectedIds)
     if (error) { setErro('Erro ao alterar a empresa em massa: ' + error.message); return }
     setRowSelection({})
+    toast(`${n} ${n === 1 ? 'lançamento movido' : 'lançamentos movidos'} para ${emp?.name ?? 'a empresa'}`)
     carregar()
   }
 
