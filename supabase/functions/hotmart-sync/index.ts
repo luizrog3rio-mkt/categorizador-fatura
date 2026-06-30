@@ -42,6 +42,14 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
+// comparação tempo-constante da service key (evita timing attack). Igual à hotmart-webhook.
+function constEq(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let r = 0
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return r === 0
+}
+
 const isoDate = (ms: number | null | undefined) =>
   ms ? new Date(Number(ms)).toISOString().slice(0, 10) : null
 
@@ -103,10 +111,15 @@ Deno.serve(async (req) => {
     // chave). verify_jwt está OFF no deploy pra o cron passar; por isso exigimos
     // aqui ou serviço autenticado, ou um Bearer de usuário (RLS protege a escrita).
     const serviceKey = Deno.env.get('HOTMART_SYNC_SERVICE_KEY')
-    const isService = !!serviceKey && req.headers.get('x-service-auth') === serviceKey
-    // não-serviço: exige um Bearer com cara de JWT (barra lixo antes de gastar
-    // quota da Hotmart); a escrita real ainda é protegida pelo RLS de equipe
-    if (!isService && !/^Bearer\s+eyJ/.test(auth ?? '')) return json({ error: 'sem autorização' }, 401)
+    const isService = !!serviceKey && constEq(req.headers.get('x-service-auth') ?? '', serviceKey)
+    // não-serviço: VALIDA o JWT de verdade (antes era só /^Bearer eyJ/ — qualquer string
+    // com cara de token passava e alcançava o debug, vazando PII + queimando quota Hotmart).
+    if (!isService) {
+      const token = (auth ?? '').replace(/^Bearer\s+/, '')
+      const sbAuth = createClient(Deno.env.get('SUPABASE_URL')!, PUBLISHABLE_KEY, { auth: { persistSession: false } })
+      const { data: { user }, error: uErr } = await sbAuth.auth.getUser(token)
+      if (uErr || !user) return json({ error: 'sem autorização' }, 401)
+    }
 
     const { company_id, debug, refresh_sck, refresh_status, refresh_commissions, months, start: startArg, end: endArg } = await req.json().catch(() => ({}))
     if (!company_id) return json({ error: 'company_id obrigatório' }, 400)
@@ -281,10 +294,12 @@ Deno.serve(async (req) => {
       if (!r.ok) return json({ error: 'falha no histórico de vendas', status: r.status, body: await r.text() }, 502)
       const data = await r.json()
 
-      // modo debug: devolve a 1ª venda crua E mapeada (sem gravar), pra validar
+      // modo debug: devolve a 1ª venda crua E mapeada (sem gravar), pra validar o mapeamento.
+      // Mascara a PII do comprador (nome/email/doc) — não é necessária pra conferir os campos.
       if (debug) {
         const amostra = data?.items?.[0] ?? null
-        return json({ debug: true, total_aprox: data?.page_info?.total_results ?? null, amostra, mapeada: amostra ? mapSale(amostra, company_id) : null, page_info: data?.page_info ?? null }, 200)
+        const segura = amostra?.buyer ? { ...amostra, buyer: { ...amostra.buyer, name: '***', email: '***', document: '***' } } : amostra
+        return json({ debug: true, total_aprox: data?.page_info?.total_results ?? null, amostra: segura, mapeada: amostra ? { ...mapSale(amostra, company_id), buyer: '***' } : null, page_info: data?.page_info ?? null }, 200)
       }
 
       items.push(...((data?.items as any[]) ?? []))
