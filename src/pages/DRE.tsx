@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL } from '../lib/format'
-import { Card, PageHeader, ErroBanner, Vazio, KPICard, KPIStrip, inputCls } from '../components/ui'
+import { exportTabelaCSV, exportTabelaXLSX } from '../lib/exportTabela'
+import { Card, PageHeader, ErroBanner, Vazio, KPICard, KPIStrip, Button, inputCls } from '../components/ui'
 
 // DRE gerencial por margem de contribuição — consome a RPC dre_by_competency
 // que devolve linhas do plano de contas com valores por mês (m1…m12).
@@ -157,11 +158,38 @@ export default function DRE() {
   const temDados = dados.length > 0
   const anos = Array.from({ length: anoAtual - 2019 + 2 }, (_, i) => 2020 + i)
 
+  // Análise vertical: cada linha como % da Receita Bruta (= 100%) no período.
+  const baseAV = calc.receitaBruta.total
+  const avTexto = (total: number) => baseAV !== 0 ? (total / baseAV * 100).toFixed(1).replace('.', ',') + '%' : '—'
+
+  const exportar = (formato: 'xlsx' | 'csv') => {
+    const header = ['Conta', ...meses.map((m) => MESES[m - 1]), 'Total', '% AV']
+    const linhas: (string | number)[][] = []
+    for (const item of items) {
+      linhas.push([item.label, ...item.mv.months, item.mv.total, avTexto(item.mv.total)])
+      if (item.type === 'section') {
+        for (const r of (byNature[item.nature] ?? [])) {
+          const rv = rowMV(r)
+          linhas.push(['   ' + r.account_name, ...rv.months, rv.total, avTexto(rv.total)])
+        }
+      }
+    }
+    const nome = `DRE_${(empresaAtiva?.name ?? 'empresa').replace(/\s+/g, '-')}_${ano}_${MESES[meses[0] - 1]}-${MESES[meses[meses.length - 1] - 1]}`
+    if (formato === 'xlsx') exportTabelaXLSX(header, linhas, nome, 'DRE').catch(console.error)
+    else exportTabelaCSV(header, linhas, nome)
+  }
+
   return (
     <div>
       <PageHeader
         titulo="DRE"
         subtitulo="Demonstração do resultado por margem de contribuição (competência)"
+        acao={temDados ? (
+          <div className="flex gap-2">
+            <Button variante="secondary" onClick={() => exportar('xlsx')}><Download size={16} /> Excel</Button>
+            <Button variante="ghost" onClick={() => exportar('csv')}>CSV</Button>
+          </div>
+        ) : undefined}
       />
 
       <ErroBanner mensagem={erro} />
@@ -257,6 +285,9 @@ export default function DRE() {
                   <th className="px-3 py-3 text-right text-xs font-semibold text-fg-muted uppercase tracking-wide min-w-[110px] border-l border-border">
                     Total
                   </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-fg-muted uppercase tracking-wide min-w-[64px]" title="Análise vertical — % sobre a Receita Bruta">
+                    % AV
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -284,6 +315,9 @@ export default function DRE() {
                           className={`px-3 py-2.5 text-right font-bold tnum whitespace-nowrap border-l border-border ${valCls(item.mv.total)}`}
                         >
                           {fmtBRL(item.mv.total)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tnum text-xs font-semibold text-fg-subtle whitespace-nowrap">
+                          {avTexto(item.mv.total)}
                         </td>
                       </tr>
                     )
@@ -329,6 +363,9 @@ export default function DRE() {
                         >
                           {fmtBRL(item.mv.total)}
                         </td>
+                        <td className="px-3 py-2.5 text-right tnum text-xs text-fg-subtle whitespace-nowrap">
+                          {avTexto(item.mv.total)}
+                        </td>
                       </tr>
 
                       {/* linhas analíticas (expandidas) */}
@@ -357,6 +394,9 @@ export default function DRE() {
                               className={`px-3 py-1.5 text-right tnum whitespace-nowrap border-l border-border ${rv.total !== 0 ? valCls(rv.total) : 'text-fg-subtle'}`}
                             >
                               {rv.total !== 0 ? fmtBRL(rv.total) : '—'}
+                            </td>
+                            <td className="px-3 py-1.5 text-right tnum text-xs text-fg-subtle whitespace-nowrap">
+                              {rv.total !== 0 ? avTexto(rv.total) : '—'}
                             </td>
                           </tr>
                         )

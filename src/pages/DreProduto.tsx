@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL } from '../lib/format'
+import { exportTabelaCSV, exportTabelaXLSX } from '../lib/exportTabela'
 import type { DreProduct } from '../lib/types'
-import { Card, PageHeader, ErroBanner, Vazio, KPICard, KPIStrip, inputCls } from '../components/ui'
+import { Card, PageHeader, ErroBanner, Vazio, KPICard, KPIStrip, Button, inputCls } from '../components/ui'
 
 // DRE gerencial POR PRODUTO (modelo do contador, aba "DRE Gerencial"): produtos
 // nas colunas. Acima da Margem rateia por produto (receita/deduções/custos var,
@@ -97,6 +99,24 @@ export default function DreProduto() {
   const temDados = view.cols.length > 0
   const anos = Array.from({ length: anoAtual - 2019 + 2 }, (_, i) => 2020 + i)
 
+  // Análise vertical: cada linha como % da Receita Bruta total (= 100%).
+  const baseAV = view.tot.rb
+  const avTexto = (total: number) => baseAV !== 0 ? (total / baseAV * 100).toFixed(1).replace('.', ',') + '%' : '—'
+
+  const exportar = (formato: 'xlsx' | 'csv') => {
+    const header = ['Linha', ...view.cols.map((c) => c.nome), 'Total', '% AV']
+    const linhas: (string | number)[][] = []
+    for (const ln of linhasProduto) {
+      linhas.push([ln.label, ...view.cols.map((c) => c[ln.campo]), view.tot[ln.campo], avTexto(view.tot[ln.campo])])
+    }
+    for (const ln of linhasEstrutura) {
+      linhas.push([ln.label, ...view.cols.map(() => ''), ln.valor, avTexto(ln.valor)])
+    }
+    const nome = `DRE-Produto_${(empresaAtiva?.name ?? 'empresa').replace(/\s+/g, '-')}_${ano}`
+    if (formato === 'xlsx') exportTabelaXLSX(header, linhas, nome, 'DRE por Produto').catch(console.error)
+    else exportTabelaCSV(header, linhas, nome)
+  }
+
   // linhas "acima da margem" (por produto): [rótulo, seletor de campo, ehSubtotal]
   const linhasProduto: { label: string; campo: 'rb' | 'ded' | 'rl' | 'cv' | 'mc'; sub?: boolean }[] = [
     { label: 'Receita Bruta', campo: 'rb' },
@@ -121,6 +141,12 @@ export default function DreProduto() {
       <PageHeader
         titulo="DRE por Produto"
         subtitulo="Margem de contribuição por produto (acima da margem rateia; estrutura é da empresa)"
+        acao={temDados ? (
+          <div className="flex gap-2">
+            <Button variante="secondary" onClick={() => exportar('xlsx')}><Download size={16} /> Excel</Button>
+            <Button variante="ghost" onClick={() => exportar('csv')}>CSV</Button>
+          </div>
+        ) : undefined}
       />
 
       <ErroBanner mensagem={erro} />
@@ -180,6 +206,7 @@ export default function DreProduto() {
                     <th key={c.key} className="px-3 py-3 text-right text-xs font-semibold text-fg-muted uppercase tracking-wide min-w-[120px]">{c.nome}</th>
                   ))}
                   <th className="px-3 py-3 text-right text-xs font-semibold text-fg-muted uppercase tracking-wide min-w-[130px] border-l border-border">Total</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-fg-muted uppercase tracking-wide min-w-[64px]" title="Análise vertical — % sobre a Receita Bruta">% AV</th>
                 </tr>
               </thead>
               <tbody>
@@ -191,6 +218,7 @@ export default function DreProduto() {
                       <td key={c.key} className={`px-3 py-2 text-right whitespace-nowrap ${ln.sub ? 'font-bold ' + valCls(c[ln.campo]) : valCls(c[ln.campo])}`}>{fmtBRL(c[ln.campo])}</td>
                     ))}
                     <td className={`px-3 py-2 text-right whitespace-nowrap border-l border-border font-bold ${valCls(view.tot[ln.campo])}`}>{fmtBRL(view.tot[ln.campo])}</td>
+                    <td className="px-3 py-2 text-right tnum text-xs text-fg-subtle whitespace-nowrap">{avTexto(view.tot[ln.campo])}</td>
                   </tr>
                 ))}
                 {/* estrutura — empresa (só no Total) */}
@@ -199,6 +227,7 @@ export default function DreProduto() {
                     <td className={`px-4 py-2 whitespace-nowrap sticky left-0 z-10 ${ln.sub ? 'font-bold text-fg bg-canvas' : 'text-fg-muted bg-surface'}`}>{ln.label}</td>
                     <td colSpan={view.cols.length} className="px-3 py-2 text-right text-xs text-fg-subtle italic">estrutura da empresa →</td>
                     <td className={`px-3 py-2 text-right whitespace-nowrap border-l border-border font-bold ${valCls(ln.valor)}`}>{fmtBRL(ln.valor)}</td>
+                    <td className="px-3 py-2 text-right tnum text-xs text-fg-subtle whitespace-nowrap">{avTexto(ln.valor)}</td>
                   </tr>
                 ))}
               </tbody>
