@@ -158,9 +158,14 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   de receita (regex PT+EN) vive em `hotmart_totals` e em `lib/hotmart.ts`.
 - Upsert MERGE por `transaction_code` (reimport/sync atualiza status —
   reembolso/chargeback refletem).
-- **Webhook 2.0 em tempo real** (no repo desde 2026-06-26; **pendente de ativação**
-  — migrations a aplicar + deploy + secret `HOTMART_HOTTOK` + cadastro no painel
-  Hotmart): Edge Function **`hotmart-webhook`** (`verify_jwt=false`) valida o
+- **Webhook 2.0 em tempo real** (no repo desde 2026-06-26; **ATIVO em produção
+  desde 2026-06-26** — `HOTMART_HOTTOK` configurado, cadastrado no painel Hotmart,
+  recebendo eventos reais; verificado na auditoria 2026-06-30: 305 eventos
+  recebidos — PURCHASE_COMPLETE/APPROVED/REFUNDED/CANCELED + SUBSCRIPTION_CANCELLATION
+  — e os 23 PURCHASE_REFUNDED já refletidos como REFUNDED/CHARGEBACK em
+  `hotmart_sales`; derivação inline + drain operando com 0 falhas. **NÃO re-ativar**
+  — recadastrar/trocar hottok/redeploy só quebra ou duplica entregas):
+  Edge Function **`hotmart-webhook`** (`verify_jwt=false`) valida o
   `hottok` (header `x-hotmart-hottok`, tempo constante) → grava o evento CRU
   durável em `hotmart_webhook_events` (service-only, PII; `dedupe_key` UNIQUE
   nunca-NULL) → deriva inline pra `hotmart_sales` via RPC `apply_hotmart_webhook_event`

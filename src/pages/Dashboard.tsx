@@ -10,7 +10,6 @@ import type { Entry, HotmartSale, Invoice } from '../lib/types'
 import { Card, PageHeader, StatusBadge, ErroBanner, KPICard, KPIStrip, DeltaTag } from '../components/ui'
 
 interface MesAgg { mes: string; receber: number; pagar: number }
-interface TxLite { amount: number; kind: 'debit' | 'credit' }
 
 // Cores literais p/ recharts (não aceita classes Tailwind) — espelham os tokens.
 const C = { revenue: '#047857', expense: '#be123c', brand: '#2b53c0', grid: '#e6e8ec', subtle: '#94a3b8' }
@@ -29,7 +28,7 @@ export default function Dashboard() {
   const [hotmartPrevNet, setHotmartPrevNet] = useState(0)
   const [aLiberar, setALiberar] = useState(0)
   const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [txs, setTxs] = useState<TxLite[]>([])
+  const [txCount, setTxCount] = useState(0)
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
 
@@ -91,10 +90,20 @@ export default function Dashboard() {
     const { data: invs, error: e3 } = await supabase.from('invoices').select('*, account:accounts!account_id(company_id)').order('imported_at', { ascending: false })
     if (e3) erros.push('faturas: ' + e3.message)
     const lista = (invs ?? []) as (Invoice & { account?: { company_id: string } | null })[]
-    setInvoices(empresaAtiva ? lista.filter((i) => i.account?.company_id === empresaAtiva.id) : lista)
-    const { data: tx, error: e4 } = await supabase.from('transactions').select('amount, kind')
-    if (e4) erros.push('transações: ' + e4.message)
-    setTxs((tx as TxLite[]) ?? [])
+    const invsFiltradas = empresaAtiva ? lista.filter((i) => i.account?.company_id === empresaAtiva.id) : lista
+    setInvoices(invsFiltradas)
+    // contagem de transações via count(head) — exata a qualquer volume (o select cru
+    // truncava em 1000 do PostgREST). Escopo = as faturas filtradas pela empresa.
+    const invIds = invsFiltradas.map((i) => i.id)
+    if (empresaAtiva && invIds.length === 0) {
+      setTxCount(0)
+    } else {
+      let cq = supabase.from('transactions').select('*', { count: 'exact', head: true })
+      if (empresaAtiva) cq = cq.in('invoice_id', invIds)
+      const { count: txc, error: e4 } = await cq
+      if (e4) erros.push('transações: ' + e4.message)
+      setTxCount(txc ?? 0)
+    }
 
     if (erros.length) setErro('Erro ao carregar o dashboard — os números podem estar incompletos. ' + erros.join(' · '))
     setCarregando(false)
@@ -118,8 +127,8 @@ export default function Dashboard() {
     const porFatura = invoices
       .map((i) => ({ nome: (i.name ?? 'Fatura').slice(0, 16), total: Number(i.total ?? 0) }))
       .reverse()
-    return { totalFaturas, qtdFaturas: invoices.length, qtdTx: txs.length, porFatura }
-  }, [invoices, txs])
+    return { totalFaturas, qtdFaturas: invoices.length, qtdTx: txCount, porFatura }
+  }, [invoices, txCount])
 
   // ── financeiro rb7 (entries + hotmart) ────────────────────────────────────
   const kpis = useMemo(() => {
