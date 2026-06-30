@@ -67,11 +67,17 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   empresa+BRL+aprovado; sem dupla contagem (Hotmart não está em entries). **Hotmart agora
   entra nas DUAS DREs** (revoga a regra antiga "só na produto"); a competência ainda tem
   cartão a mais. ⚠️ **`entries`/`transactions` SEM `chart_of_account_id` somem da DRE** (o
-  JOIN os engole); a tela DRE mostra um Alert "N lançamentos (R$X) sem Plano de Contas" pra
-  não enganar. Achados ABERTOS da auditoria (não corrigidos): despesa subconta ~85% por esses
-  órfãos; `competency_date` nulo derruba lançamento; as 4 superfícies de resultado (Dashboard/
-  DRE-comp/DRE-prod/Conciliação) usam réguas diferentes; vários itens de segurança (hotmart-sync
-  só valida regex de Bearer; `profiles.role` default 'admin' + auto-editável).
+  JOIN os engole); a tela DRE mostra um Alert que agora conta as DUAS fontes — entries E cartão
+  (RPC `dre_nao_classificado`, auditoria 2026-06-30; antes só entries, enganava). **Auditorias de
+  2026-06-30 (import/consistência/resiliência) — JÁ CORRIGIDO:** 6 datas de ano-lixo (20226/20026
+  etc.) → 2026 + `entries_datas_sanas` agora VALIDATE'd (retroativo); backfill de competency (18
+  entries, +R$50k na DRE) e payment_date (149, +R$640k de datas, proxy=due_date); guarda de
+  natureza no cartão da DRE (cartão = só custo, anti receita-fantasma); `closed_periods` agora
+  ENFORÇADO por trigger `trg_bloqueia_periodo_fechado` (não só no front); `deletions_log` + trigger
+  forense de DELETE em entries/invoices (tela `/delecoes`, RPC `listar_delecoes`); guard de OFX
+  vazio na fatura + aviso de reimport-duplica; **primeira rede de TESTES** (vitest, `src/lib/*.test.ts`).
+  As 4 réguas de resultado foram ROTULADAS (diferem por design, não unificadas); os itens de
+  segurança foram fechados (ver bullet RLS/papel + seguranca_*).
 - **DRE por produto — atribuição (migration `dre_product_link_chart_account`
   `20260630012653`):** o produto de cada linha vem de 3 fontes — Hotmart pelo mapa
   SKU→produto (`hotmart_product_map`, tela "Mapear produtos"); lançamentos manuais
@@ -334,13 +340,13 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   + parseData + vendaAprovada), `ofxExtrato` (sinal preservado). 34 testes. Regra: **não importar
   `./supabase` em código testado** (mantém os parsers puros). As RPCs de dinheiro (DRE/origem) só
   testáveis com Postgres — pendente (stack local ou pgTAP).
-  `npm run lint` (0 errors; os 28 warnings conscientes = 27 set-state-in-effect
+  `npm run lint` (0 errors; os 29 warnings conscientes = 28 set-state-in-effect
   (fetch-on-mount das páginas + o debounce de alcance do RegraModal) + 1
   react-compiler "incompatible library" das libs de tabela na DataTable — ver
   eslint.config.js). Cada página nova com o
   padrão `useEffect(() => { carregar() }, [carregar])` soma 1 fetch-on-mount (a
   tela Transferências somou +1 em 2026-06-25; a remoção de categoria havia
-  derrubado 3 no mesmo dia).
+  derrubado 3 no mesmo dia; a tela Log de Deleções somou +1 em 2026-06-30).
 - `xlsx` vem do tarball oficial do SheetJS (cdn.sheetjs.com) — o pacote do npm
   está abandonado com CVE; não trocar de volta.
 - PowerShell 5.1: mensagem de `git commit` via here-string `@'...'@` **não
