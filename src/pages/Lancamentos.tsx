@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Plus, Pencil, CheckCircle2, Trash2, ArrowRight, ArrowLeftRight, Repeat, Upload, Search } from 'lucide-react'
+import { Plus, Pencil, CheckCircle2, Trash2, ArrowRight, ArrowLeftRight, Repeat, Upload, Search, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
@@ -7,6 +7,7 @@ import type { Account, Entry, EntryType, EntryStatus } from '../lib/types'
 import type { ChartOfAccount, DreProduct } from '../lib/types'
 import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, KPICard, KPIStrip, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
+import { exportTabelaCSV, exportTabelaXLSX } from '../lib/exportTabela'
 import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/Confirm'
 import type { RowSelectionState } from '@tanstack/react-table'
@@ -717,25 +718,60 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     ) },
   ], [isAdmin, ehPagar, tipo, totalValor, empresas, enviarParaPagamento, marcarPago, abrirEdicao, excluir])
 
+  // Exporta os lançamentos EXIBIDOS (respeita filtros + busca) — reusa o helper de relatório.
+  const exportar = (formato: 'xlsx' | 'csv') => {
+    const statusLabel = (s: string) => (({
+      to_pay: ehPagar ? 'A pagar' : 'A receber', pending: 'Pendente',
+      paid: ehPagar ? 'Pago' : 'Recebido', cancelled: 'Cancelado', refunded: 'Estornado',
+    }) as Record<string, string>)[s] ?? s
+    const header = ['Descrição', 'Contraparte', 'Empresa', 'Conta do Plano', 'Produto DRE', 'Emissão', 'Vencimento', 'Pagamento', 'Valor', 'Juros', 'Multa', 'Desconto', 'Status']
+    const linhas: (string | number)[][] = lancamentosExibidos.map((l) => [
+      l.description ?? '',
+      l.counterparty ?? '',
+      empresas.find((e) => e.id === l.company_id)?.name ?? '',
+      l.chart_of_account ? `${l.chart_of_account.code} – ${l.chart_of_account.name}` : '',
+      l.dre_product?.name ?? '',
+      l.issue_date ? fmtData(l.issue_date) : '',
+      fmtData(l.due_date),
+      l.payment_date ? fmtData(l.payment_date) : '',
+      Number(l.amount),
+      Number(l.interest_amount ?? 0),
+      Number(l.fine_amount ?? 0),
+      Number(l.discount_amount ?? 0),
+      statusLabel(l.status),
+    ])
+    const nome = `${ehPagar ? 'contas-a-pagar' : 'contas-a-receber'}_${(empresaAtiva?.name ?? 'todas').replace(/\s+/g, '-')}`
+    if (formato === 'xlsx') exportTabelaXLSX(header, linhas, nome, ehPagar ? 'Contas a Pagar' : 'Contas a Receber').catch(console.error)
+    else exportTabelaCSV(header, linhas, nome)
+  }
+
   return (
     <div>
       <PageHeader
         titulo={ehPagar ? 'Contas a Pagar' : 'Contas a Receber'}
         subtitulo="Fluxo: Emissão → Vencimento → Pagamento"
         acao={
-          isAdmin ? (
-            <div className="flex gap-2">
-              <button onClick={() => setTransferAberto(true)} className={btnSecundario}>
-                <ArrowLeftRight size={16} /> Transferência
-              </button>
-              <button onClick={() => setImportAberto(true)} className={btnSecundario}>
-                <Upload size={16} /> Importar
-              </button>
-              <button onClick={abrirNovo} className={btnPrimario}>
-                <Plus size={16} /> Novo lançamento
-              </button>
-            </div>
-          ) : undefined
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => exportar('xlsx')} disabled={lancamentosExibidos.length === 0} className={btnSecundario}>
+              <Download size={16} /> Excel
+            </button>
+            <button onClick={() => exportar('csv')} disabled={lancamentosExibidos.length === 0} className={btnSecundario}>
+              CSV
+            </button>
+            {isAdmin && (
+              <>
+                <button onClick={() => setTransferAberto(true)} className={btnSecundario}>
+                  <ArrowLeftRight size={16} /> Transferência
+                </button>
+                <button onClick={() => setImportAberto(true)} className={btnSecundario}>
+                  <Upload size={16} /> Importar
+                </button>
+                <button onClick={abrirNovo} className={btnPrimario}>
+                  <Plus size={16} /> Novo lançamento
+                </button>
+              </>
+            )}
+          </div>
         }
       />
 
