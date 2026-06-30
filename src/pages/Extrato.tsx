@@ -5,7 +5,7 @@ import { useApp } from '../contexts/AppContext'
 import { importarExtratoOFX } from '../lib/importarExtrato'
 import { fmtBRL, fmtData } from '../lib/format'
 import type { Account, BankTransaction } from '../lib/types'
-import { Card, PageHeader, Vazio, ErroBanner, Modal, Alert, Button, inputCls, btnPrimario, btnSecundario } from '../components/ui'
+import { Card, PageHeader, Vazio, ErroBanner, Modal, Alert, Button, KPICard, KPIStrip, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import DataTable, { type DataColumn } from '../components/DataTable'
 
 // Etapa 5 — Extratos (OFX). Port do ImportarOfx.tsx do rb7 pra bank_transactions.
@@ -16,6 +16,7 @@ export default function Extrato() {
   const [contas, setContas] = useState<Account[]>([])
   const [contaSelecionada, setContaSelecionada] = useState('')
   const [transacoes, setTransacoes] = useState<BankTransaction[]>([])
+  const [totais, setTotais] = useState<{ entradas: number; saidas: number; saldo: number; qtd: number } | null>(null)
   const [carregando, setCarregando] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
@@ -36,16 +37,20 @@ export default function Extrato() {
   }, [empresaAtiva])
 
   const carregarTransacoes = useCallback(async () => {
-    if (!contaSelecionada) { setTransacoes([]); return }
+    if (!contaSelecionada) { setTransacoes([]); setTotais(null); return }
     setCarregando(true)
-    const { data, error } = await supabase
-      .from('bank_transactions')
-      .select('*')
-      .eq('account_id', contaSelecionada)
-      .order('date', { ascending: false })
-      .limit(300)
-    if (error) setErro('Erro ao carregar transações: ' + error.message)
-    else setTransacoes((data as BankTransaction[]) ?? [])
+    // lista limita a 300 linhas; os totais vêm agregados do banco (RPC) — sempre
+    // corretos independente do volume (o sum client-side só veria as 300).
+    const [tx, tot] = await Promise.all([
+      supabase.from('bank_transactions').select('*').eq('account_id', contaSelecionada).order('date', { ascending: false }).limit(300),
+      supabase.rpc('extrato_totais', { p_account: contaSelecionada }),
+    ])
+    if (tx.error) setErro('Erro ao carregar transações: ' + tx.error.message)
+    else setTransacoes((tx.data as BankTransaction[]) ?? [])
+    if (!tot.error) {
+      const t = (tot.data as { entradas: number; saidas: number; saldo: number; qtd: number }[] | null)?.[0]
+      setTotais(t ? { entradas: Number(t.entradas), saidas: Number(t.saidas), saldo: Number(t.saldo), qtd: Number(t.qtd) } : null)
+    }
     setCarregando(false)
   }, [contaSelecionada])
 
@@ -152,6 +157,17 @@ export default function Extrato() {
         )}
         {msg && <div className="mt-4"><Alert tom="info">{msg}</Alert></div>}
       </Card>
+
+      {contaSelecionada && totais && totais.qtd > 0 && (
+        <div className="mb-4">
+          <KPIStrip cols={4}>
+            <KPICard label="Entradas" valor={fmtBRL(totais.entradas)} tom="revenue" />
+            <KPICard label="Saídas" valor={fmtBRL(totais.saidas)} tom="expense" />
+            <KPICard label="Saldo" valor={fmtBRL(totais.saldo)} tom={totais.saldo >= 0 ? 'revenue' : 'expense'} />
+            <KPICard label="Lançamentos" valor={totais.qtd} caption={transacoes.length < totais.qtd ? `mostrando ${transacoes.length}` : undefined} />
+          </KPIStrip>
+        </div>
+      )}
 
       <Card>
         {transacoes.length === 0 ? (
