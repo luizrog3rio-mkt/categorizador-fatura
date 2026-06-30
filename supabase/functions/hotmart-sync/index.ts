@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
       if (uErr || !user) return json({ error: 'sem autorização' }, 401)
     }
 
-    const { company_id, debug, refresh_sck, refresh_status, refresh_commissions, months, start: startArg, end: endArg } = await req.json().catch(() => ({}))
+    const { company_id, debug, refresh_sck, refresh_status, refresh_commissions, months, start: startArg, end: endArg, all_history } = await req.json().catch(() => ({}))
     if (!company_id) return json({ error: 'company_id obrigatório' }, 400)
 
     const clientId = Deno.env.get('HOTMART_CLIENT_ID')
@@ -244,15 +244,19 @@ Deno.serve(async (req) => {
       if (!isService) return json({ error: 'refresh_status é só modo-serviço' }, 403)
       const N = Math.max(1, Math.min(500, Number(refresh_status) || 200))
       const sbsvc = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey!)
+      // backfill historico (amostra/passe completo): all_history ignora a janela de 200d ->
+      // pelo status_checked_at NULLS FIRST, pega as vendas antigas nunca re-checadas. Default
+      // (sem o flag) segue a janela movel de 200d do day-to-day.
       const desde = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      const { data: cands, error: eSel } = await sbsvc
+      let qSel = sbsvc
         .from('hotmart_sales')
         .select('transaction_code, status')
         .eq('company_id', company_id)
-        .gte('sale_date', desde)
         .in('status', ['COMPLETE', 'COMPLETED', 'APPROVED'])
         .order('status_checked_at', { ascending: true, nullsFirst: true })
         .limit(N)
+      if (!all_history) qSel = qSel.gte('sale_date', desde)
+      const { data: cands, error: eSel } = await qSel
       if (eSel) return json({ error: 'falha ao selecionar candidatos', detalhe: eSel.message }, 500)
       const t0 = Date.now()
       const agora = new Date().toISOString()
