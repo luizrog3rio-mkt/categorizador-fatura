@@ -50,6 +50,17 @@ export default function Faturas() {
 
   const doImport = async (file: File, accountId: string | null) => {
     if (!session) return
+    // aviso de reimport-duplica: o cartão entra na DRE, então uma 2ª fatura igual DOBRA a
+    // despesa (não há dedupe por design — contrato #14). Confirma antes se já existe uma com
+    // o mesmo nome+conta.
+    const nome = file.name.replace(/\.ofx$/i, '')
+    const jaExiste = invoices.some((i) => i.name === nome && i.account_id === accountId)
+    if (jaExiste && !(await confirmar({
+      titulo: 'Fatura possivelmente duplicada',
+      confirmar: 'Importar mesmo assim',
+      perigo: true,
+      mensagem: `Já existe uma fatura "${nome}" nesta conta. Reimportar cria uma 2ª fatura e DOBRA a despesa na DRE. Exclua a antiga primeiro, ou continue se for intencional.`,
+    }))) return
     setImportando(true)
     setErro(null)
     const { ok, erro: e } = await importarFaturaOFX(file, session.user.id, accountId)
