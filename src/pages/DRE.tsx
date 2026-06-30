@@ -59,7 +59,7 @@ export default function DRE() {
   const [erro, setErro] = useState<string | null>(null)
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   // lançamentos sem Plano de Contas — somem da DRE (o JOIN os engole). Mostramos um alerta.
-  const [naoClass, setNaoClass] = useState<{ qtd: number; valor: number } | null>(null)
+  const [naoClass, setNaoClass] = useState<{ qtd: number; valor: number; qtdTx: number; valorTx: number } | null>(null)
 
   const carregar = useCallback(async () => {
     if (!empresaAtiva?.id) return
@@ -77,16 +77,16 @@ export default function DRE() {
     }
     setDados((data as DreRow[] | null) ?? [])
 
-    // lançamentos da empresa SEM conta do plano (invisíveis na DRE) — count exato + soma
-    // (sob 1000 no caso real; acima disso o valor subconta, mas o alerta ja cumpre o aviso)
-    const { data: nc, count } = await supabase
-      .from('entries')
-      .select('amount', { count: 'exact' })
-      .eq('company_id', empresaAtiva.id)
-      .is('chart_of_account_id', null)
-      .not('status', 'in', '(cancelled,refunded)')
-    const valor = (nc ?? []).reduce((s, r) => s + Number((r as { amount: number }).amount), 0)
-    setNaoClass(count && count > 0 ? { qtd: count, valor } : null)
+    // lançamentos da empresa SEM conta do plano (invisíveis na DRE) — entries E cartão, via RPC
+    // server-side (evita o teto de 1000; o cartão entra na DRE por transactions.chart_of_account_id,
+    // então o cartão órfão também some — o Alert antes só contava entries).
+    const { data: nc } = await supabase.rpc('dre_nao_classificado', { p_company: empresaAtiva.id })
+    const r = (nc as { qtd_entries: number; valor_entries: number; qtd_tx: number; valor_tx: number }[] | null)?.[0]
+    const qtdTx = Number(r?.qtd_tx ?? 0)
+    const valorTx = Number(r?.valor_tx ?? 0)
+    const qtd = Number(r?.qtd_entries ?? 0) + qtdTx
+    const valor = Number(r?.valor_entries ?? 0) + valorTx
+    setNaoClass(qtd > 0 ? { qtd, valor, qtdTx, valorTx } : null)
   }, [empresaAtiva, ano])
 
   useEffect(() => { carregar() }, [carregar])
@@ -283,8 +283,12 @@ export default function DRE() {
           <Alert tom="warning" titulo="Lançamentos fora desta DRE">
             <strong className="tnum">{naoClass.qtd}</strong> lançamento(s) desta empresa, somando{' '}
             <strong className="tnum">{fmtBRL(naoClass.valor)}</strong>, estão <strong>sem Plano de Contas</strong> e
-            não entram na DRE. Classifique-os em Contas a Pagar/Receber (campo "Conta do Plano de Contas") para
-            aparecerem aqui.
+            não entram na DRE.
+            {naoClass.qtdTx > 0 && (
+              <> Destes, <strong className="tnum">{naoClass.qtdTx}</strong> são de <strong>cartão</strong>{' '}
+              (<strong className="tnum">{fmtBRL(naoClass.valorTx)}</strong>) — classifique na aba Lançamentos da Fatura.</>
+            )}
+            {' '}Os demais, em Contas a Pagar/Receber (campo "Conta do Plano de Contas").
           </Alert>
         </div>
       )}
