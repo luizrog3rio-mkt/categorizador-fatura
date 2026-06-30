@@ -255,13 +255,13 @@ export default function Hotmart() {
             <RefreshCw size={16} className={sincronizando ? 'animate-spin' : ''} />
             {sincronizando ? 'Sincronizando…' : 'Sincronizar com a Hotmart'}
           </button>
-          <label className={btnSecundario + (!isAdmin ? ' opacity-50 pointer-events-none' : ' cursor-pointer')} title="Importar um CSV exportado da Hotmart (alternativa à sincronização)">
+          <label className={btnSecundario + ' focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-1' + (!isAdmin ? ' opacity-50 pointer-events-none' : ' cursor-pointer')} title="Importar um CSV exportado da Hotmart (alternativa à sincronização)">
             <Upload size={16} />
             {importando ? 'Importando…' : 'CSV'}
             <input
               type="file"
               accept=".csv,.CSV,.txt"
-              className="hidden"
+              className="sr-only"
               disabled={importando}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) importar(f); e.target.value = '' }}
             />

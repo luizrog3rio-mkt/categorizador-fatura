@@ -278,10 +278,10 @@ export default function Fatura() {
               </button>
             )}
             <ExportMenu transactions={transactions} filtered={filtered} filter={search ? 'search' : 'all'} />
-            <label className={btnSecundario + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
+            <label className={btnSecundario + ' focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-1' + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
               <Upload size={16} />
               {importando ? 'Importando…' : 'Nova fatura'}
-              <input ref={fileInput} type="file" accept=".ofx" className="hidden" disabled={importando}
+              <input ref={fileInput} type="file" accept=".ofx" className="sr-only" disabled={importando}
                 onChange={(e) => onNovoArquivo(e.target.files?.[0])} />
             </label>
           </div>

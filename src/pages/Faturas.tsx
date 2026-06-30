@@ -91,10 +91,10 @@ export default function Faturas() {
             : `${invoices.length} fatura${invoices.length !== 1 ? 's' : ''} importada${invoices.length !== 1 ? 's' : ''}`
         }
         acao={
-          <label className={btnPrimario + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
+          <label className={btnPrimario + ' focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-1' + (!isAdmin ? ' opacity-40 pointer-events-none' : importando ? ' opacity-60 pointer-events-none' : ' cursor-pointer')}>
             <Upload size={16} />
             {importando ? 'Importando…' : 'Importar .OFX'}
-            <input ref={fileInput} type="file" accept=".ofx" className="hidden" disabled={importando}
+            <input ref={fileInput} type="file" accept=".ofx" className="sr-only" disabled={importando}
               onChange={(e) => onNovoArquivo(e.target.files?.[0])} />
           </label>
         }

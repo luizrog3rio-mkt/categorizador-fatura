@@ -121,13 +121,13 @@ export default function Extrato() {
               {contas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <label className={btnPrimario + (!isAdmin ? ' opacity-50 pointer-events-none' : contaSelecionada ? ' cursor-pointer' : ' opacity-50 cursor-not-allowed')}>
+          <label className={btnPrimario + ' focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-1' + (!isAdmin ? ' opacity-50 pointer-events-none' : contaSelecionada ? ' cursor-pointer' : ' opacity-50 cursor-not-allowed')}>
             <Upload size={16} />
             {importando ? 'Importando…' : 'Importar arquivo OFX'}
             <input
               type="file"
               accept=".ofx,.OFX,.qfx"
-              className="hidden"
+              className="sr-only"
               disabled={importando || !contaSelecionada}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) importar(f); e.target.value = '' }}
             />
