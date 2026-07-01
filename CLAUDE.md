@@ -75,15 +75,26 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   **NC-1 "(Receitas a classificar)"** (entries `receivable` sem conta). A data dos entries passou a
   usar `coalesce(competency_date, issue_date, due_date)` (os 695 que só tinham `due_date` param de
   sumir). Sem mutação de dado (coalesce ao vivo); sem dupla-contagem (mov exige chart NOT NULL,
-  naoclass exige NULL). O frontend renderiza NC como as HOT (agrupa por natureza, sort_order alto →
-  último da seção). A tela DRE ainda mostra o Alert `dre_nao_classificado` (agora aponta pro balde a
+  naoclass exige NULL). O `naoclass` e o `dre_nao_classificado` também excluem `transfer_id`
+  (migration `dre_exclui_transferencia_a_classificar` `20260701104248`, auditoria de 11 frentes
+  2026-07-01): transferência é neutra (par que se anula, nasce com chart null) e nunca recebe conta —
+  senão inflaria NC-1/NC-2 e o alerta nunca zeraria (latente, 0 transferências hoje). No front a perna
+  de transferência é read-only na edição e pulada no bulk de Conta DRE. O frontend renderiza NC como as
+  HOT (agrupa por natureza, sort_order alto → último da seção). **A DRE por PRODUTO (`DreProduto.tsx`)
+  também mostra o Alert `dre_nao_classificado`** (mesma auditoria — antes só a por competência tinha).
+  A tela DRE ainda mostra o Alert (aponta pro balde a
   esvaziar via a **ferramenta de classificação em massa** — decisão do Luiz "as duas", 2026-06-30). **Auditorias de
   2026-06-30 (import/consistência/resiliência) — JÁ CORRIGIDO:** 6 datas de ano-lixo (20226/20026
   etc.) → 2026 + `entries_datas_sanas` agora VALIDATE'd (retroativo); backfill de competency (18
   entries, +R$50k na DRE) e payment_date (149, +R$640k de datas, proxy=due_date); guarda de
   natureza no cartão da DRE (cartão = só custo, anti receita-fantasma); `closed_periods` agora
   ENFORÇADO por trigger `trg_bloqueia_periodo_fechado` (não só no front); `deletions_log` + trigger
-  forense de DELETE em entries/invoices (tela `/delecoes`, RPC `listar_delecoes`); guard de OFX
+  forense de DELETE em entries/invoices (tela `/delecoes`, RPC `listar_delecoes`) — **ampliado na
+  auditoria de 11 frentes (2026-07-01, migration `auditoria_forense_hotmart_e_lockdown_logs`
+  `20260701104204`) pra `hotmart_sales` (100% da receita) e `bank_transactions`** (antes um admin
+  apagava venda sem rastro); os logs (`deletions_log`/`entry_audit_log`) tiveram INSERT/UPDATE/DELETE
+  **revogados de authenticated** (imutabilidade não depende só da RLS — gravação é via trigger
+  `security definer`; SELECT fica). Guard de OFX
   vazio na fatura + aviso de reimport-duplica; **primeira rede de TESTES** (vitest, `src/lib/*.test.ts`).
   As 4 réguas de resultado foram ROTULADAS (diferem por design, não unificadas); os itens de
   segurança foram fechados (ver bullet RLS/papel + seguranca_*).
