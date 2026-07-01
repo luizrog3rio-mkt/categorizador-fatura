@@ -109,10 +109,32 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   `rateio_por_produto` era **morto** (nenhuma função/UI lia) → **reaproveitado** = "tem
   produto?" (derivado de `dre_product_id is not null` no save). Quem fica sem produto cai
   em "(A classificar)". `dre_by_product` é `security invoker`.
+- **Reforma "produto por ID" (2026-07-01, pedido do Luiz):** a chave do mapeamento Hotmart→DRE passou de
+  **nome do produto** para **`product_id`** (id numérico da Hotmart). Motivo: produtos HOMÔNIMOS com ids
+  diferentes se fundiam numa linha só — **"Mentoria Apruma" = 5 ids** (~R$2,7M); "Rota do Engajamento"/
+  "Pagamentos"/"Raiz Mastermind" = 2 cada (54 nomes → 62 ids). **Captura:** coluna `hotmart_sales.product_id`
+  (`hotmart_sales_product_id` `20260701125024`); o `mapSale` do edge **`hotmart-sync` v26** grava
+  `it.product.id`; o webhook grava `data.product.id` (`webhook_grava_product_id` `20260701125954`); backfill
+  do histórico pelo modo **`backfill_product_id`** (só-serviço: `true` varre `/sales/history` por janela;
+  uma **lista `[codes]`** busca por `?transaction=` os casos de borda — ambos UPDATE não-destrutivo, só onde
+  `product_id is null`). Resultado: **100% das vendas aprovadas com id**. **Cerne (`produto_por_id_mapa_e_rpcs`
+  `20260701140553`, ATÔMICA):** `hotmart_product_map` re-chaveado (PK vira `product_id`, 1 linha por id,
+  `product`=nome só pra display; expandido por herança do mapeamento do nome → **zero trabalho perdido**), e
+  as **3 RPCs** (`hotmart_produtos`, `dre_by_product`, `dre_by_competency`) passam a juntar por `product_id`.
+  **Invariante verificada** por snapshot pré/pós (dre_by_product 0 diff; dre_by_competency valores 0 diff) +
+  verificação adversarial multi-agente (pegou um bug de DDL: `CREATE OR REPLACE` não muda tipo de retorno →
+  precisou `drop function` antes de recriar `hotmart_produtos`, que ganhou a coluna `product_id`). A tela
+  **`/produtos-hotmart`** lista 1 linha por id **com coluna ID** (homônimos separados, cada um mapeável pra
+  Produto DRE/Conta distintos). ⚠️ **Vendas futuras:** um `product_id` NOVO nasce SEM linha no map → cai em
+  "(a classificar)" até ser mapeado na tela (não auto-herda mais pelo nome; não há trigger que popule o map
+  por id — a tela é o write-path, upsert `onConflict:'product_id'`). ⚠️ **`dre_by_competency` juntava por
+  nome CRU (sem btrim)** antes; a chave por id é imune a trailing-space (2 produtos com espaço no nome,
+  chart nulo, seguem em HOT-1). 2 vendas antigas tiveram o id resolvido por transação (Mentoria Apruma
+  Individual id 4264737).
 - **DRE por COMPETÊNCIA — receita Hotmart dividida pelas contas do plano (2026-06-30, pedido do
   Luiz):** antes a receita Hotmart era 1 linha sintética única ("Vendas Hotmart") e as contas de
   receita do plano (Mentorias/Cursos) ficavam vazias. Agora a `dre_by_competency` **divide o bruto
-  Hotmart entre as contas de receita** pela cadeia **venda → `hotmart_product_map.product` →
+  Hotmart entre as contas de receita** pela cadeia **venda → `product_id` → `hotmart_product_map` →
   `coalesce(pm.chart_of_account_id, dre_products.chart_of_account_id)` → conta** (3ª união do CTE
   `mov`). **Dois níveis com prioridade:** (1) **mapa DIRETO** `hotmart_product_map.chart_of_account_id`
   (coluna "Conta de Receita (direto)" na tela **Mapear produtos**) — ganha; (2) **via Produto DRE**

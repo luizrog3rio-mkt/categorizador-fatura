@@ -83,6 +83,7 @@ function mapSale(it: any, companyId: string) {
   return {
     transaction_code: String(code),
     product: it?.product?.name ?? 'Produto',
+    product_id: it?.product?.id ?? null, // id numérico do produto (distingue homônimos; chave da DRE por produto)
     sale_date,
     release_date: null, // sales/history não traz data de liberação/saque
     currency: p.price?.currency_code ?? 'BRL', // moeda da venda (USD existe)
@@ -122,7 +123,7 @@ Deno.serve(async (req) => {
       if (uErr || !user) return json({ error: 'sem autorização' }, 401)
     }
 
-    const { company_id, debug, refresh_sck, refresh_status, refresh_commissions, months, start: startArg, end: endArg, all_history, inspect_commissions } = await req.json().catch(() => ({}))
+    const { company_id, debug, refresh_sck, refresh_status, refresh_commissions, backfill_product_id, months, start: startArg, end: endArg, all_history, inspect_commissions } = await req.json().catch(() => ({}))
     if (!company_id) return json({ error: 'company_id obrigatório' }, 400)
 
     const clientId = Deno.env.get('HOTMART_CLIENT_ID')
@@ -301,6 +302,92 @@ Deno.serve(async (req) => {
         verificados++
       }
       return json({ ok: true, refresh: true, candidatos: cands?.length ?? 0, verificados, mudaram })
+    }
+
+    // 1c) modo backfill_product_id (SÓ serviço): preenche hotmart_sales.product_id
+    //   no HISTÓRICO. A API /sales/history traz product = { name, id } — o mapSale já
+    //   grava o id nas vendas novas; este modo é pro passado. Varre a janela (start/end
+    //   ms, ou months), agrupa por product_id e faz UPDATE NÃO-DESTRUTIVO (só onde
+    //   product_id IS NULL; NUNCA toca status/valores/tracking). Guarda de tempo ~90s.
+    //   completou_janela=false ⇒ chamar de novo com janela menor (a paginação é por
+    //   cursor efêmero, não dá pra retomar do meio). Rode em pedaços por período.
+    if (backfill_product_id) {
+      if (!isService) return json({ error: 'backfill_product_id é só modo-serviço' }, 403)
+      const sbsvc = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey!)
+
+      // sub-modo LISTA: backfill_product_id = ["HP...","HP..."] → busca cada venda por
+      //   ?transaction=<id> (que SEMPRE retorna, ao contrário da busca por janela) e grava
+      //   product_id. Resolve casos de borda que a janela não traz (eventos, datas atípicas).
+      //   UPDATE não-destrutivo (só onde product_id is null).
+      if (Array.isArray(backfill_product_id)) {
+        const codes = backfill_product_id.slice(0, 100).map(String)
+        let atualizadas = 0, verificados = 0
+        for (const code of codes) {
+          const u = new URL(HOTMART_SALES_URL)
+          u.searchParams.set('transaction', code)
+          const r = await fetch(u.toString(), { headers: { Authorization: `Bearer ${accessToken}` } })
+          if (!r.ok) continue
+          verificados++
+          const pid = (await r.json())?.items?.[0]?.product?.id
+          if (pid != null) {
+            const { data: upd } = await sbsvc.from('hotmart_sales')
+              .update({ product_id: Number(pid) })
+              .eq('transaction_code', code)
+              .is('product_id', null)
+              .select('id')
+            atualizadas += upd?.length ?? 0
+          }
+        }
+        return json({ ok: true, backfill_product_id: 'por_codigo', verificados, atualizadas })
+      }
+
+      const end = Number(endArg) || Date.now()
+      const janela = Math.max(1, Math.min(36, Number(months) || 2))
+      const start = startArg ? Number(startArg) : end - janela * 30 * 24 * 60 * 60 * 1000
+      const t0 = Date.now()
+      const porProduto = new Map<number, string[]>() // product_id -> transaction_codes
+      let pageToken = ''
+      let paginas = 0
+      let itens = 0
+      do {
+        if (Date.now() - t0 > 90000) break // guarda de tempo (margem pro update depois)
+        const u = new URL(HOTMART_SALES_URL)
+        u.searchParams.set('start_date', String(start))
+        u.searchParams.set('end_date', String(end))
+        u.searchParams.set('max_results', '100')
+        if (pageToken) u.searchParams.set('page_token', pageToken)
+        const r = await fetch(u.toString(), { headers: { Authorization: `Bearer ${accessToken}` } })
+        if (!r.ok) return json({ error: 'falha no histórico de vendas', status: r.status, body: await r.text() }, 502)
+        const data = await r.json()
+        for (const it of ((data?.items as any[]) ?? [])) {
+          const code = it?.purchase?.transaction ?? it?.transaction
+          const pid = it?.product?.id
+          if (code && pid != null) {
+            const key = Number(pid)
+            if (!porProduto.has(key)) porProduto.set(key, [])
+            porProduto.get(key)!.push(String(code))
+            itens++
+          }
+        }
+        pageToken = data?.page_info?.next_page_token ?? ''
+        paginas++
+      } while (pageToken && paginas < 150)
+
+      // UPDATE não-destrutivo, agrupado por product_id (só onde product_id ainda é null)
+      let atualizadas = 0
+      for (const [pid, codes] of porProduto) {
+        for (let i = 0; i < codes.length; i += 300) {
+          const lote = codes.slice(i, i + 300)
+          const { data: upd, error } = await sbsvc.from('hotmart_sales')
+            .update({ product_id: pid })
+            .in('transaction_code', lote)
+            .is('product_id', null)
+            .select('id')
+          if (error) return json({ error: 'falha no update', detalhe: error.message, atualizadas_antes: atualizadas }, 500)
+          atualizadas += upd?.length ?? 0
+        }
+      }
+      return json({ ok: true, backfill_product_id: true, paginas, itens_lidos: itens, produtos_distintos: porProduto.size, atualizadas, completou_janela: !pageToken })
     }
 
     // 2) janela: explícita (start/end epoch ms, pra backfill em pedaços) ou
