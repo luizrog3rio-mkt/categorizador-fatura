@@ -475,7 +475,14 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       return
     }
     const contaByName = (name: string) => contas.find(c => normalizar(c.name) === normalizar(name))?.id ?? null
-    const cid = empresaAtiva?.id ?? empresas[0]?.id ?? ''
+    // em "Consolidado" (sem empresa ativa) o import iria pra empresas[0] arbitrariamente — bloqueia
+    // e exige escolher a empresa no seletor global (mesmo padrao do Hotmart).
+    const cid = empresaAtiva?.id ?? ''
+    if (!cid) {
+      setImportErro('Selecione uma empresa no seletor do topo antes de importar (não dá pra importar em "Consolidado").')
+      setImportando(false)
+      return
+    }
     const payload = importLinhas
       .filter(r => r[idx.description]?.trim())
       .map(r => ({
@@ -1096,6 +1103,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       {/* Modal: importar planilha */}
       <Modal titulo="Importar Lançamentos" aberto={importAberto} onFechar={fecharImport}>
         <div className="space-y-4">
+          {empresaAtiva ? (
+            <Alert tom="info">Importar para a empresa <span className="font-semibold text-fg">{empresaAtiva.name}</span> (o seletor do topo).</Alert>
+          ) : (
+            <Alert tom="warning">Você está em <span className="font-semibold text-fg">Consolidado</span>. Selecione uma empresa no seletor do topo para importar.</Alert>
+          )}
           <div className="rounded-card bg-surface-2 border border-border p-3 text-xs text-fg-muted leading-relaxed">
             <p className="font-semibold text-fg mb-1">Colunas reconhecidas no cabeçalho (case insensitive):</p>
             <p><span className="font-medium text-fg">Obrigatórias:</span> Descrição · Valor · Vencimento</p>
@@ -1147,7 +1159,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <div className="flex gap-3 pt-1">
                 <button
                   onClick={confirmarImport}
-                  disabled={importando || importValidas === 0}
+                  disabled={importando || importValidas === 0 || !empresaAtiva}
                   className={btnPrimario + ' flex-1 justify-center'}
                 >
                   {importando ? 'Importando…' : `Importar ${importValidas} lançamento${importValidas !== 1 ? 's' : ''}`}
