@@ -632,10 +632,21 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     const emp = empresas.find((e) => e.id === companyId)
     const n = selectedIds.length
     if (!(await confirmar({ titulo: 'Mover empresa', mensagem: `Mover ${n} ${n === 1 ? 'lançamento' : 'lançamentos'} para a empresa "${emp?.name ?? ''}"?` }))) return
+    // conta de OUTRA empresa vira órfã ao mover (o caixa fica na empresa errada) → desvincula,
+    // igual o form individual faz ao trocar empresa. Só as com conta de empresa diferente da destino.
+    const { data: sel } = await supabase
+      .from('entries').select('id, account_id, account:accounts!account_id(company_id)').in('id', selectedIds)
+    const orfaos = ((sel ?? []) as unknown as { id: string; account_id: string | null; account: { company_id: string | null } | null }[])
+      .filter((e) => e.account_id && e.account?.company_id && e.account.company_id !== companyId).map((e) => e.id)
     const { error } = await supabase.from('entries').update({ company_id: companyId }).in('id', selectedIds)
     if (error) { setErro('Erro ao alterar a empresa em massa: ' + error.message); return }
+    if (orfaos.length > 0) {
+      const { error: e2 } = await supabase.from('entries').update({ account_id: null }).in('id', orfaos)
+      if (e2) { setErro('Empresa alterada, mas falhou ao desvincular a conta de ' + orfaos.length + ': ' + e2.message); return }
+    }
     setRowSelection({})
-    toast(`${n} ${n === 1 ? 'lançamento movido' : 'lançamentos movidos'} para ${emp?.name ?? 'a empresa'}`)
+    toast(`${n} ${n === 1 ? 'lançamento movido' : 'lançamentos movidos'} para ${emp?.name ?? 'a empresa'}` +
+      (orfaos.length > 0 ? ` · ${orfaos.length} com conta de outra empresa foram desvinculados (reassocie a conta)` : ''))
     carregar()
   }
 
