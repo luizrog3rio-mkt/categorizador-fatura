@@ -156,6 +156,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const [lancamentos, setLancamentos] = useState<Entry[]>([])
   const [contas, setContas] = useState<Account[]>([])
   const [filtroStatus, setFiltroStatus] = useState('')
+  const [filtroConta, setFiltroConta] = useState<'' | 'sem' | 'com'>('') // classificação (Conta DRE)
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [dataDe, setDataDe] = useState('')
   const [dataAte, setDataAte] = useState('')
@@ -195,6 +196,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     const escopoEmpresa = filtroEmpresa || empresaAtiva?.id
     if (escopoEmpresa) q = q.eq('company_id', escopoEmpresa)
     if (filtroStatus) q = q.eq('status', filtroStatus)
+    if (filtroConta === 'sem') q = q.is('chart_of_account_id', null)
+    else if (filtroConta === 'com') q = q.not('chart_of_account_id', 'is', null)
     if (dataDe) q = q.gte('due_date', dataDe)
     if (dataAte) q = q.lte('due_date', dataAte)
     const { data, error } = await q
@@ -205,7 +208,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       setTruncado(rows.length >= 1000) // PostgREST corta em 1000 — avisa pra refinar filtros
     }
     setCarregando(false)
-  }, [tipo, empresaAtiva, filtroStatus, filtroEmpresa, dataDe, dataAte])
+  }, [tipo, empresaAtiva, filtroStatus, filtroConta, filtroEmpresa, dataDe, dataAte])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -587,10 +590,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   // se o filtro de empresa coincide com o escopo global, trata como "sem filtro"
   // (a empresa ativa é omitida das opções — evita o select renderizar em branco)
   const filtroEmpresaVisivel = filtroEmpresa && filtroEmpresa !== empresaAtiva?.id ? filtroEmpresa : ''
-  const temFiltro = !!(busca || filtroStatus || filtroEmpresaVisivel || dataDe || dataAte)
+  const temFiltro = !!(busca || filtroStatus || filtroConta || filtroEmpresaVisivel || dataDe || dataAte)
   const limparFiltros = () => {
     setBusca('')
     setFiltroStatus('')
+    setFiltroConta('')
     setFiltroEmpresa('')
     setDataDe('')
     setDataAte('')
@@ -662,6 +666,20 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     setRowSelection({})
     toast(`${n} ${n === 1 ? 'lançamento movido' : 'lançamentos movidos'} para ${emp?.name ?? 'a empresa'}` +
       (cross > 0 ? ` · ${cross} ficaram intercompany (conta de outra empresa) — revise se preciso` : ''))
+    carregar()
+  }
+
+  // classificar em massa: atribui a Conta do Plano (chart_of_account) aos selecionados — a ferramenta
+  // pra esvaziar o balde "(A classificar)" do DRE (as despesas nao-classificadas passam a entrar na conta).
+  const aplicarContaEmMassa = async (chartId: string) => {
+    if (selectedIds.length === 0 || !chartId) return
+    const conta = chartAccounts.find((c) => c.id === chartId)
+    const n = selectedIds.length
+    if (!(await confirmar({ titulo: 'Classificar em massa', mensagem: `Atribuir a conta "${conta?.code} – ${conta?.name}" a ${n} ${n === 1 ? 'lançamento' : 'lançamentos'}?` }))) return
+    const { error } = await supabase.from('entries').update({ chart_of_account_id: chartId }).in('id', selectedIds)
+    if (error) { setErro('Erro ao classificar em massa: ' + error.message); return }
+    setRowSelection({})
+    toast(`${n} ${n === 1 ? 'lançamento classificado' : 'lançamentos classificados'} em ${conta?.code ?? 'conta'}`)
     carregar()
   }
 
@@ -870,6 +888,14 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <option value="cancelled">Cancelado</option>
             </select>
           </div>
+          <div className="w-44">
+            <label className="block text-sm font-medium mb-1">Conta DRE</label>
+            <select className={inputCls} value={filtroConta} onChange={(e) => setFiltroConta(e.target.value as '' | 'sem' | 'com')}>
+              <option value="">Todas</option>
+              <option value="sem">Sem conta (a classificar)</option>
+              <option value="com">Com conta</option>
+            </select>
+          </div>
           {empresas.length > 1 && (
             <div className="w-48">
               <label className="block text-sm font-medium mb-1">Empresa</label>
@@ -904,6 +930,17 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <option value="pending">Pendente</option>
               <option value="paid">{ehPagar ? 'Pago' : 'Recebido'}</option>
               <option value="cancelled">Cancelado</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-fg-muted">Conta DRE:</span>
+            <select
+              value=""
+              onChange={(e) => { const v = e.target.value; if (v) aplicarContaEmMassa(v) }}
+              className="rounded-control border border-border-strong px-2 py-1.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand max-w-[16rem]"
+            >
+              <option value="" disabled>Classificar…</option>
+              {chartAccounts.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
             </select>
           </div>
           {empresas.length > 1 && (
