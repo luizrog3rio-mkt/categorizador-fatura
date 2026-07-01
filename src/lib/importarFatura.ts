@@ -24,8 +24,9 @@ export async function importarFaturaOFX(
   if (txs.length === 0) {
     return { ok: null, erro: 'Nenhum lançamento encontrado no arquivo. Verifique se é um OFX de fatura de cartão válido.' }
   }
-  // total contábil: despesa soma, estorno/desconto abate (ver valorComSinal)
-  const total = txs.reduce((s, t) => s + valorComSinal(t), 0)
+  // total contábil: despesa soma, estorno/desconto abate (ver valorComSinal). Arredonda pra 2 casas
+  // — a soma de floats em JS gera dust (ex.: 140585.03999999992); sem isso o dust ia pro banco.
+  const total = Math.round(txs.reduce((s, t) => s + valorComSinal(t), 0) * 100) / 100
 
   const { data: inv, error: e1 } = await supabase
     .from('invoices')
