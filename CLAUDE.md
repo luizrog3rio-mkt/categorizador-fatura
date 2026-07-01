@@ -66,9 +66,18 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   de Hotmart por mês (bruto→receita, taxa→dedução, comissões→custo variável), filtro
   empresa+BRL+aprovado; sem dupla contagem (Hotmart não está em entries). **Hotmart agora
   entra nas DUAS DREs** (revoga a regra antiga "só na produto"); a competência ainda tem
-  cartão a mais. ⚠️ **`entries`/`transactions` SEM `chart_of_account_id` somem da DRE** (o
-  JOIN os engole); a tela DRE mostra um Alert que agora conta as DUAS fontes — entries E cartão
-  (RPC `dre_nao_classificado`, auditoria 2026-06-30; antes só entries, enganava). **Auditorias de
+  cartão a mais. ✅ **`entries`/`transactions` SEM `chart_of_account_id` NÃO somem mais da DRE**
+  (migration `dre_competencia_a_classificar` `20260701033821`, auditoria 2026-06-30): antes o INNER
+  JOIN os engolia — a RB7 DIGITAL mostrava a receita Hotmart mas omitia **~R$3,5M de despesas
+  não-classificadas** (lucro fictício, inflado). Agora a `dre_by_competency` emite 2 linhas
+  sintéticas **"(A classificar)"** espelhando o HOT-1: **NC-2 "(Despesas a classificar)"**
+  (entries `payable` + cartão sem conta, `nature='variable_cost'` → aparece em Custos Variáveis) e
+  **NC-1 "(Receitas a classificar)"** (entries `receivable` sem conta). A data dos entries passou a
+  usar `coalesce(competency_date, issue_date, due_date)` (os 695 que só tinham `due_date` param de
+  sumir). Sem mutação de dado (coalesce ao vivo); sem dupla-contagem (mov exige chart NOT NULL,
+  naoclass exige NULL). O frontend renderiza NC como as HOT (agrupa por natureza, sort_order alto →
+  último da seção). A tela DRE ainda mostra o Alert `dre_nao_classificado` (agora aponta pro balde a
+  esvaziar via a **ferramenta de classificação em massa** — decisão do Luiz "as duas", 2026-06-30). **Auditorias de
   2026-06-30 (import/consistência/resiliência) — JÁ CORRIGIDO:** 6 datas de ano-lixo (20226/20026
   etc.) → 2026 + `entries_datas_sanas` agora VALIDATE'd (retroativo); backfill de competency (18
   entries, +R$50k na DRE) e payment_date (149, +R$640k de datas, proxy=due_date); guarda de
