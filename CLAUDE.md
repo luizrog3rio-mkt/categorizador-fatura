@@ -106,12 +106,24 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   granular (1 conta/curso) usa o mapa direto; categorias coarse usam o via-Produto-DRE. **Só afeta a
   DRE por competência** — a `dre_by_product` (por produto) é independente. ⚠️ O `mov` do cartão tem
   guarda de natureza de custo (`dre_competencia_guarda_natureza_cartao` `20260630190014`).
-- **RLS = modelo de EQUIPE**: `using (true) with check (true)` para
-  authenticated em todas as tabelas (Fase 1b/1c). Os ~11 WARNs
-  `rls_policy_always_true` dos advisors são **aceitos por design**.
-  Pré-condição do modelo: signup público e anonymous sign-ins DESLIGADOS
-  (contas só via dashboard → Add user). `user_id`/`created_by` não são
-  autoritativos.
+- **RLS = LEITURA de equipe + ESCRITA de admin** (migration `seguranca_viewer_readonly_real`
+  `20260701021714`, decisão do Luiz 2026-06-30 — o papel `viewer` virou limite REAL, não mais
+  só-UI): **SELECT** continua `using (true)` para authenticated em todas as tabelas (leitura de
+  equipe, os WARNs `rls_policy_always_true` do SELECT seguem aceitos por design), mas
+  **INSERT/UPDATE/DELETE** das 15 tabelas de dados + `closed_periods` exigem **`(select public.is_admin())`**
+  (função `security definer` que lê `profiles.role='admin'` do caller; WARN de definer-executável
+  por authenticated **aceito** — só revela o próprio papel). Exceções que continuam owner-scoped:
+  `user_table_prefs` (prefs de coluna — viewer PRECISA salvar) e o self-update de `profiles` (menos
+  a coluna role). **Motor de origem:** `reapply_all` teve o EXECUTE revogado de authenticated e os
+  wrappers `apply_origin_rules`/`force_apply_origin_rule` ganharam guard `is_admin()` (o auto-classify
+  de venda nova usa `apply_origin_rules_one`, só service_role → intocado). **Serviço** (sync/webhook/
+  crons via service key) **bypassa RLS** → intocado. Os 4 usuários são admin; `viewer` fica de fato
+  só-leitura no banco (provado por teste: viewer INSERT → RLS violation, admin → OK). ⚠️ **A trava da
+  coluna `role`** (trigger `trg_guard_profile_role`, bloqueia authenticated/anon de mudar o próprio
+  papel) é **defesa-em-profundidade**: a proteção REAL contra auto-promoção é `authenticated` **não ter
+  UPDATE grant** em `profiles` (só SELECT/INSERT/DELETE; papel só muda via edge `user-management`,
+  admin-gated). Pré-condição do modelo: signup público e anonymous sign-ins DESLIGADOS (contas só via
+  dashboard → Add user). `user_id`/`created_by` não são autoritativos.
 - FKs de dados usam `ON DELETE RESTRICT` (registro financeiro não morre por
   arrasto; deletar usuário/conta com dados falha); vínculos fracos usam
   SET NULL.
