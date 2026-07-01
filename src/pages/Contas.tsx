@@ -15,7 +15,7 @@ interface ContaComSaldo extends Account {
 
 const FONTE_LABEL: Record<ContaComSaldo['fonte'], { txt: string; tom: BadgeTom }> = {
   ofx: { txt: 'Extrato', tom: 'brand' },
-  entries: { txt: 'Lançamentos', tom: 'muted' },
+  entries: { txt: 'Lançamentos pagos', tom: 'muted' },
   inicial: { txt: 'Só saldo inicial', tom: 'warning' },
 }
 
@@ -248,6 +248,12 @@ export default function Contas() {
                 {c.type === 'inter_company' && (
                   <p className="text-xs text-fg-subtle mt-1">
                     Saldo do empréstimo entre empresas (consultável)
+                  </p>
+                )}
+                {c.fonte === 'entries' && (
+                  <p className="text-xs text-fg-subtle mt-1">
+                    Só o que foi lançado e pago nesta conta (a receita Hotmart não é baixada aqui) —
+                    não é o saldo bancário real. Importe o OFX (Extratos) para o saldo do banco.
                   </p>
                 )}
                 {c.type === 'credit_card' && (

@@ -81,12 +81,20 @@ export default function Dashboard() {
     if (e8) erros.push('hotmart mês anterior: ' + e8.message)
     setHotmartPrevNet(Number(htp?.[0]?.liquido ?? 0))
 
-    // ── Hotmart a liberar (release_date futura) via RPC — agregado no banco ──
-    const { data: al, error: e7 } = await supabase.rpc('hotmart_a_liberar', {
-      p_company: empresaAtiva?.id ?? null,
+    // ── Hotmart "a liberar" — ESTIMATIVA D+30 ──
+    // A API /sales/history não traz release_date (fica sempre null), então hotmart_a_liberar dava
+    // R$0 SEMPRE (enganava: parecia "nada a liberar"). Proxy honesto: líquido das vendas dos últimos
+    // ~30 dias — as que ainda não passaram do prazo de liberação (~D+30), i.e., o que está por sacar.
+    const hojeDt = new Date()
+    const hojeStr = `${hojeDt.getFullYear()}-${String(hojeDt.getMonth() + 1).padStart(2, '0')}-${String(hojeDt.getDate()).padStart(2, '0')}`
+    const d30 = new Date()
+    d30.setDate(d30.getDate() - 30)
+    const d30Ini = `${d30.getFullYear()}-${String(d30.getMonth() + 1).padStart(2, '0')}-${String(d30.getDate()).padStart(2, '0')}`
+    const { data: al, error: e7 } = await supabase.rpc('hotmart_totals', {
+      p_company: empresaAtiva?.id ?? null, p_start: d30Ini, p_end: hojeStr,
     })
     if (e7) erros.push('hotmart a liberar: ' + e7.message)
-    setALiberar(Number(al ?? 0))
+    setALiberar(Number(al?.[0]?.liquido ?? 0))
 
     // ── cartão: dados reais (faturas/transações vivas) ── filtra por empresa (invoice→conta→empresa)
     const { data: invs, error: e3 } = await supabase.from('invoices').select('*, account:accounts!account_id(company_id)').order('imported_at', { ascending: false })
@@ -229,11 +237,11 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex flex-col justify-center md:border-l md:border-border md:pl-6">
-            <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">A liberar · Hotmart</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">A liberar · Hotmart <span className="text-fg-subtle/70 normal-case font-normal">(est.)</span></p>
             <p className="mt-1 font-mono font-semibold tracking-tight tnum text-3xl text-brand">
               {fmtBRL(aLiberar)}
             </p>
-            <p className="mt-1 text-xs text-fg-subtle">previsibilidade de saque</p>
+            <p className="mt-1 text-xs text-fg-subtle">estimativa: líquido das vendas dos últimos 30 dias (liberação ~D+30)</p>
           </div>
         </div>
       </Card>
