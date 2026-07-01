@@ -206,6 +206,13 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   deixa de cobrir o pedaço 35–60d — bump o `recente` no edge junto. (Hoje o risco é baixo: o fix
   do `net_amount` fez o `mapSale` NÃO emitir mais comissão/net, então o sync não re-clobbra o que
   o commissions grava — o re-check só acelera capturar comissão nova.)
+- **Observabilidade de edge (auditoria 11 frentes P9, migration `cron_edge_audit_observabilidade`
+  `20260701110740`):** o `succeeded` do pg_cron só diz que o `net.http_post` ENFILEIROU — o status
+  HTTP real da edge vive em `net._http_response`, purgado pelo pg_net em ~6h. Cron **`snapshot-edge-
+  responses`** (horário) copia essas respostas pra tabela durável **`cron_edge_audit`** (equipe lê;
+  gravação via `snapshot_cron_edge_responses()` definer, EXECUTE revogado). Como só os 3 crons Hotmart
+  usam `net.http_post`, toda resposta ali é edge nossa → passa a ter histórico do status HTTP (hoje só
+  200). O `hotmart_cron_health` (front, tela `/hotmart`) segue sendo o alerta de estagnação.
 - **`sck` e `afiliado` (atribuição de vendedor) — hoje via modelo de canais (ver "Origem da
   venda" abaixo)**: a API `/sales/history` traz `purchase.tracking.source_sck` (NÃO `sck`) →
   `mapSale` grava em `hotmart_sales.sck`. Valor ruidoso: visitor-id (`<ts>_<id>`) / UTM (`a|b|c`)

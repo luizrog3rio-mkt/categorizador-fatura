@@ -24,6 +24,7 @@ export default function Dashboard() {
   const { empresaAtiva } = useApp()
   const [lancamentos, setLancamentos] = useState<Entry[]>([])
   const [lancTruncado, setLancTruncado] = useState(false) // janela do fluxo bateu o teto de 1000
+  const [atrasadosTotal, setAtrasadosTotal] = useState(0) // vencidos: RPC server-side, sem piso de data
   const [vendas, setVendas] = useState<HotmartSale[]>([])
   const [hotmartMesNet, setHotmartMesNet] = useState(0)
   const [hotmartPrevNet, setHotmartPrevNet] = useState(0)
@@ -51,6 +52,11 @@ export default function Dashboard() {
     if (e1) erros.push('lançamentos: ' + e1.message)
     setLancamentos((ls as Entry[]) ?? [])
     setLancTruncado((ls?.length ?? 0) >= 1000) // PostgREST corta em 1000 → KPIs sub-contariam sem aviso
+
+    // Atrasados: RPC agregada no banco (sem o piso de -5 meses da janela do fluxo, sem teto de 1000)
+    const { data: atr, error: eAtr } = await supabase.rpc('entries_atrasados', { p_company: empresaAtiva?.id ?? null })
+    if (eAtr) erros.push('atrasados: ' + eAtr.message)
+    setAtrasadosTotal(Number(atr ?? 0))
 
     let qv = supabase.from('hotmart_sales').select('*').gte('sale_date', inicio)
     if (empresaAtiva) qv = qv.eq('company_id', empresaAtiva.id)
@@ -145,12 +151,12 @@ export default function Dashboard() {
     const doMes = lancamentos.filter((l) => l.due_date.startsWith(mesAtual))
     const aReceber = doMes.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
     const aPagar = doMes.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
-    const atrasados = lancamentos.filter((l) => (l.status === 'to_pay' || l.status === 'pending') && l.due_date < hoje()).reduce((s, l) => s + Number(l.amount), 0)
+    // "Atrasados" agora vem da RPC entries_atrasados (state atrasadosTotal) — sem o piso de -5 meses.
     // mês anterior (mesma base "em aberto") p/ o delta de A receber / A pagar
     const doMesAnt = lancamentos.filter((l) => l.due_date.startsWith(mesAnterior))
     const aReceberAnt = doMesAnt.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
     const aPagarAnt = doMesAnt.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
-    return { aReceber, aPagar, atrasados, aReceberAnt, aPagarAnt }
+    return { aReceber, aPagar, aReceberAnt, aPagarAnt }
   }, [lancamentos, mesAtual, mesAnterior])
 
   // ── hero: resultado projetado do mês (entradas − saídas) ──
@@ -252,7 +258,7 @@ export default function Dashboard() {
         <KPIStrip cols={4}>
           <KPICard bare label="A receber (mês)" valor={fmtBRL(kpis.aReceber)} tom="revenue" delta={delta(kpis.aReceber, kpis.aReceberAnt)} goodWhen="up" />
           <KPICard bare label="A pagar (mês)" valor={fmtBRL(kpis.aPagar)} tom="expense" delta={delta(kpis.aPagar, kpis.aPagarAnt)} goodWhen="down" />
-          <KPICard bare label="Atrasados" valor={fmtBRL(kpis.atrasados)} tom={kpis.atrasados > 0 ? 'expense' : 'neutro'} />
+          <KPICard bare label="Atrasados" valor={fmtBRL(atrasadosTotal)} tom={atrasadosTotal > 0 ? 'expense' : 'neutro'} />
           <KPICard bare label="Hotmart líquido (mês)" valor={fmtBRL(hotmartMesNet)} tom="revenue" delta={delta(hotmartMesNet, hotmartPrevNet)} goodWhen="up" />
         </KPIStrip>
       </section>
