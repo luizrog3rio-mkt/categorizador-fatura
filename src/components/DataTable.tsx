@@ -111,6 +111,24 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
 
   const [sorting, setSorting] = useState<SortingState>([])
 
+  // ordem efetiva = a salva (sem ids que não existem mais) + colunas NOVAS
+  // inseridas na posição natural (logo após a vizinha anterior da definição).
+  // Sem isso, quem já personalizou a ordem veria toda coluna nova jogada no fim
+  // da tabela (o default do TanStack anexa os ids ausentes ao final).
+  const columnOrder = useMemo(() => {
+    const salva = prefs.columnOrder
+    if (!salva.length) return salva
+    const todas = columns.map((c) => c.id)
+    const ordem = salva.filter((id) => todas.includes(id))
+    todas.forEach((id, i) => {
+      if (ordem.includes(id)) return
+      let pos = -1
+      for (let j = i - 1; j >= 0 && pos === -1; j--) pos = ordem.indexOf(todas[j])
+      ordem.splice(pos + 1, 0, id)
+    })
+    return ordem
+  }, [prefs.columnOrder, columns])
+
   const table = useReactTable({
     data,
     columns: columnDefs,
@@ -120,7 +138,7 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
     initialState: pageSize ? { pagination: { pageIndex: 0, pageSize } } : undefined,
     getRowId,
     state: {
-      columnOrder: prefs.columnOrder,
+      columnOrder,
       columnSizing: prefs.columnSizing,
       columnVisibility: prefs.columnVisibility,
       rowSelection: rowSelection ?? {},
@@ -243,14 +261,10 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e
     if (!over || active.id === over.id) return
-    // ordem efetiva COMPLETA: a salva (só colunas que ainda existem) + as colunas
-    // ausentes no fim. Sem isso, uma coluna fora da order salva (nova ou renomeada,
-    // ex.: 'canal'→'vendedor') tem indexOf -1 e não consegue ser arrastada.
-    const todas = table.getAllLeafColumns().map((c) => c.id)
-    const salva = table.getState().columnOrder
-    const atual = salva.length
-      ? [...salva.filter((id) => todas.includes(id)), ...todas.filter((id) => !salva.includes(id))]
-      : todas
+    // parte da ordem efetiva (que já normaliza a salva: descarta ids que não
+    // existem mais e insere colunas novas na posição natural) — assim os índices
+    // batem com o que está na tela e a ordem salva sai completa.
+    const atual = columnOrder.length ? [...columnOrder] : table.getAllLeafColumns().map((c) => c.id)
     const de = atual.indexOf(active.id as string)
     const para = atual.indexOf(over.id as string)
     if (de < 0 || para < 0) return

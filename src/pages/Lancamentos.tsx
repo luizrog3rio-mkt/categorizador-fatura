@@ -3,6 +3,7 @@ import { Plus, Pencil, CheckCircle2, Trash2, ArrowRight, ArrowLeftRight, Repeat,
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
+import { valorEfetivo, emAberto } from '../lib/entries'
 import type { Account, Entry, EntryType, EntryStatus } from '../lib/types'
 import type { ChartOfAccount, DreProduct } from '../lib/types'
 import { Card, PageHeader, StatusBadge, Badge, Vazio, Modal, ErroBanner, Alert, KPICard, KPIStrip, inputCls, btnPrimario, btnSecundario } from '../components/ui'
@@ -136,11 +137,6 @@ function parseValor(val: string): number {
 
 // parse de campo do form (vírgula ou ponto decimal); vazio = 0
 const num = (s: string) => parseFloat((s ?? '').replace(',', '.')) || 0
-
-// valor efetivamente pago/recebido (amount + juros + multa − desconto). Os encargos
-// só são preenchidos no pagamento, então até lá isto é igual ao amount.
-const valorPago = (l: Entry) =>
-  Number(l.amount) + Number(l.interest_amount) + Number(l.fine_amount) - Number(l.discount_amount)
 
 const STATUS_MAP: Record<string, EntryStatus> = {
   'a pagar': 'to_pay', 'a receber': 'to_pay', 'to_pay': 'to_pay',
@@ -570,11 +566,13 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     )
   }, [lancamentos, busca])
 
+  // os 3 KPIs usam o valor EFETIVO (com juros/multa/desconto): "A pagar" e
+  // "Pendente" batem com a coluna "A pagar" da tabela (KPI A pagar + Pendente =
+  // rodapé da coluna) e "Pago" é o caixa que de fato moveu.
   const totais = useMemo(() => ({
-    aPagar: lancamentosExibidos.filter((l) => l.status === 'to_pay' && !l.transfer_id).reduce((s, l) => s + Number(l.amount), 0),
-    pendente: lancamentosExibidos.filter((l) => l.status === 'pending' && !l.transfer_id).reduce((s, l) => s + Number(l.amount), 0),
-    // "Pago/Recebido" = caixa que de fato moveu (transferências não entram aqui)
-    pago: lancamentosExibidos.filter((l) => l.status === 'paid' && !l.transfer_id).reduce((s, l) => s + valorPago(l), 0),
+    aPagar: lancamentosExibidos.filter((l) => l.status === 'to_pay' && !l.transfer_id).reduce((s, l) => s + valorEfetivo(l), 0),
+    pendente: lancamentosExibidos.filter((l) => l.status === 'pending' && !l.transfer_id).reduce((s, l) => s + valorEfetivo(l), 0),
+    pago: lancamentosExibidos.filter((l) => l.status === 'paid' && !l.transfer_id).reduce((s, l) => s + valorEfetivo(l), 0),
   }), [lancamentosExibidos])
 
   // intercompany: lançamento cuja conta pagadora é de OUTRA empresa (empresa A paga
@@ -584,14 +582,22 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     [lancamentosExibidos]
   )
 
-  // total da coluna Valor (rodapé da tabela): exclui cancelados (anulados não
-  // contam), exceto quando o filtro é justamente "Cancelado" — assim o rodapé
-  // concilia com os cards (A pagar + Pendente + Pago)
+  // total da coluna Valor (rodapé da tabela): soma o valor ORIGINAL (sem juros/
+  // multa/desconto), excluindo cancelados (anulados não contam), exceto quando o
+  // filtro é justamente "Cancelado". Quem concilia com os cards é a coluna
+  // "A pagar/A receber" (valor efetivo) — este rodapé diverge dos cards quando
+  // há encargo/desconto lançado.
   const totalValor = useMemo(
     () => lancamentosExibidos
       .filter((l) => (filtroStatus === 'cancelled' || l.status !== 'cancelled') && !l.transfer_id)
       .reduce((s, l) => s + Number(l.amount), 0),
     [lancamentosExibidos, filtroStatus]
+  )
+
+  // total da coluna "A pagar/A receber": quanto ainda falta no recorte atual
+  const totalEmAberto = useMemo(
+    () => lancamentosExibidos.filter(emAberto).reduce((s, l) => s + valorEfetivo(l), 0),
+    [lancamentosExibidos]
   )
 
   // se o filtro de empresa coincide com o escopo global, trata como "sem filtro"
@@ -736,9 +742,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       return (
         <div>
           <span className="font-semibold tnum">{fmtBRL(Number(l.amount))}</span>
-          {temEncargo && (
-            <p className="text-xs text-fg-subtle tnum" title="Juros + multa − desconto">
-              {ehPagar ? 'pago' : 'receb.'} {fmtBRL(valorPago(l))}
+          {temEncargo && (l.status === 'paid' || l.status === 'refunded') && (
+            <p className="text-xs text-fg-subtle tnum" title="Valor + juros + multa − desconto">
+              {ehPagar ? 'pago' : 'receb.'} {fmtBRL(valorEfetivo(l))}
             </p>
           )}
         </div>
@@ -759,6 +765,23 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         ? <span className="text-fg-muted tnum">{fmtBRL(Number(l.discount_amount))}</span>
         : <span className="text-fg-subtle">—</span>
     },
+    // quanto FALTA pagar/receber (valor + juros + multa − desconto). Pago,
+    // cancelado, estornado e transferência não devem nada → "—". O tooltip
+    // desfaz a colisão com o KPI "A pagar" (que é só o status a-pagar): a
+    // coluna cobre a-pagar + pendente, então KPI A pagar + Pendente = rodapé.
+    { id: 'a_pagar',
+      header: (
+        <span title={`Quanto falta ${ehPagar ? 'pagar' : 'receber'}: valor + juros + multa − desconto dos lançamentos em aberto (${ehPagar ? 'a pagar' : 'a receber'} + pendentes)`}>
+          {ehPagar ? 'A pagar' : 'A receber'}
+        </span>
+      ),
+      label: ehPagar ? 'A pagar' : 'A receber',
+      size: 120, align: 'right',
+      cell: (l) =>
+        emAberto(l)
+          ? <span className={`font-semibold tnum ${ehPagar ? 'text-expense' : 'text-revenue'}`}>{fmtBRL(valorEfetivo(l))}</span>
+          : <span className="text-fg-subtle">—</span>,
+      footer: fmtBRL(totalEmAberto) },
     { id: 'status', header: 'Status', size: 104, align: 'right', cell: (l) => l.transfer_id ? <Badge tom="brand">Transferência</Badge> : <StatusBadge status={l.status} tipo={tipo} /> },
     { id: 'acoes', header: '', label: 'Ações', size: 96, align: 'right', enableHiding: false, cell: (l) => (
       <div className="flex gap-2 justify-end">
@@ -784,7 +807,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         )}
       </div>
     ) },
-  ], [isAdmin, ehPagar, tipo, totalValor, empresas, enviarParaPagamento, marcarPago, abrirEdicao, excluir])
+  ], [isAdmin, ehPagar, tipo, totalValor, totalEmAberto, empresas, enviarParaPagamento, marcarPago, abrirEdicao, excluir])
 
   // Exporta os lançamentos EXIBIDOS (respeita filtros + busca) — reusa o helper de relatório.
   const exportar = (formato: 'xlsx' | 'csv') => {
@@ -792,7 +815,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       to_pay: ehPagar ? 'A pagar' : 'A receber', pending: 'Pendente',
       paid: ehPagar ? 'Pago' : 'Recebido', cancelled: 'Cancelado', refunded: 'Estornado',
     }) as Record<string, string>)[s] ?? s
-    const header = ['Descrição', 'Contraparte', 'Empresa', 'Conta do Plano', 'Produto DRE', 'Emissão', 'Vencimento', 'Pagamento', 'Valor', 'Juros', 'Multa', 'Desconto', 'Status']
+    const header = ['Descrição', 'Contraparte', 'Empresa', 'Conta do Plano', 'Produto DRE', 'Emissão', 'Vencimento', 'Pagamento', 'Valor', 'Juros', 'Multa', 'Desconto', ehPagar ? 'A Pagar' : 'A Receber', 'Status']
     const linhas: (string | number)[][] = lancamentosExibidos.map((l) => [
       l.description ?? '',
       l.counterparty ?? '',
@@ -806,6 +829,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       Number(l.interest_amount ?? 0),
       Number(l.fine_amount ?? 0),
       Number(l.discount_amount ?? 0),
+      emAberto(l) ? valorEfetivo(l) : '',
       statusLabel(l.status),
     ])
     const nome = `${ehPagar ? 'contas-a-pagar' : 'contas-a-receber'}_${(empresaAtiva?.name ?? 'todas').replace(/\s+/g, '-')}`

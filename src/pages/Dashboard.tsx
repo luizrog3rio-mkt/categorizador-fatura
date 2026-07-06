@@ -5,6 +5,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
 import { fmtBRL, fmtData, hoje } from '../lib/format'
+import { valorEfetivo } from '../lib/entries'
 import { fmt } from '../lib/fatura'
 import type { Entry, HotmartSale, Invoice } from '../lib/types'
 import { Card, PageHeader, StatusBadge, ErroBanner, Alert, KPICard, KPIStrip, DeltaTag } from '../components/ui'
@@ -148,14 +149,17 @@ export default function Dashboard() {
 
   // ── financeiro rb7 (entries + hotmart) ────────────────────────────────────
   const kpis = useMemo(() => {
+    // valorEfetivo (valor + juros + multa − desconto): mesma régua da tela de
+    // Lançamentos (coluna/KPI "A pagar") — desconto negociado antes do pagamento
+    // abate o que falta pagar aqui também.
     const doMes = lancamentos.filter((l) => l.due_date.startsWith(mesAtual))
-    const aReceber = doMes.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
-    const aPagar = doMes.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
+    const aReceber = doMes.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + valorEfetivo(l), 0)
+    const aPagar = doMes.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + valorEfetivo(l), 0)
     // "Atrasados" agora vem da RPC entries_atrasados (state atrasadosTotal) — sem o piso de -5 meses.
     // mês anterior (mesma base "em aberto") p/ o delta de A receber / A pagar
     const doMesAnt = lancamentos.filter((l) => l.due_date.startsWith(mesAnterior))
-    const aReceberAnt = doMesAnt.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
-    const aPagarAnt = doMesAnt.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + Number(l.amount), 0)
+    const aReceberAnt = doMesAnt.filter((l) => l.type === 'receivable' && l.status !== 'paid').reduce((s, l) => s + valorEfetivo(l), 0)
+    const aPagarAnt = doMesAnt.filter((l) => l.type === 'payable' && l.status !== 'paid').reduce((s, l) => s + valorEfetivo(l), 0)
     return { aReceber, aPagar, aReceberAnt, aPagarAnt }
   }, [lancamentos, mesAtual, mesAnterior])
 
