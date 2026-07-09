@@ -44,7 +44,7 @@ público desabilitado).
 
 ## Deploy
 
-Vercel, automático no push pra `master`. SPA rewrites em `vercel.json`.
+Vercel, automático no push pra `main`. SPA rewrites em `vercel.json`.
 
 ## Banco e migrations
 
