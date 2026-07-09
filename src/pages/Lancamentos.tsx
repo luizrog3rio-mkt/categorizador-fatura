@@ -156,6 +156,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [dataDe, setDataDe] = useState('')
   const [dataAte, setDataAte] = useState('')
+  const [emissaoDe, setEmissaoDe] = useState('')
+  const [emissaoAte, setEmissaoAte] = useState('')
   const [busca, setBusca] = useState('')
   const [modalAberto, setModalAberto] = useState(false)
   const [form, setForm] = useState<FormState>(formVazio(''))
@@ -196,6 +198,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     else if (filtroConta === 'com') q = q.not('chart_of_account_id', 'is', null)
     if (dataDe) q = q.gte('due_date', dataDe)
     if (dataAte) q = q.lte('due_date', dataAte)
+    if (emissaoDe) q = q.gte('issue_date', emissaoDe)
+    if (emissaoAte) q = q.lte('issue_date', emissaoAte)
     const { data, error } = await q
     if (error) setErro('Erro ao carregar lançamentos: ' + error.message)
     else {
@@ -204,7 +208,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       setTruncado(rows.length >= 1000) // PostgREST corta em 1000 — avisa pra refinar filtros
     }
     setCarregando(false)
-  }, [tipo, empresaAtiva, filtroStatus, filtroConta, filtroEmpresa, dataDe, dataAte])
+  }, [tipo, empresaAtiva, filtroStatus, filtroConta, filtroEmpresa, dataDe, dataAte, emissaoDe, emissaoAte])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -607,7 +611,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   // se o filtro de empresa coincide com o escopo global, trata como "sem filtro"
   // (a empresa ativa é omitida das opções — evita o select renderizar em branco)
   const filtroEmpresaVisivel = filtroEmpresa && filtroEmpresa !== empresaAtiva?.id ? filtroEmpresa : ''
-  const temFiltro = !!(busca || filtroStatus || filtroConta || filtroEmpresaVisivel || dataDe || dataAte)
+  const temFiltro = !!(busca || filtroStatus || filtroConta || filtroEmpresaVisivel || dataDe || dataAte || emissaoDe || emissaoAte)
   const limparFiltros = () => {
     setBusca('')
     setFiltroStatus('')
@@ -615,6 +619,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     setFiltroEmpresa('')
     setDataDe('')
     setDataAte('')
+    setEmissaoDe('')
+    setEmissaoAte('')
   }
 
   const ehPagar = tipo === 'payable'
@@ -910,6 +916,10 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
           <div>
             <label className="block text-sm font-medium mb-1">Vencimento</label>
             <DateRangePicker de={dataDe} ate={dataAte} onChange={(d, a) => { setDataDe(d); setDataAte(a) }} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Emissão</label>
+            <DateRangePicker de={emissaoDe} ate={emissaoAte} onChange={(d, a) => { setEmissaoDe(d); setEmissaoAte(a) }} />
           </div>
           <div className="w-44">
             <label className="block text-sm font-medium mb-1">Status</label>
