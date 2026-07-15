@@ -35,6 +35,7 @@ const pageLoaders: Record<string, Loader> = {
   '/produtos-dre': () => import('../pages/DreProducts'),
   '/periodos-fechados': () => import('../pages/PeriodosFechados'),
   '/conciliacao-dre': () => import('../pages/ConciliacaoDRE'),
+  '/classificar-despesas': () => import('../pages/ClassificarDespesas'),
 }
 
 // Dispara o import() da rota (idempotente — o browser/Vite dedupa a requisição).
