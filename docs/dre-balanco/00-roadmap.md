@@ -28,7 +28,7 @@
 |---|---|---|---|
 | **1. Estrutura do plano por empresa** | `company_id`+`tipo`+`redutora` em `chart_of_accounts` | não | ✅ **APLICADA 2026-07-15** (`20260715173423`) |
 | **2. Seed patrimonial** | Balanço Digital + plano Holding + plano Incorporadora (contas asset/liability/equity) | **sim** (planilha aprovada) | ⏳ aguarda fase 1 + Kaique |
-| **3. Saneamento de datas** | backfill + `issue_date`/`competency_date` NOT NULL (problema #3 da reunião) | não | ⏳ |
+| **3. Saneamento de datas** | backfill + `issue_date`/`competency_date` NOT NULL (problema #3 da reunião) | não | ✅ **APLICADA 2026-07-15** (`20260715192144`) |
 | **4. Obras** | tabela `obras` (em_andamento→vendida) + estoque + evento de venda + DRE Incorporadora | não (estrutura) | ⏳ |
 | **5. Esvaziar o balde** | classificar os ~R$342k/mês de despesas sem conta (NC-2) | não | ⏳ |
 | **6. Lado patrimonial (núcleo A)** | `lancamentos`+`partidas`, contrapartidas, Balanço fechado, portão F5 | parcial (gabarito) | ⏳ |
