@@ -31,7 +31,8 @@
 | **3. Saneamento de datas** | backfill + `issue_date`/`competency_date` NOT NULL (problema #3 da reunião) | não | ✅ **APLICADA 2026-07-15** (`20260715192144`) |
 | **4a. Obras — estrutura** | tabela `obras` (em_andamento→vendida) + `entries.obra_id` + seed Cristais/Alfenas | não | ✅ **APLICADA 2026-07-15** (`20260715200047`) · marcação dos ~135 lançamentos adiada (a revisar) |
 | **4b. Obras — estoque + venda** | conta de estoque (ativo) + evento de venda (reclassif. → CPV) + DRE Incorporadora por obra | **sim** (contas patrimoniais da Fase 2) | ⏳ |
-| **5. Esvaziar o balde** | classificar os ~R$342k/mês de despesas sem conta (NC-2) | não | ⏳ |
+| **5a. Motor de sugestão — banco** | tabela `regras_conta` + RPC `sugerir_contas` (read-only) + seed factual (IOF/Tarifa/Pedágio) | não | ✅ **APLICADA 2026-07-15** (`20260715202831`) · já sugere p/ 64 itens da Digital |
+| **5b. Motor de sugestão — front** | tela de classificação assistida (balde + sugestão + aplicar em massa) + CRUD de regras + regras SaaS (Luiz decide) | não | ⏳ |
 | **6. Lado patrimonial (núcleo A)** | `lancamentos`+`partidas`, contrapartidas, Balanço fechado, portão F5 | parcial (gabarito) | ⏳ |
 | **7. Consolidada** | intercompany + eliminações (regras 2/3/4 já dá; regra 1 espera equivalência) | **sim** (regra 1) | ⏳ |
 
