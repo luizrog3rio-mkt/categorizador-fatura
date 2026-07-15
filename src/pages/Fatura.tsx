@@ -73,12 +73,14 @@ export default function Fatura() {
       }))
     )
 
-    // contas folha do plano (mesmo filtro do Lançamentos) pro seletor de classificação
+    // contas folha de RESULTADO (as patrimoniais do Balanço não entram aqui — classificar
+    // uma despesa numa conta de ativo/passivo a tiraria da DRE sem alerta) — mesmo filtro do Lançamentos
     const { data: coas } = await supabase
       .from('chart_of_accounts')
       .select('*')
       .eq('active', true)
       .eq('is_analytical', true)
+      .eq('tipo', 'resultado')
       .order('sort_order')
     setChartAccounts((coas as ChartOfAccount[]) ?? [])
 
