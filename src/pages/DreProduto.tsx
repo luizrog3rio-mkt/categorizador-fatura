@@ -36,12 +36,14 @@ export default function DreProduto() {
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [naoClass, setNaoClass] = useState<{ qtd: number; valor: number; qtdTx: number; valorTx: number } | null>(null)
+  // lançamentos que TÊM conta mas evaporam (natureza da conta × tipo do lançamento incompatíveis)
+  const [invisiveis, setInvisiveis] = useState<{ qtd: number; valor: number; contas: string } | null>(null)
 
   const carregar = useCallback(async () => {
     if (!empresaAtiva?.id) return
     setCarregando(true)
     setErro(null)
-    const [r1, r2, nc] = await Promise.all([
+    const [r1, r2, nc, iv] = await Promise.all([
       supabase.rpc('dre_by_product', {
         p_company: empresaAtiva.id, p_year: ano,
         p_month_from: Math.min(mesDe, mesAte), p_month_to: Math.max(mesDe, mesAte),
@@ -50,6 +52,8 @@ export default function DreProduto() {
       // lançamentos sem Plano de Contas somem da DRE por produto (JOIN inner) — mesmo alerta da
       // DRE por competência (RPC server-side, evita o teto de 1000). Conta entries E cartão.
       supabase.rpc('dre_nao_classificado', { p_company: empresaAtiva.id }),
+      // pior que o balde: com conta, mas natureza incompatível com o tipo → some sem rastro
+      supabase.rpc('dre_lancamentos_invisiveis', { p_company: empresaAtiva.id }),
     ])
     setCarregando(false)
     if (r1.error) { setErro('Erro ao carregar a DRE por produto: ' + r1.error.message); setDados([]); return }
@@ -59,6 +63,10 @@ export default function DreProduto() {
     const qtdTx = Number(r?.qtd_tx ?? 0), valorTx = Number(r?.valor_tx ?? 0)
     const qtd = Number(r?.qtd_entries ?? 0) + qtdTx, valor = Number(r?.valor_entries ?? 0) + valorTx
     setNaoClass(qtd > 0 ? { qtd, valor, qtdTx, valorTx } : null)
+    const v = (iv.data as { qtd_entries: number; valor_entries: number; qtd_tx: number; valor_tx: number; contas: string | null }[] | null)?.[0]
+    const ivQtd = Number(v?.qtd_entries ?? 0) + Number(v?.qtd_tx ?? 0)
+    const ivValor = Number(v?.valor_entries ?? 0) + Number(v?.valor_tx ?? 0)
+    setInvisiveis(ivQtd > 0 ? { qtd: ivQtd, valor: ivValor, contas: v?.contas ?? '' } : null)
   }, [empresaAtiva, ano, mesDe, mesAte])
 
   useEffect(() => { carregar() }, [carregar])
@@ -171,6 +179,20 @@ export default function DreProduto() {
               (<strong className="tnum">{fmtBRL(naoClass.valorTx)}</strong>) — classifique na aba Lançamentos da Fatura.</>
             )}
             {' '}Os demais, em Contas a Pagar/Receber (campo "Conta do Plano de Contas").
+          </Alert>
+        </div>
+      )}
+
+      {/* Alerta: tem conta, mas a natureza não bate com o tipo → some sem cair nem no balde */}
+      {!carregando && invisiveis && (
+        <div className="mb-4">
+          <Alert tom="danger" titulo="Lançamentos sumindo desta DRE (classificação incompatível)">
+            <strong className="tnum">{invisiveis.qtd}</strong> lançamento(s), somando{' '}
+            <strong className="tnum">{fmtBRL(invisiveis.valor)}</strong>, têm conta do Plano de Contas mas{' '}
+            <strong>não aparecem em nenhuma linha</strong> — a natureza da conta não bate com o tipo do
+            lançamento (ex.: um pagamento classificado numa conta de receita).
+            {invisiveis.contas && <> Campeãs: <strong>{invisiveis.contas}</strong>.</>}
+            {' '}Corrija a conta do lançamento — ou a natureza da conta, no Plano de Contas.
           </Alert>
         </div>
       )}

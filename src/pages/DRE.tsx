@@ -60,6 +60,9 @@ export default function DRE() {
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   // lançamentos sem Plano de Contas — somem da DRE (o JOIN os engole). Mostramos um alerta.
   const [naoClass, setNaoClass] = useState<{ qtd: number; valor: number; qtdTx: number; valorTx: number } | null>(null)
+  // pior que o balde: lançamentos que TÊM conta mas evaporam — a natureza da conta não casa com o
+  // tipo do lançamento, então não entram no `mov` nem no "(A classificar)". Somem sem rastro.
+  const [invisiveis, setInvisiveis] = useState<{ qtd: number; valor: number; contas: string } | null>(null)
 
   const carregar = useCallback(async () => {
     if (!empresaAtiva?.id) return
@@ -87,6 +90,13 @@ export default function DRE() {
     const qtd = Number(r?.qtd_entries ?? 0) + qtdTx
     const valor = Number(r?.valor_entries ?? 0) + valorTx
     setNaoClass(qtd > 0 ? { qtd, valor, qtdTx, valorTx } : null)
+
+    // lançamentos COM conta que somem da DRE (nature da conta × type do lançamento incompatíveis)
+    const { data: iv } = await supabase.rpc('dre_lancamentos_invisiveis', { p_company: empresaAtiva.id })
+    const v = (iv as { qtd_entries: number; valor_entries: number; qtd_tx: number; valor_tx: number; contas: string | null }[] | null)?.[0]
+    const ivQtd = Number(v?.qtd_entries ?? 0) + Number(v?.qtd_tx ?? 0)
+    const ivValor = Number(v?.valor_entries ?? 0) + Number(v?.valor_tx ?? 0)
+    setInvisiveis(ivQtd > 0 ? { qtd: ivQtd, valor: ivValor, contas: v?.contas ?? '' } : null)
   }, [empresaAtiva, ano])
 
   useEffect(() => { carregar() }, [carregar])
@@ -289,6 +299,21 @@ export default function DRE() {
               (<strong className="tnum">{fmtBRL(naoClass.valorTx)}</strong>) — classifique na aba Lançamentos da Fatura.</>
             )}
             {' '}Os demais, em Contas a Pagar/Receber (campo "Conta do Plano de Contas").
+          </Alert>
+        </div>
+      )}
+
+      {/* Alerta: lançamento TEM conta mas some — natureza da conta incompatível com o tipo.
+          Pior que o balde: não cai nem em "(A classificar)", evapora sem rastro. */}
+      {!carregando && invisiveis && (
+        <div className="mb-4">
+          <Alert tom="danger" titulo="Lançamentos sumindo desta DRE (classificação incompatível)">
+            <strong className="tnum">{invisiveis.qtd}</strong> lançamento(s), somando{' '}
+            <strong className="tnum">{fmtBRL(invisiveis.valor)}</strong>, têm conta do Plano de Contas mas{' '}
+            <strong>não aparecem em nenhuma linha</strong> desta DRE — a natureza da conta não bate com o
+            tipo do lançamento (ex.: um pagamento classificado numa conta de receita).
+            {invisiveis.contas && <> Campeãs: <strong>{invisiveis.contas}</strong>.</>}
+            {' '}Corrija a conta do lançamento — ou a natureza da conta, no Plano de Contas.
           </Alert>
         </div>
       )}
