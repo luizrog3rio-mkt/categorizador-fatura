@@ -36,7 +36,10 @@
 | **4b-2. Obras — estoque + venda** | custo da obra em andamento vira ESTOQUE (ativo `1.2`, já criado na 2c) + evento de venda (reclassif. → CPV) + DRE Incorporadora por obra | não | ⏳ |
 | **5a. Motor de sugestão — banco** | tabela `regras_conta` + RPC `sugerir_contas` (read-only) + seed factual (IOF/Tarifa/Pedágio) | não | ✅ **APLICADA 2026-07-15** (`20260715202831`) · já sugere p/ 64 itens da Digital |
 | **5b. Motor de sugestão — front** | tela `/classificar-despesas` (balde + sugestão + aplicar em massa) + CRUD de regras | não | 🔵 **construída (build+lint OK)** · pendente de teste logado + deploy |
-| **6. Lado patrimonial (núcleo A)** | `lancamentos`+`partidas`, contrapartidas, Balanço fechado, portão F5 | parcial (gabarito) | ⏳ |
+| **6a/6b. Partida dobrada — estrutura** | `accounts.conta_contabil_id` (6 contas vinculadas) + tabela `partidas` + constraint deferred de balanceamento (testada: barra partida solta) | não | ✅ **APLICADA 2026-07-16** (`20260716143144`) |
+| **6c. Partida dobrada — backfill** | 600 lançamentos → 1.200 partidas; **débito = crédito = R$1.812.145,51**, 0 desbalanceados | não | ✅ **APLICADA 2026-07-16** (`20260716143345`) |
+| **🐛 Bugfix — dedução paga** | imposto sobre venda (`payable` em conta `deduction`) evaporava da DRE; +R$165.997,96 passam a abater a receita | não | ✅ **APLICADA 2026-07-16** (`20260716152621`) |
+| **6d. Balanço com saldos** | RPC/tela de Balanço + **saldos de abertura** (Capital, imobilizado, caixa inicial) | 🔴 **dado do contador** | ⏳ bloqueado |
 | **7. Consolidada** | intercompany + eliminações (regras 2/3/4 já dá; regra 1 espera equivalência) | **sim** (regra 1) | ⏳ |
 
 Cada fase deixa o app **de pé** e entra como migration revisada + (quando houver) ajuste de front.
