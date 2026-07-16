@@ -24,6 +24,7 @@ import {
   GitCompare,
   History,
   Sparkles,
+  HardHat,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -70,6 +71,7 @@ const grupos: Grupo[] = [
     itens: [
       { to: '/dre', rotulo: 'DRE', icone: Scale },
       { to: '/dre-produto', rotulo: 'DRE por Produto', icone: Boxes },
+      { to: '/custo-por-obra', rotulo: 'Custo por Obra', icone: HardHat },
       { to: '/classificar-despesas', rotulo: 'Classificar despesas', icone: Sparkles },
       { to: '/conciliacao-dre', rotulo: 'DRE × Caixa', icone: GitCompare },
       { to: '/periodos-fechados', rotulo: 'Períodos Fechados', icone: Lock },

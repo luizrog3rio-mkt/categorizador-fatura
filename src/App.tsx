@@ -35,6 +35,7 @@ const PeriodosFechados = lazy(() => import('./pages/PeriodosFechados'))
 const Delecoes = lazy(() => import('./pages/Delecoes'))
 const ConciliacaoDRE = lazy(() => import('./pages/ConciliacaoDRE'))
 const ClassificarDespesas = lazy(() => import('./pages/ClassificarDespesas'))
+const CustoPorObra = lazy(() => import('./pages/CustoPorObra'))
 
 function Rotas() {
   const { session, carregando } = useApp()
@@ -84,6 +85,7 @@ function Rotas() {
         <Route path="/delecoes" element={<Delecoes />} />
         <Route path="/conciliacao-dre" element={<ConciliacaoDRE />} />
         <Route path="/classificar-despesas" element={<ClassificarDespesas />} />
+        <Route path="/custo-por-obra" element={<CustoPorObra />} />
       </Route>
     </Routes>
   )
