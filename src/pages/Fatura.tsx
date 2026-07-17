@@ -13,6 +13,7 @@ import { Card, Badge, ErroBanner, PageHeader, btnSecundario } from '../component
 import DataTable, { type DataColumn } from '../components/DataTable'
 import type { RowSelectionState } from '@tanstack/react-table'
 import type { Invoice, PurchaseItem, ChartOfAccount } from '../lib/types'
+import { contaCompativelComCartao, contaDisponivelParaEmpresa, rotuloContaContabil } from '../lib/lancamentos'
 
 // Página da fatura — 3 abas (Lançamentos / Dashboard / Compras), busca por
 // descrição, total no rodapé, export (contrato #9) e modal de pendentes
@@ -52,9 +53,10 @@ export default function Fatura() {
 
   const carregar = useCallback(async () => {
     if (!id) return
-    const { data: inv, error: e0 } = await supabase.from('invoices').select('*').eq('id', id).single()
+    const { data: inv, error: e0 } = await supabase.from('invoices').select('*, account:accounts!account_id(company_id)').eq('id', id).single()
     if (e0) { setErro('Erro ao carregar fatura: ' + e0.message); setCarregando(false); return }
-    setInvoice(inv)
+    setInvoice(inv as Invoice)
+    const invoiceCompanyId = (inv as Invoice & { account?: { company_id: string } | null }).account?.company_id ?? ''
 
     const { data: txs, error: e1 } = await supabase
       .from('transactions')
@@ -73,16 +75,18 @@ export default function Fatura() {
       }))
     )
 
-    // contas folha de RESULTADO (as patrimoniais do Balanço não entram aqui — classificar
-    // uma despesa numa conta de ativo/passivo a tiraria da DRE sem alerta) — mesmo filtro do Lançamentos
+    // Cartão aceita custos de resultado e contas patrimoniais da empresa (ex.: imobilizado).
+    // Receita/dedução são bloqueadas porque o braço de cartão da DRE não as soma.
     const { data: coas } = await supabase
       .from('chart_of_accounts')
       .select('*')
       .eq('active', true)
       .eq('is_analytical', true)
-      .eq('tipo', 'resultado')
+      .order('tipo')
       .order('sort_order')
-    setChartAccounts((coas as ChartOfAccount[]) ?? [])
+    setChartAccounts(((coas as ChartOfAccount[]) ?? []).filter((conta) =>
+      contaDisponivelParaEmpresa(conta, invoiceCompanyId) && contaCompativelComCartao(conta)
+    ))
 
     const { data: items, error: e2 } = await supabase
       .from('purchase_items')
@@ -192,6 +196,8 @@ export default function Fatura() {
       (contaFiltro === '__sem_conta__' ? !t.chart_of_account_id : t.chart_of_account_id === contaFiltro))
   )
   const totalFiltered = filtered.reduce((s, t) => s + valorComSinal(t), 0)
+  const contasResultado = useMemo(() => chartAccounts.filter((conta) => conta.tipo === 'resultado'), [chartAccounts])
+  const contasPatrimoniais = useMemo(() => chartAccounts.filter((conta) => conta.tipo === 'patrimonial'), [chartAccounts])
   const contaFiltroLabel = contaFiltro === '__sem_conta__'
     ? '(sem conta)'
     : contaFiltro
@@ -247,11 +253,16 @@ export default function Fatura() {
           onChange={(e) => setConta(t.id, e.target.value || null)}
         >
           <option value="">— sem conta —</option>
-          {chartAccounts.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+          {contasResultado.length > 0 && <optgroup label="Resultado — entra na DRE">
+            {contasResultado.map((c) => <option key={c.id} value={c.id}>{rotuloContaContabil(c)}</option>)}
+          </optgroup>}
+          {contasPatrimoniais.length > 0 && <optgroup label="Patrimonial — fora da DRE">
+            {contasPatrimoniais.map((c) => <option key={c.id} value={c.id}>{rotuloContaContabil(c)}</option>)}
+          </optgroup>}
         </select>
       ),
     },
-  ], [filtered.length, totalFiltered, chartAccounts, isAdmin, setConta])
+  ], [filtered.length, totalFiltered, contasResultado, contasPatrimoniais, isAdmin, setConta])
 
   // Skeleton até a fatura chegar — evita o flash de "Fatura · 0 lançamentos" + tabela
   // vazia que parece uma fatura sem dados antes de o conteúdo real aparecer.
@@ -345,7 +356,12 @@ export default function Fatura() {
                 >
                   <option value="" disabled>Escolher conta…</option>
                   <option value="__none__">— Sem conta (limpar) —</option>
-                  {chartAccounts.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+                  {contasResultado.length > 0 && <optgroup label="Resultado — entra na DRE">
+                    {contasResultado.map((c) => <option key={c.id} value={c.id}>{rotuloContaContabil(c)}</option>)}
+                  </optgroup>}
+                  {contasPatrimoniais.length > 0 && <optgroup label="Patrimonial — fora da DRE">
+                    {contasPatrimoniais.map((c) => <option key={c.id} value={c.id}>{rotuloContaContabil(c)}</option>)}
+                  </optgroup>}
                 </select>
               </div>
               <button onClick={() => setRowSelection({})} className="ml-auto text-xs font-medium text-fg-muted hover:text-fg whitespace-nowrap">

@@ -19,10 +19,12 @@ const SEM = '__sem_conta__' // sentinela do filtro "sem conta"
 const NATURE_LABELS: Record<string, string> = {
   revenue: 'Receita', deduction: 'Dedução', variable_cost: 'Custo Variável',
   fixed_cost: 'Custo Fixo', financial: 'Financeiro', depreciation: 'Depreciação', tax: 'Impostos s/ Lucro',
+  asset: 'Ativo patrimonial', liability: 'Passivo patrimonial', equity: 'Patrimônio Líquido',
 }
 const NATURE_COLORS: Record<string, string> = {
   revenue: '#22c55e', deduction: '#f97316', variable_cost: '#eab308',
   fixed_cost: '#ef4444', financial: '#3b82f6', depreciation: '#94a3b8', tax: '#8b5cf6',
+  asset: '#06b6d4', liability: '#f43f5e', equity: '#a855f7',
 }
 
 type Agg = { key: string; id: string | null; label: string; nature: string | null; total: number; count: number }

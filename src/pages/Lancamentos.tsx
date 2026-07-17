@@ -13,6 +13,18 @@ import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/Confirm'
 import type { RowSelectionState } from '@tanstack/react-table'
 import DateRangePicker from '../components/DateRangePicker'
+import {
+  avancarUmMes,
+  contaCompativelComLancamento,
+  contaDisponivelParaEmpresa,
+  mapearColunasImportacao,
+  normalizarTexto,
+  parseCsv,
+  parseDataPlanilha,
+  parseValorPlanilha,
+  rotuloContaContabil,
+  tributoSobreVendaMencionado,
+} from '../lib/lancamentos'
 
 // Etapa 4 — Contas a Pagar/Receber. Port do Lancamentos.tsx do rb7 adaptado
 // pro schema EN (tabela `entries`). Adaptações vs a fonte:
@@ -70,70 +82,6 @@ const formVazio = (companyId: string): FormState => ({
   notes: '',
   is_recurring: false,
 })
-
-function normalizar(s: string) {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
-}
-
-function mapColunas(headers: string[]) {
-  const idx: Record<string, number> = {}
-  headers.forEach((h, i) => {
-    const k = normalizar(h)
-    if (['descricao', 'description', 'desc'].includes(k)) idx.description = i
-    if (['valor', 'amount', 'value'].includes(k)) idx.amount = i
-    if (['vencimento', 'due_date', 'venc'].includes(k)) idx.due_date = i
-    if (['emissao', 'issue_date', 'emis'].includes(k)) idx.issue_date = i
-    if (['fornecedor', 'cliente', 'counterparty', 'sacado'].includes(k)) idx.counterparty = i
-    if (['conta', 'account'].includes(k)) idx.account = i
-    if (['observacoes', 'notes', 'obs'].includes(k)) idx.notes = i
-    if (['status'].includes(k)) idx.status = i
-    if (['recorrente', 'recurring'].includes(k)) idx.recurring = i
-    if (['juros', 'interest'].includes(k)) idx.interest = i
-    if (['multa', 'fine', 'penalty'].includes(k)) idx.fine = i
-    if (['desconto', 'discount'].includes(k)) idx.discount = i
-  })
-  return idx
-}
-
-function parseCsv(text: string): string[][] {
-  const linhas = text.split(/\r?\n/).filter(Boolean)
-  // separador: ';' tem precedência (padrão de planilha BR/Excel pt-BR, em que a
-  // vírgula é o decimal — ex.: 2500,00); cai para ',' nos CSVs internacionais.
-  const sep = linhas[0]?.includes(';') ? ';' : ','
-  return linhas.map((line) => {
-    const row: string[] = []
-    let field = ''
-    let inQuotes = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') { inQuotes = !inQuotes }
-      else if (ch === sep && !inQuotes) { row.push(field.trim()); field = '' }
-      else { field += ch }
-    }
-    row.push(field.trim())
-    return row
-  })
-}
-
-function parseData(val: string): string {
-  const v = val.trim()
-  const br = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (br) return `${br[3]}-${br[2]}-${br[1]}`
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v
-  return ''
-}
-
-function parseValor(val: string): number {
-  let v = val.replace(/[R$\s]/g, '')
-  if (v.includes('.') && v.includes(',')) {
-    // 1.234,56 — BR: ponto = milhar, vírgula = decimal
-    v = v.replace(/\./g, '').replace(',', '.')
-  } else if (v.includes(',')) {
-    // 1234,56 — vírgula como decimal (BR)
-    v = v.replace(',', '.')
-  }
-  return parseFloat(v) || 0
-}
 
 // parse de campo do form (vírgula ou ponto decimal); vazio = 0
 const num = (s: string) => parseFloat((s ?? '').replace(',', '.')) || 0
@@ -214,10 +162,19 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
 
   useEffect(() => {
     supabase.from('accounts').select('*').eq('active', true).order('name').then(({ data }) => setContas(data ?? []))
-    supabase.from('chart_of_accounts').select('*').eq('active', true).eq('is_analytical', true).eq('tipo', 'resultado').order('sort_order').then(({ data }) => setChartAccounts(data ?? []))
+    supabase.from('chart_of_accounts').select('*').eq('active', true).eq('is_analytical', true).order('tipo').order('sort_order').then(({ data }) => setChartAccounts(data ?? []))
     supabase.from('dre_products').select('*').eq('active', true).order('sort_order').then(({ data }) => setDreProducts(data ?? []))
     supabase.from('closed_periods').select('period').then(({ data }) => setClosedPeriods((data ?? []).map(d => d.period)))
   }, [])
+
+  const contasContabeisDisponiveis = useMemo(() => chartAccounts.filter((conta) =>
+    contaDisponivelParaEmpresa(conta, form.company_id) && contaCompativelComLancamento(conta, tipo)
+  ), [chartAccounts, form.company_id, tipo])
+  const contasResultadoDisponiveis = contasContabeisDisponiveis.filter((conta) => conta.tipo === 'resultado')
+  const contasPatrimoniaisDisponiveis = contasContabeisDisponiveis.filter((conta) => conta.tipo === 'patrimonial')
+
+  const contaContabilSelecionada = chartAccounts.find((conta) => conta.id === form.chart_of_account_id)
+  const tributoMencionado = tributoSobreVendaMencionado(form.description)
 
   const abrirNovo = () => {
     setForm(formVazio(empresaAtiva?.id ?? empresas[0]?.id ?? ''))
@@ -265,18 +222,18 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const inserirProximoMes = useCallback(async (b: {
     company_id: string; account_id: string | null
     type: EntryType; description: string; amount: number; due_date: string
+    issue_date: string; competency_date: string
+    chart_of_account_id: string | null; dre_product_id: string | null
     counterparty: string | null; notes: string | null; recurrence_day: number | null
   }) => {
+    if (!b.chart_of_account_id) return { message: 'classifique a conta contábil antes de gerar a recorrência' }
     // avança 1 mês mantendo o DIA-ÂNCORA da série (recurrence_day): só faz clamp
     // no mês que não tem o dia (31 → 28/fev) e volta ao dia cheio no próximo mês
     // que o comporta (→ 31/mar). Monta a data por string p/ não sofrer fuso.
-    const [y, m, d] = b.due_date.split('-').map(Number) // m: 1-12
-    const diaAncora = b.recurrence_day ?? d
-    const alvo = new Date(y, m, 1) // 1º dia do mês seguinte (JS é 0-based: índice m = mês m+1)
-    const ano = alvo.getFullYear()
-    const mes = alvo.getMonth() + 1 // 1-12
-    const ultimoDia = new Date(ano, mes, 0).getDate()
-    const due = `${ano}-${String(mes).padStart(2, '0')}-${String(Math.min(diaAncora, ultimoDia)).padStart(2, '0')}`
+    const diaAncora = b.recurrence_day ?? Number(b.due_date.split('-')[2])
+    const due = avancarUmMes(b.due_date, diaAncora)
+    const issue = avancarUmMes(b.issue_date)
+    const competency = avancarUmMes(b.competency_date)
     // idempotência: não duplica se o lançamento desse mês da série já existe
     // (cobre re-pagamento: paid → to_pay → paid)
     const { data: existe } = await supabase.from('entries').select('id')
@@ -289,7 +246,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       type: b.type,
       description: b.description,
       amount: b.amount,
+      issue_date: issue,
+      competency_date: competency,
       due_date: due,
+      chart_of_account_id: b.chart_of_account_id,
+      dre_product_id: b.dre_product_id,
       counterparty: b.counterparty,
       notes: b.notes,
       status: 'to_pay' as EntryStatus,
@@ -311,7 +272,22 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     }
     // trava de integridade: sem conta do plano, o lançamento SOME da DRE (o JOIN o engole).
     if (!form.chart_of_account_id) {
-      setErro('Escolha a "Conta do Plano de Contas" — sem ela o lançamento não aparece na DRE.')
+      setErro('Escolha a "Conta contábil" — ela define se o lançamento entra na DRE ou no patrimônio.')
+      setSalvando(false)
+      return
+    }
+    if (!contaContabilSelecionada || !contaDisponivelParaEmpresa(contaContabilSelecionada, form.company_id)) {
+      setErro('A conta contábil escolhida não pertence à empresa do lançamento nem é compartilhada.')
+      setSalvando(false)
+      return
+    }
+    if (!contaCompativelComLancamento(contaContabilSelecionada, tipo)) {
+      setErro(`A conta "${rotuloContaContabil(contaContabilSelecionada)}" é incompatível com ${tipo === 'payable' ? 'uma conta a pagar' : 'uma conta a receber'} e faria o lançamento desaparecer da DRE.`)
+      setSalvando(false)
+      return
+    }
+    if (tributoMencionado && contaContabilSelecionada.tipo === 'resultado' && contaContabilSelecionada.nature !== 'deduction') {
+      setErro(`${tributoMencionado} precisa ser classificado em uma conta de natureza "Dedução". Para tratamento exclusivamente patrimonial, escolha conscientemente uma conta patrimonial.`)
       setSalvando(false)
       return
     }
@@ -347,7 +323,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       // — senão o lançamento sairia da DRE por competência pelo filtro de data.
       competency_date: form.competency_date || form.issue_date || form.due_date,
       chart_of_account_id: form.chart_of_account_id,
-      dre_product_id: form.dre_product_id || null,
+      dre_product_id: contaContabilSelecionada.tipo === 'resultado' ? (form.dre_product_id || null) : null,
       refund_of_entry_id: form.refund_of_entry_id || null,
       issue_date: form.issue_date || null,
       due_date: form.due_date,
@@ -374,7 +350,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         type: tipo,
         description: payload.description,
         amount: payload.amount,
+        issue_date: payload.issue_date ?? payload.due_date,
+        competency_date: payload.competency_date,
         due_date: payload.due_date,
+        chart_of_account_id: payload.chart_of_account_id,
+        dre_product_id: payload.dre_product_id,
         counterparty: payload.counterparty,
         notes: payload.notes,
         recurrence_day,
@@ -402,7 +382,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         type: l.type,
         description: l.description,
         amount: Number(l.amount),
+        issue_date: l.issue_date ?? l.due_date,
+        competency_date: l.competency_date ?? l.issue_date ?? l.due_date,
         due_date: l.due_date,
+        chart_of_account_id: l.chart_of_account_id ?? null,
+        dre_product_id: l.dre_product_id ?? null,
         counterparty: l.counterparty ?? null,
         notes: l.notes ?? null,
         recurrence_day: l.recurrence_day,
@@ -493,13 +477,13 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const confirmarImport = async () => {
     setImportando(true)
     setImportErro(null)
-    const idx = mapColunas(importHeaders)
-    if (idx.description === undefined || idx.amount === undefined || idx.due_date === undefined) {
-      setImportErro('Colunas obrigatórias não encontradas. Verifique se o cabeçalho tem: Descrição, Valor, Vencimento.')
+    const idx = mapearColunasImportacao(importHeaders)
+    if (idx.description === undefined || idx.amount === undefined || idx.due_date === undefined || idx.competency_date === undefined || idx.chart_of_account === undefined) {
+      setImportErro('Colunas obrigatórias não encontradas. Use: Descrição, Valor, Vencimento, Competência e Conta contábil.')
       setImportando(false)
       return
     }
-    const contaByName = (name: string) => contas.find(c => normalizar(c.name) === normalizar(name))?.id ?? null
+    const contaByName = (name: string) => contas.find(c => normalizarTexto(c.name) === normalizarTexto(name))?.id ?? null
     // em "Consolidado" (sem empresa ativa) o import iria pra empresas[0] arbitrariamente — bloqueia
     // e exige escolher a empresa no seletor global (mesmo padrao do Hotmart).
     const cid = empresaAtiva?.id ?? ''
@@ -508,30 +492,74 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       setImportando(false)
       return
     }
-    const payload = importLinhas
-      .filter(r => r[idx.description]?.trim())
-      .map(r => ({
+    const contasDoEscopo = chartAccounts
+      .filter((conta) => contaDisponivelParaEmpresa(conta, cid) && contaCompativelComLancamento(conta, tipo))
+      .sort((a, b) => Number(b.company_id === cid) - Number(a.company_id === cid))
+    const contaContabilByRef = (referencia: string) => {
+      const ref = normalizarTexto(referencia)
+      return contasDoEscopo.find((conta) =>
+        normalizarTexto(conta.code) === ref ||
+        normalizarTexto(conta.name) === ref ||
+        normalizarTexto(`${conta.code} - ${conta.name}`) === ref ||
+        normalizarTexto(`${conta.code} – ${conta.name}`) === ref
+      )
+    }
+
+    const payload: Record<string, unknown>[] = []
+    const erros: string[] = []
+    importLinhas.forEach((r, index) => {
+      const description = r[idx.description!]?.trim()
+      if (!description) return
+      const amount = parseValorPlanilha(r[idx.amount!] ?? '')
+      const dueDate = parseDataPlanilha(r[idx.due_date!] ?? '')
+      const competencyDate = parseDataPlanilha(r[idx.competency_date!] ?? '')
+      const issueRaw = idx.issue_date !== undefined ? r[idx.issue_date] ?? '' : ''
+      const issueDate = issueRaw.trim() ? parseDataPlanilha(issueRaw) : competencyDate
+      const contaContabilRef = r[idx.chart_of_account!] ?? ''
+      const contaContabil = contaContabilByRef(contaContabilRef)
+      const problemas: string[] = []
+      if (amount <= 0) problemas.push('Valor deve ser maior que zero')
+      if (!dueDate) problemas.push('Vencimento inválido')
+      if (!competencyDate) problemas.push('Competência inválida')
+      if (issueRaw.trim() && !issueDate) problemas.push('Emissão inválida')
+      if (!contaContabil) problemas.push(`Conta contábil "${contaContabilRef || 'vazia'}" não encontrada ou incompatível`)
+      const tributo = tributoSobreVendaMencionado(description)
+      if (tributo && contaContabil?.tipo === 'resultado' && contaContabil.nature !== 'deduction') {
+        problemas.push(`${tributo} deve usar uma conta de resultado com natureza Dedução ou uma conta patrimonial explicitamente escolhida`)
+      }
+      if (problemas.length) {
+        erros.push(`Linha ${index + 2}: ${problemas.join('; ')}`)
+        return
+      }
+      payload.push({
         company_id: cid,
         type: tipo,
-        description: r[idx.description].trim(),
-        amount: parseValor(r[idx.amount] ?? ''),
-        due_date: parseData(r[idx.due_date] ?? ''),
-        interest_amount: idx.interest !== undefined ? parseValor(r[idx.interest] ?? '') : 0,
-        fine_amount: idx.fine !== undefined ? parseValor(r[idx.fine] ?? '') : 0,
-        discount_amount: idx.discount !== undefined ? parseValor(r[idx.discount] ?? '') : 0,
-        issue_date: idx.issue_date !== undefined ? parseData(r[idx.issue_date] ?? '') || null : null,
+        description,
+        amount,
+        due_date: dueDate,
+        competency_date: competencyDate,
+        chart_of_account_id: contaContabil!.id,
+        interest_amount: idx.interest !== undefined ? parseValorPlanilha(r[idx.interest] ?? '') : 0,
+        fine_amount: idx.fine !== undefined ? parseValorPlanilha(r[idx.fine] ?? '') : 0,
+        discount_amount: idx.discount !== undefined ? parseValorPlanilha(r[idx.discount] ?? '') : 0,
+        issue_date: issueDate,
         counterparty: idx.counterparty !== undefined ? r[idx.counterparty]?.trim() || null : null,
         account_id: idx.account !== undefined ? contaByName(r[idx.account] ?? '') : null,
         notes: idx.notes !== undefined ? r[idx.notes]?.trim() || null : null,
-        status: (idx.status !== undefined ? STATUS_MAP[normalizar(r[idx.status] ?? '')] : undefined) ?? ('to_pay' as EntryStatus),
+        status: (idx.status !== undefined ? STATUS_MAP[normalizarTexto(r[idx.status] ?? '')] : undefined) ?? ('to_pay' as EntryStatus),
         is_recurring: idx.recurring !== undefined
-          ? ['sim', 'yes', 'true', '1', 'x'].includes(normalizar(r[idx.recurring] ?? ''))
+          ? ['sim', 'yes', 'true', '1', 'x'].includes(normalizarTexto(r[idx.recurring] ?? ''))
           : false,
         created_by: session?.user.id ?? null,
-      }))
-      .filter(r => r.amount > 0 && r.due_date)
+      })
+    })
+    if (erros.length > 0) {
+      setImportErro(`Corrija a planilha antes de importar:\n${erros.slice(0, 8).join('\n')}${erros.length > 8 ? `\n… e mais ${erros.length - 8} linha(s).` : ''}`)
+      setImportando(false)
+      return
+    }
     if (payload.length === 0) {
-      setImportErro('Nenhuma linha válida (Valor > 0 e Vencimento no formato DD/MM/AAAA ou AAAA-MM-DD).')
+      setImportErro('Nenhuma linha preenchida para importar.')
       setImportando(false)
       return
     }
@@ -552,8 +580,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
 
   const downloadTemplate = useCallback(() => {
     const ehPagar = tipo === 'payable'
-    const cols = ['Descrição', 'Valor', 'Vencimento', 'Emissão', ehPagar ? 'Fornecedor' : 'Cliente', 'Conta', 'Observações', 'Recorrente', 'Juros', 'Multa', 'Desconto']
-    const ex = ['Aluguel escritório', '2500,00', '2026-07-10', '2026-07-01', 'João Imóveis', 'Conta Corrente', 'Mensalidade', 'sim', '', '', '']
+    const cols = ['Descrição', 'Valor', 'Vencimento', 'Competência', 'Conta contábil', 'Emissão', ehPagar ? 'Fornecedor' : 'Cliente', 'Conta', 'Observações', 'Recorrente', 'Juros', 'Multa', 'Desconto']
+    const ex = ['Aluguel escritório', '2500,00', '2026-07-10', '2026-07-01', '6.3.01', '2026-07-01', 'João Imóveis', 'Conta Corrente', 'Mensalidade', 'sim', '', '', '']
     const csv = [cols.join(';'), ex.join(';')].join('\r\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -564,7 +592,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     URL.revokeObjectURL(url)
   }, [tipo])
 
-  const importColIdx = useMemo(() => mapColunas(importHeaders), [importHeaders])
+  const importColIdx = useMemo(() => mapearColunasImportacao(importHeaders), [importHeaders])
   const importValidas = useMemo(
     () => importLinhas.filter(r => r[importColIdx.description ?? -1]?.trim()).length,
     [importLinhas, importColIdx]
@@ -573,10 +601,10 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   // busca textual (descrição/contraparte) aplicada no cliente — instantânea e
   // sem nova requisição por tecla (entries é uma tabela pequena)
   const lancamentosExibidos = useMemo(() => {
-    const q = normalizar(busca) // ignora acento/caixa, igual ao fluxo de import
+    const q = normalizarTexto(busca) // ignora acento/caixa, igual ao fluxo de import
     if (!q) return lancamentos
     return lancamentos.filter((l) =>
-      normalizar(l.description).includes(q) || normalizar(l.counterparty ?? '').includes(q)
+      normalizarTexto(l.description).includes(q) || normalizarTexto(l.counterparty ?? '').includes(q)
     )
   }, [lancamentos, busca])
 
@@ -596,7 +624,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     [lancamentosExibidos]
   )
 
-  // incompletos: sem Conta DRE (some da DRE) e/ou sem Data de emissão (campos
+  // incompletos: sem conta contábil e/ou sem Data de emissão (campos
   // obrigatórios no form novo, mas lançamentos antigos/importados podem faltar) —
   // transferência é neutra por design, não entra aqui.
   const incompletos = useMemo(
@@ -647,6 +675,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const idsVisiveis = new Set(lancamentosExibidos.map((l) => l.id))
   const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id] && idsVisiveis.has(id))
   const selectedEntries = lancamentosExibidos.filter((l) => rowSelection[l.id])
+  const contasEmMassa = chartAccounts.filter((conta) => selectedEntries.filter((entry) => !entry.transfer_id).every((entry) =>
+    contaDisponivelParaEmpresa(conta, entry.company_id) && contaCompativelComLancamento(conta, entry.type)
+  ))
 
   // espelha as transições individuais: "pago" grava a data de hoje e, para os
   // recorrentes, gera o lançamento do próximo mês (inserirProximoMes é idempotente)
@@ -672,7 +703,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             type: l.type,
             description: l.description,
             amount: Number(l.amount),
+            issue_date: l.issue_date ?? l.due_date,
+            competency_date: l.competency_date ?? l.issue_date ?? l.due_date,
             due_date: l.due_date,
+            chart_of_account_id: l.chart_of_account_id ?? null,
+            dre_product_id: l.dre_product_id ?? null,
             counterparty: l.counterparty ?? null,
             notes: l.notes ?? null,
             recurrence_day: l.recurrence_day,
@@ -695,6 +730,13 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     if (selectedIds.length === 0 || !companyId) return
     const emp = empresas.find((e) => e.id === companyId)
     const n = selectedIds.length
+    const contasDeOutraEmpresa = selectedEntries.filter((entry) =>
+      entry.chart_of_account?.company_id && entry.chart_of_account.company_id !== companyId
+    )
+    if (contasDeOutraEmpresa.length > 0) {
+      setErro(`${contasDeOutraEmpresa.length} lançamento(s) usam conta contábil específica de outra empresa. Reclassifique-os antes de mover.`)
+      return
+    }
     if (!(await confirmar({ titulo: 'Mover empresa', mensagem: `Mover ${n} ${n === 1 ? 'lançamento' : 'lançamentos'} para a empresa "${emp?.name ?? ''}"?` }))) return
     // conta de outra empresa é INTERCOMPANY legítimo (empresa A paga conta de B) — NÃO desvincula,
     // só detecta pra avisar no toast (o badge na lista sinaliza permanentemente).
@@ -720,9 +762,19 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     const alvos = selectedIds.filter((id) => !transferIds.has(id))
     const pulados = selectedIds.length - alvos.length
     if (alvos.length === 0) { setErro('Só transferências selecionadas — elas não recebem Conta do Plano (são neutras na DRE).'); return }
+    const entriesAlvo = selectedEntries.filter((entry) => alvos.includes(entry.id))
+    if (!conta || entriesAlvo.some((entry) =>
+      !contaDisponivelParaEmpresa(conta, entry.company_id) || !contaCompativelComLancamento(conta, entry.type)
+    )) {
+      setErro('A conta contábil escolhida não é compatível com todos os lançamentos selecionados.')
+      return
+    }
     const n = alvos.length
     if (!(await confirmar({ titulo: 'Classificar em massa', mensagem: `Atribuir a conta "${conta?.code} – ${conta?.name}" a ${n} ${n === 1 ? 'lançamento' : 'lançamentos'}?` + (pulados > 0 ? ` (${pulados} transferência(s) serão puladas)` : '') }))) return
-    const { error } = await supabase.from('entries').update({ chart_of_account_id: chartId }).in('id', alvos)
+    const { error } = await supabase.from('entries').update({
+      chart_of_account_id: chartId,
+      ...(conta.tipo === 'patrimonial' ? { dre_product_id: null } : {}),
+    }).in('id', alvos)
     if (error) { setErro('Erro ao classificar em massa: ' + error.message); return }
     setRowSelection({})
     toast(`${n} ${n === 1 ? 'lançamento classificado' : 'lançamentos classificados'} em ${conta?.code ?? 'conta'}` + (pulados > 0 ? ` · ${pulados} transferência(s) puladas` : ''))
@@ -757,9 +809,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
         )
       },
     } satisfies DataColumn<Entry>] : []),
-    { id: 'chart_of_account', header: 'Conta DRE', size: 160, cell: (l) =>
+    { id: 'chart_of_account', header: 'Conta contábil', size: 180, cell: (l) =>
       l.chart_of_account
-        ? <span className="text-xs text-fg-muted font-mono">{l.chart_of_account.code} – {l.chart_of_account.name}</span>
+        ? <span className="text-xs text-fg-muted font-mono">{l.chart_of_account.code} – {l.chart_of_account.name}{l.chart_of_account.tipo === 'patrimonial' ? ' · Patrimonial' : ''}</span>
         : <span className="text-fg-subtle">—</span>
     },
     { id: 'issue_date', header: 'Emissão', size: 110, cell: (l) => <span className="text-fg-muted tnum">{fmtData(l.issue_date)}</span> },
@@ -920,8 +972,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       {incompletos.length > 0 && (
         <div className="mb-4">
           <Alert tom="warning">
-            {incompletos.length} {incompletos.length === 1 ? 'lançamento está' : 'lançamentos estão'} sem Conta DRE e/ou Data de emissão
-            {' '}({fmtBRL(incompletos.reduce((s, l) => s + Number(l.amount), 0))}) — complete os dois campos, senão distorce a DRE.
+            {incompletos.length} {incompletos.length === 1 ? 'lançamento está' : 'lançamentos estão'} sem conta contábil e/ou Data de emissão
+            {' '}({fmtBRL(incompletos.reduce((s, l) => s + Number(l.amount), 0))}) — complete os dois campos para manter DRE e patrimônio íntegros.
           </Alert>
         </div>
       )}
@@ -959,7 +1011,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             </select>
           </div>
           <div className="w-44">
-            <label className="block text-sm font-medium mb-1">Conta DRE</label>
+            <label className="block text-sm font-medium mb-1">Conta contábil</label>
             <select className={inputCls} value={filtroConta} onChange={(e) => setFiltroConta(e.target.value as '' | 'sem' | 'com')}>
               <option value="">Todas</option>
               <option value="sem">Sem conta (a classificar)</option>
@@ -1003,14 +1055,14 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-fg-muted">Conta DRE:</span>
+            <span className="text-sm text-fg-muted">Conta contábil:</span>
             <select
               value=""
               onChange={(e) => { const v = e.target.value; if (v) aplicarContaEmMassa(v) }}
               className="rounded-control border border-border-strong px-2 py-1.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand max-w-[16rem]"
             >
               <option value="" disabled>Classificar…</option>
-              {chartAccounts.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+              {contasEmMassa.map((c) => <option key={c.id} value={c.id}>{rotuloContaContabil(c)}</option>)}
             </select>
           </div>
           {empresas.length > 1 && (
@@ -1059,7 +1111,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             {empresas.length > 1 && (
               <div>
                 <label className="block text-sm font-medium mb-1">Empresa *</label>
-                <select required className={inputCls} value={form.company_id} onChange={(e) => setForm({ ...form, company_id: e.target.value, account_id: '' })}>
+                <select required className={inputCls} value={form.company_id} onChange={(e) => setForm({ ...form, company_id: e.target.value, account_id: '', chart_of_account_id: '', dre_product_id: '' })}>
                   <option value="">Selecione…</option>
                   {empresas.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
@@ -1097,19 +1149,49 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Conta do Plano de Contas <span className="text-expense">*</span></label>
-              <select className={inputCls} value={form.chart_of_account_id} onChange={(e) => setForm({ ...form, chart_of_account_id: e.target.value })}>
-                <option value="">— Escolha a conta (obrigatório p/ DRE) —</option>
-                {chartAccounts.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+              <label htmlFor="tratamento-contabil" className="block text-sm font-medium mb-1">Tratamento contábil <span className="text-expense">*</span></label>
+              <select
+                id="tratamento-contabil"
+                className={inputCls}
+                value={form.chart_of_account_id}
+                onChange={(e) => {
+                  const escolhida = chartAccounts.find((conta) => conta.id === e.target.value)
+                  setForm({ ...form, chart_of_account_id: e.target.value, dre_product_id: escolhida?.tipo === 'patrimonial' ? '' : form.dre_product_id })
+                }}
+              >
+                <option value="">— Escolha a conta contábil —</option>
+                {contasResultadoDisponiveis.length > 0 && (
+                  <optgroup label="Resultado — entra na DRE">
+                    {contasResultadoDisponiveis.map((c) => <option key={c.id} value={c.id}>{rotuloContaContabil(c)}</option>)}
+                  </optgroup>
+                )}
+                {contasPatrimoniaisDisponiveis.length > 0 && (
+                  <optgroup label="Patrimonial — não entra na DRE">
+                    {contasPatrimoniaisDisponiveis.map((c) => <option key={c.id} value={c.id}>{rotuloContaContabil(c)}</option>)}
+                  </optgroup>
+                )}
               </select>
+              <p className="text-xs text-fg-subtle mt-1">
+                Use Patrimonial para consórcios, imobilizado, empréstimos e outros movimentos que não são resultado operacional.
+              </p>
+              {tributoMencionado && contaContabilSelecionada?.tipo === 'resultado' && contaContabilSelecionada.nature !== 'deduction' && (
+                <p className="text-xs text-warning mt-1 font-medium">
+                  Atenção: {tributoMencionado} deve normalmente ser classificado em Deduções da DRE. Revise a conta escolhida.
+                </p>
+              )}
+              {contaContabilSelecionada?.tipo === 'patrimonial' && normalizarTexto(contaContabilSelecionada.name).includes('consorcio') && (
+                <p className="text-xs text-warning mt-1 font-medium">
+                  Se a parcela tiver taxa administrativa, seguro ou outra despesa, lance essa parte separadamente em uma conta de resultado. Aqui deve ficar somente fundo/reserva patrimonial.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Produto / Centro de Custo</label>
-              <select className={inputCls} value={form.dre_product_id} onChange={(e) => setForm({ ...form, dre_product_id: e.target.value })}>
+              <select disabled={contaContabilSelecionada?.tipo === 'patrimonial'} className={inputCls} value={form.dre_product_id} onChange={(e) => setForm({ ...form, dre_product_id: e.target.value })}>
                 <option value="">— Herdar da conta do Plano —</option>
                 {dreProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <p className="text-xs text-fg-subtle mt-1">Vazio = usa o produto vinculado à conta acima (na DRE por Produto). Escolha aqui só pra sobrepor.</p>
+              <p className="text-xs text-fg-subtle mt-1">{contaContabilSelecionada?.tipo === 'patrimonial' ? 'Não se aplica a contas patrimoniais.' : 'Vazio = usa o produto vinculado à conta acima (na DRE por Produto). Escolha aqui só pra sobrepor.'}</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Conta</label>
@@ -1231,8 +1313,9 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
           )}
           <div className="rounded-card bg-surface-2 border border-border p-3 text-xs text-fg-muted leading-relaxed">
             <p className="font-semibold text-fg mb-1">Colunas reconhecidas no cabeçalho (case insensitive):</p>
-            <p><span className="font-medium text-fg">Obrigatórias:</span> Descrição · Valor · Vencimento</p>
-            <p><span className="font-medium text-fg">Opcionais:</span> Emissão · {ehPagar ? 'Fornecedor' : 'Cliente'} · Conta · Observações · Status · Recorrente · Juros · Multa · Desconto</p>
+            <p><span className="font-medium text-fg">Obrigatórias:</span> Descrição · Valor · Vencimento · Competência · Conta contábil</p>
+            <p><span className="font-medium text-fg">Opcionais:</span> Emissão · {ehPagar ? 'Fornecedor' : 'Cliente'} · Conta bancária · Observações · Status · Recorrente · Juros · Multa · Desconto</p>
+            <p className="mt-1"><span className="font-medium text-fg">Conta contábil:</span> informe o código ou o nome exato. Contas incompatíveis com pagar/receber são bloqueadas.</p>
             <p className="mt-1.5 text-fg-subtle">Datas: DD/MM/AAAA ou AAAA-MM-DD · Valores: vírgula ou ponto decimal · Recorrente: sim/não</p>
           </div>
           <div className="flex items-center justify-between">
@@ -1248,7 +1331,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
             className={inputCls}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) processarArquivo(f) }}
           />
-          {importErro && <p className="text-sm text-expense">{importErro}</p>}
+          {importErro && <p className="text-sm text-expense whitespace-pre-line">{importErro}</p>}
           {importLinhas.length > 0 && (
             <>
               <p className="text-sm text-fg-muted">

@@ -8,6 +8,10 @@ export type EntryType = 'payable' | 'receivable'
 //  mas não é mais usado no fluxo — entradas antigas foram migradas para 'to_pay')
 export type EntryStatus = 'to_pay' | 'pending' | 'paid' | 'cancelled' | 'refunded'
 export type AccountType = 'checking' | 'cash' | 'credit_card' | 'inter_company'
+export type ChartAccountType = 'resultado' | 'patrimonial'
+export type ChartAccountNature =
+  | 'revenue' | 'deduction' | 'variable_cost' | 'fixed_cost' | 'financial' | 'depreciation' | 'tax'
+  | 'asset' | 'liability' | 'equity'
 
 // ── Tabelas novas (EN) ───────────────────────────────────────────────────────
 
@@ -195,7 +199,10 @@ export interface ChartOfAccount {
   code: string
   name: string
   parent_id: string | null
-  nature: 'revenue' | 'deduction' | 'variable_cost' | 'fixed_cost' | 'financial' | 'depreciation' | 'tax'
+  company_id: string | null
+  tipo: ChartAccountType
+  nature: ChartAccountNature
+  redutora: boolean
   is_analytical: boolean
   sort_order: number
   active: boolean
