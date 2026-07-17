@@ -2,7 +2,7 @@
 // Operações de admin sobre usuários (listar, criar, mudar papel, banir, deletar).
 // Requer: caller autenticado com role='admin' na tabela profiles.
 // verify_jwt=false (validamos o token manualmente para poder usar o service key).
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from 'jsr:@supabase/supabase-js@2.110.7'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

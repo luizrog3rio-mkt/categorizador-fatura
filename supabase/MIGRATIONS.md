@@ -1,9 +1,185 @@
 # Migrations — runbook (Fases 1a/1b/1c ✅ · Fase 2 cutover ✅ · Fase 3 ✅ · Fase 4 ❌ descartada por design)
 
-> Histórico vivo completo (9 migrations): baseline → phase1a_hardening →
-> phase1b_team_model → phase1c_new_tables → hotmart_totals_rpc →
-> enable_cron_net → hotmart_cron_daily → phase3_data_fixes →
-> move_pgnet_to_extensions. Seções das operacionais pós-1c no fim do arquivo.
+> **Inventário local completo: 115 migrations em 2026-07-16.** O índice abaixo é
+> derivado dos arquivos presentes em `supabase/migrations/`, em ordem de timestamp.
+> Ele não consulta nem revalida o banco remoto e não infere status: **o header de
+> cada arquivo SQL é a fonte primária do status de aplicação e das verificações**.
+> Para o marco histórico `phase1a_hardening`, cujo header não traz marcador explícito,
+> vale a seção narrativa deste runbook. O baseline é a exceção operacional
+> documentada no próprio header: foi registrado sem executar o snapshot contra
+> produção. As seções narrativas antigas foram preservadas abaixo por conterem
+> contexto, aprovações e procedimentos históricos.
+
+## Índice vivo completo dos arquivos locais
+
+### 2026-06-09 (1)
+
+- [`20260609120000_baseline.sql`](migrations/20260609120000_baseline.sql)
+
+### 2026-06-10 (6)
+
+- [`20260610010051_phase1a_hardening.sql`](migrations/20260610010051_phase1a_hardening.sql)
+- [`20260610115934_phase1b_team_model.sql`](migrations/20260610115934_phase1b_team_model.sql)
+- [`20260610160202_phase1c_new_tables.sql`](migrations/20260610160202_phase1c_new_tables.sql)
+- [`20260610194751_hotmart_totals_rpc.sql`](migrations/20260610194751_hotmart_totals_rpc.sql)
+- [`20260610202455_enable_cron_net.sql`](migrations/20260610202455_enable_cron_net.sql)
+- [`20260610203722_hotmart_cron_daily.sql`](migrations/20260610203722_hotmart_cron_daily.sql)
+
+### 2026-06-11 (10)
+
+- [`20260611002326_phase3_data_fixes.sql`](migrations/20260611002326_phase3_data_fixes.sql)
+- [`20260611021420_move_pgnet_to_extensions.sql`](migrations/20260611021420_move_pgnet_to_extensions.sql)
+- [`20260611142142_add_role_to_profiles.sql`](migrations/20260611142142_add_role_to_profiles.sql)
+- [`20260611143617_hotmart_total_amount.sql`](migrations/20260611143617_hotmart_total_amount.sql)
+- [`20260611164005_hotmart_currency_and_refresh_cols.sql`](migrations/20260611164005_hotmart_currency_and_refresh_cols.sql)
+- [`20260611164017_hotmart_totals_v2_currency.sql`](migrations/20260611164017_hotmart_totals_v2_currency.sql)
+- [`20260611164022_hotmart_refresh_status_cron.sql`](migrations/20260611164022_hotmart_refresh_status_cron.sql)
+- [`20260611173533_hotmart_fee_pct_installments.sql`](migrations/20260611173533_hotmart_fee_pct_installments.sql)
+- [`20260611180441_entries_issue_date_nullable.sql`](migrations/20260611180441_entries_issue_date_nullable.sql)
+- [`20260611184217_user_table_prefs.sql`](migrations/20260611184217_user_table_prefs.sql)
+
+### 2026-06-15 (2)
+
+- [`20260615132218_entries_status_add_to_pay_enum.sql`](migrations/20260615132218_entries_status_add_to_pay_enum.sql)
+- [`20260615132225_entries_status_migrate_overdue_and_default.sql`](migrations/20260615132225_entries_status_migrate_overdue_and_default.sql)
+
+### 2026-06-17 (1)
+
+- [`20260617135607_entries_add_is_recurring.sql`](migrations/20260617135607_entries_add_is_recurring.sql)
+
+### 2026-06-18 (1)
+
+- [`20260618192454_entries_recurrence_day.sql`](migrations/20260618192454_entries_recurrence_day.sql)
+
+### 2026-06-22 (6)
+
+- [`20260622125458_fatura_ofx_storage.sql`](migrations/20260622125458_fatura_ofx_storage.sql)
+- [`20260622133542_transactions_kind.sql`](migrations/20260622133542_transactions_kind.sql)
+- [`20260622164136_account_balances_rpc.sql`](migrations/20260622164136_account_balances_rpc.sql)
+- [`20260622170139_relatorio_categorias_rpc.sql`](migrations/20260622170139_relatorio_categorias_rpc.sql)
+- [`20260622171823_dre_competencia_rpc.sql`](migrations/20260622171823_dre_competencia_rpc.sql)
+- [`20260622174210_reconciliation.sql`](migrations/20260622174210_reconciliation.sql)
+
+### 2026-06-23 (1)
+
+- [`20260623135902_entries_charges_discount.sql`](migrations/20260623135902_entries_charges_discount.sql)
+
+### 2026-06-24 (6)
+
+- [`20260624115030_dre_plano_contas.sql`](migrations/20260624115030_dre_plano_contas.sql)
+- [`20260624171720_hotmart_a_liberar.sql`](migrations/20260624171720_hotmart_a_liberar.sql)
+- [`20260624202331_plano_contas_v2.sql`](migrations/20260624202331_plano_contas_v2.sql)
+- [`20260624204653_dre_produto_base.sql`](migrations/20260624204653_dre_produto_base.sql)
+- [`20260624205030_hotmart_produtos_rpc.sql`](migrations/20260624205030_hotmart_produtos_rpc.sql)
+- [`20260624210012_dre_by_product_rpc.sql`](migrations/20260624210012_dre_by_product_rpc.sql)
+
+### 2026-06-25 (6)
+
+- [`20260625163650_remove_categorias.sql`](migrations/20260625163650_remove_categorias.sql)
+- [`20260625185947_account_type_cash.sql`](migrations/20260625185947_account_type_cash.sql)
+- [`20260625192507_transferencias.sql`](migrations/20260625192507_transferencias.sql)
+- [`20260625210240_hotmart_commission_checked_at.sql`](migrations/20260625210240_hotmart_commission_checked_at.sql)
+- [`20260625211436_hotmart_commissions_cron.sql`](migrations/20260625211436_hotmart_commissions_cron.sql)
+- [`20260625211536_hotmart_by_affiliate_rpc.sql`](migrations/20260625211536_hotmart_by_affiliate_rpc.sql)
+
+### 2026-06-26 (8)
+
+- [`20260626124334_vendedores_base.sql`](migrations/20260626124334_vendedores_base.sql)
+- [`20260626124506_vendedores_rpcs.sql`](migrations/20260626124506_vendedores_rpcs.sql)
+- [`20260626142135_afiliados_tracking_base.sql`](migrations/20260626142135_afiliados_tracking_base.sql)
+- [`20260626142158_afiliados_rpcs.sql`](migrations/20260626142158_afiliados_rpcs.sql)
+- [`20260626162350_transactions_chart_of_account.sql`](migrations/20260626162350_transactions_chart_of_account.sql)
+- [`20260626162413_dre_by_competency_card.sql`](migrations/20260626162413_dre_by_competency_card.sql)
+- [`20260626203914_hotmart_webhook_base.sql`](migrations/20260626203914_hotmart_webhook_base.sql)
+- [`20260626203926_hotmart_webhook_drain_cron.sql`](migrations/20260626203926_hotmart_webhook_drain_cron.sql)
+
+### 2026-06-27 (1)
+
+- [`20260627010255_hotmart_origem_base.sql`](migrations/20260627010255_hotmart_origem_base.sql)
+
+### 2026-06-29 (15)
+
+- [`20260629125443_hotmart_origem_por_sck.sql`](migrations/20260629125443_hotmart_origem_por_sck.sql)
+- [`20260629133817_origem_canais_v2.sql`](migrations/20260629133817_origem_canais_v2.sql)
+- [`20260629135735_origem_seller_report.sql`](migrations/20260629135735_origem_seller_report.sql)
+- [`20260629142205_origem_drop_legado.sql`](migrations/20260629142205_origem_drop_legado.sql)
+- [`20260629150351_origem_classificacao_por_venda.sql`](migrations/20260629150351_origem_classificacao_por_venda.sql)
+- [`20260629155027_origem_tracking_rules.sql`](migrations/20260629155027_origem_tracking_rules.sql)
+- [`20260629160033_origem_force_apply_rule.sql`](migrations/20260629160033_origem_force_apply_rule.sql)
+- [`20260629160459_origem_rules_add_afiliado.sql`](migrations/20260629160459_origem_rules_add_afiliado.sql)
+- [`20260629161019_origem_rules_multi_condition.sql`](migrations/20260629161019_origem_rules_multi_condition.sql)
+- [`20260629163109_origem_rules_match_type.sql`](migrations/20260629163109_origem_rules_match_type.sql)
+- [`20260629163852_origem_rules_is_empty_match.sql`](migrations/20260629163852_origem_rules_is_empty_match.sql)
+- [`20260629213111_origem_unmapped_values.sql`](migrations/20260629213111_origem_unmapped_values.sql)
+- [`20260629214649_origem_sale_class_proveniencia.sql`](migrations/20260629214649_origem_sale_class_proveniencia.sql)
+- [`20260629214724_origem_reapply_all.sql`](migrations/20260629214724_origem_reapply_all.sql)
+- [`20260629221738_origem_rules_unique.sql`](migrations/20260629221738_origem_rules_unique.sql)
+
+### 2026-06-30 (26)
+
+- [`20260630005614_extrato_totais.sql`](migrations/20260630005614_extrato_totais.sql)
+- [`20260630012653_dre_product_link_chart_account.sql`](migrations/20260630012653_dre_product_link_chart_account.sql)
+- [`20260630104453_seguranca_revoke_anon_rpcs.sql`](migrations/20260630104453_seguranca_revoke_anon_rpcs.sql)
+- [`20260630110613_dre_competencia_inclui_hotmart.sql`](migrations/20260630110613_dre_competencia_inclui_hotmart.sql)
+- [`20260630111651_seguranca_papel_fail_safe.sql`](migrations/20260630111651_seguranca_papel_fail_safe.sql)
+- [`20260630114247_dre_cash_reconciliation_filtra_dre.sql`](migrations/20260630114247_dre_cash_reconciliation_filtra_dre.sql)
+- [`20260630115851_entries_datas_sanas_check.sql`](migrations/20260630115851_entries_datas_sanas_check.sql)
+- [`20260630144220_origem_auto_classifica_venda_nova.sql`](migrations/20260630144220_origem_auto_classifica_venda_nova.sql)
+- [`20260630150138_perf_indices_fks_quentes.sql`](migrations/20260630150138_perf_indices_fks_quentes.sql)
+- [`20260630160952_origem_remove_cluster_canal.sql`](migrations/20260630160952_origem_remove_cluster_canal.sql)
+- [`20260630161801_seguranca_lockdown_funcoes_origem.sql`](migrations/20260630161801_seguranca_lockdown_funcoes_origem.sql)
+- [`20260630162626_higiene_indices_e_entry_installments.sql`](migrations/20260630162626_higiene_indices_e_entry_installments.sql)
+- [`20260630163745_hotmart_cron_health_rpc.sql`](migrations/20260630163745_hotmart_cron_health_rpc.sql)
+- [`20260630174246_corrige_datas_lixo_entries.sql`](migrations/20260630174246_corrige_datas_lixo_entries.sql)
+- [`20260630174317_dre_nao_classificado_rpc.sql`](migrations/20260630174317_dre_nao_classificado_rpc.sql)
+- [`20260630181831_backfill_competency_e_payment_date.sql`](migrations/20260630181831_backfill_competency_e_payment_date.sql)
+- [`20260630181902_closed_periods_enforcement_trigger.sql`](migrations/20260630181902_closed_periods_enforcement_trigger.sql)
+- [`20260630183541_deletions_log_forense.sql`](migrations/20260630183541_deletions_log_forense.sql)
+- [`20260630190014_dre_competencia_guarda_natureza_cartao.sql`](migrations/20260630190014_dre_competencia_guarda_natureza_cartao.sql)
+- [`20260630190737_listar_delecoes_rpc.sql`](migrations/20260630190737_listar_delecoes_rpc.sql)
+- [`20260630202547_dre_products_chart_of_account.sql`](migrations/20260630202547_dre_products_chart_of_account.sql)
+- [`20260630202639_dre_competencia_split_hotmart_por_conta.sql`](migrations/20260630202639_dre_competencia_split_hotmart_por_conta.sql)
+- [`20260630204421_hotmart_product_map_chart_account_direto.sql`](migrations/20260630204421_hotmart_product_map_chart_account_direto.sql)
+- [`20260630204455_dre_competencia_hotmart_conta_direta.sql`](migrations/20260630204455_dre_competencia_hotmart_conta_direta.sql)
+- [`20260630211005_corrige_hotmart_rafael_para_rb7.sql`](migrations/20260630211005_corrige_hotmart_rafael_para_rb7.sql)
+- [`20260630212201_congela_company_id_hotmart.sql`](migrations/20260630212201_congela_company_id_hotmart.sql)
+
+### 2026-07-01 (12)
+
+- [`20260701001316_corrige_net_hotmart_afiliado.sql`](migrations/20260701001316_corrige_net_hotmart_afiliado.sql)
+- [`20260701021714_seguranca_viewer_readonly_real.sql`](migrations/20260701021714_seguranca_viewer_readonly_real.sql)
+- [`20260701030209_invoices_total_numeric_2casas.sql`](migrations/20260701030209_invoices_total_numeric_2casas.sql)
+- [`20260701033821_dre_competencia_a_classificar.sql`](migrations/20260701033821_dre_competencia_a_classificar.sql)
+- [`20260701034823_webhook_skip_nao_e_erro.sql`](migrations/20260701034823_webhook_skip_nao_e_erro.sql)
+- [`20260701104204_auditoria_forense_hotmart_e_lockdown_logs.sql`](migrations/20260701104204_auditoria_forense_hotmart_e_lockdown_logs.sql)
+- [`20260701104248_dre_exclui_transferencia_a_classificar.sql`](migrations/20260701104248_dre_exclui_transferencia_a_classificar.sql)
+- [`20260701110727_auditoria_onda3_atrasados_e_valor_pendente.sql`](migrations/20260701110727_auditoria_onda3_atrasados_e_valor_pendente.sql)
+- [`20260701110740_cron_edge_audit_observabilidade.sql`](migrations/20260701110740_cron_edge_audit_observabilidade.sql)
+- [`20260701125024_hotmart_sales_product_id.sql`](migrations/20260701125024_hotmart_sales_product_id.sql)
+- [`20260701125954_webhook_grava_product_id.sql`](migrations/20260701125954_webhook_grava_product_id.sql)
+- [`20260701140553_produto_por_id_mapa_e_rpcs.sql`](migrations/20260701140553_produto_por_id_mapa_e_rpcs.sql)
+
+### 2026-07-06 (1)
+
+- [`20260706193610_entries_atrasados_valor_efetivo.sql`](migrations/20260706193610_entries_atrasados_valor_efetivo.sql)
+
+### 2026-07-15 (7)
+
+- [`20260715173423_plano_contas_por_empresa.sql`](migrations/20260715173423_plano_contas_por_empresa.sql)
+- [`20260715192144_saneamento_datas_entries.sql`](migrations/20260715192144_saneamento_datas_entries.sql)
+- [`20260715200047_obras_incorporadora.sql`](migrations/20260715200047_obras_incorporadora.sql)
+- [`20260715202831_regras_sugestao_conta.sql`](migrations/20260715202831_regras_sugestao_conta.sql)
+- [`20260715215959_balanco_digital.sql`](migrations/20260715215959_balanco_digital.sql)
+- [`20260715220733_balanco_holding.sql`](migrations/20260715220733_balanco_holding.sql)
+- [`20260715220938_balanco_incorporadora.sql`](migrations/20260715220938_balanco_incorporadora.sql)
+
+### 2026-07-16 (5)
+
+- [`20260716140052_custo_por_obra_rpcs.sql`](migrations/20260716140052_custo_por_obra_rpcs.sql)
+- [`20260716143144_partidas_estrutura.sql`](migrations/20260716143144_partidas_estrutura.sql)
+- [`20260716143345_partidas_backfill.sql`](migrations/20260716143345_partidas_backfill.sql)
+- [`20260716152621_dre_deducao_paga.sql`](migrations/20260716152621_dre_deducao_paga.sql)
+- [`20260716154007_dre_lancamentos_invisiveis.sql`](migrations/20260716154007_dre_lancamentos_invisiveis.sql)
 
 > **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz em 2026-06-09).**
 > Histórico vivo: `20260609120000 baseline` (registrado sem execução) → `20260610010051 phase1a_hardening`

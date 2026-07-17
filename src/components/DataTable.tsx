@@ -129,6 +129,9 @@ export default function DataTable<T>({ columns, data, tableKey, getRowId, empty,
     return ordem
   }, [prefs.columnOrder, columns])
 
+  // TanStack Table devolve callbacks mutáveis por design; o React Compiler
+  // reconhece a incompatibilidade e apenas pula a memoização deste componente.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns: columnDefs,

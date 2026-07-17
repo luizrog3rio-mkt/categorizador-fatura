@@ -1,0 +1,12 @@
+project_id = "qdnqghefwjpeiidjlzjy"
+
+# Authentication is enforced inside each handler. Keeping the platform JWT
+# check disabled is required for Hotmart webhooks and service/cron calls.
+[functions.hotmart-sync]
+verify_jwt = false
+
+[functions.hotmart-webhook]
+verify_jwt = false
+
+[functions.user-management]
+verify_jwt = false

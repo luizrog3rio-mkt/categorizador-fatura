@@ -51,6 +51,9 @@ export default function RegraModal({ modo, regraId, inicial, grupos, sellers, on
       ['affiliate', novaRegra.afiliado_match, novaRegra.afiliado_value.trim()],
     ]
     const ativos = campos.filter(([, m, v]) => m === 'is_empty' || v)
+    // Reset necessário ao remover a última condição; não é estado derivável,
+    // pois também cancela o resultado assíncrono/debounced anterior.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (ativos.length === 0) { setAlcance(null); setCalculando(false); return }
     setCalculando(true)
     const t = setTimeout(async () => {

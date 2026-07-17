@@ -57,6 +57,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) {
+      // Limpa dado remoto da sessão anterior quando o Auth informa logout.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPendingCount(0)
       return
     }

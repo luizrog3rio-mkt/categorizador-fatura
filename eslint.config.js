@@ -25,4 +25,14 @@ export default defineConfig([
       'react-hooks/set-state-in-effect': 'warn',
     },
   },
+  {
+    // As páginas sincronizam a UI com o Supabase chamando um loader assíncrono
+    // no mount/troca de filtros. A regra não distingue esse fetch-on-mount de um
+    // setState derivável durante render; os componentes compartilhados continuam
+    // cobertos e exceções fora de pages precisam ser justificadas no próprio local.
+    files: ['src/pages/**/*.{ts,tsx}'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 ])

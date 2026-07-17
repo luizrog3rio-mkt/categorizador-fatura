@@ -26,7 +26,7 @@
 //  - Escreve com a SERVICE KEY (chamada externa sem usuário). A tabela de eventos
 //    é service-only (RLS sem policy) porque o payload cru tem PII.
 // ============================================================================
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from 'jsr:@supabase/supabase-js@2.110.7'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',

@@ -24,7 +24,7 @@
 //  - header x-service-auth == HOTMART_SYNC_SERVICE_KEY → modo-serviço (cron
 //    diário): escreve com a service key, sem usuário. verify_jwt=false no deploy.
 // ============================================================================
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from 'jsr:@supabase/supabase-js@2.110.7'
 
 const HOTMART_TOKEN_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token'
 const HOTMART_SALES_URL = 'https://developers.hotmart.com/payments/api/v1/sales/history'

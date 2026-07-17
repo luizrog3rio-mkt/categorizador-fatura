@@ -16,6 +16,25 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      include: [
+        'src/lib/entries.ts',
+        'src/lib/fatura.ts',
+        'src/lib/format.ts',
+        'src/lib/hotmart.ts',
+        'src/lib/importarExtrato.ts',
+        'src/lib/importarFatura.ts',
+        'src/lib/ofxExtrato.ts',
+        'src/lib/regra.ts',
+      ],
+      thresholds: {
+        statements: 85,
+        branches: 60,
+        functions: 85,
+        lines: 90,
+      },
+    },
   },
   build: {
     rollupOptions: {

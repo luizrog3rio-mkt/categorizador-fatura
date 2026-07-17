@@ -71,6 +71,8 @@ export function useColumnPrefs(tableKey: string): ColumnPrefs {
   // carrega do servidor (e reconcilia) quando muda usuário/tabela
   useEffect(() => {
     let cancel = false
+    // Inicia uma nova hidratação externa ao trocar usuário ou tabela.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoaded(false)
     loadedRef.current = false
     if (!userId) {
