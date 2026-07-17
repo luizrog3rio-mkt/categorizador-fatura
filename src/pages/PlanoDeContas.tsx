@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Plus, Pencil, PowerOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../contexts/AppContext'
-import type { ChartOfAccount, DreProduct } from '../lib/types'
+import type { ChartAccountNature, ChartAccountType, ChartOfAccount, DreProduct } from '../lib/types'
 import { Card, PageHeader, Modal, Vazio, ErroBanner, Badge, inputCls, btnPrimario, btnSecundario } from '../components/ui'
 import { useConfirm } from '../components/Confirm'
 import { useToast } from '../components/Toast'
 
 // Naturezas disponíveis (espelha o CHECK do banco)
-type Nature = ChartOfAccount['nature']
+type Nature = ChartAccountNature
 
 const NATURE_LABELS: Record<Nature, string> = {
   revenue: 'Receita',
@@ -18,6 +18,9 @@ const NATURE_LABELS: Record<Nature, string> = {
   financial: 'Financeiro',
   depreciation: 'Depreciação',
   tax: 'Imposto',
+  asset: 'Ativo',
+  liability: 'Passivo',
+  equity: 'Patrimônio Líquido',
 }
 
 const NATURE_COLORS: Record<Nature, string> = {
@@ -28,7 +31,13 @@ const NATURE_COLORS: Record<Nature, string> = {
   financial: '#3b82f6',
   depreciation: '#94a3b8',
   tax: '#8b5cf6',
+  asset: '#06b6d4',
+  liability: '#f43f5e',
+  equity: '#a855f7',
 }
+
+const RESULT_NATURES: Nature[] = ['revenue', 'deduction', 'variable_cost', 'fixed_cost', 'financial', 'depreciation', 'tax']
+const PATRIMONIAL_NATURES: Nature[] = ['asset', 'liability', 'equity']
 
 interface ChartRow extends Omit<ChartOfAccount, 'parent'> {
   parent?: { code: string; name: string } | null
@@ -39,7 +48,10 @@ interface FormState {
   code: string
   name: string
   parent_id: string
+  company_id: string
+  tipo: ChartAccountType
   nature: Nature
+  redutora: boolean
   is_analytical: boolean
   rateio_por_produto: boolean
   dre_product_id: string // vínculo conta → produto DRE (só vale acima da margem)
@@ -63,7 +75,10 @@ const FORM_VAZIO: FormState = {
   code: '',
   name: '',
   parent_id: '',
+  company_id: '',
+  tipo: 'resultado',
   nature: 'revenue',
+  redutora: false,
   is_analytical: true,
   rateio_por_produto: true,
   dre_product_id: '',
@@ -72,7 +87,7 @@ const FORM_VAZIO: FormState = {
 }
 
 export default function PlanoDeContas() {
-  const { isAdmin } = useApp()
+  const { isAdmin, empresas, empresaAtiva } = useApp()
   const confirmar = useConfirm()
   const toast = useToast()
   const [contas, setContas] = useState<ChartRow[]>([])
@@ -82,6 +97,8 @@ export default function PlanoDeContas() {
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState<FormState>(FORM_VAZIO)
   const [busca, setBusca] = useState('')
+  const [filtroEmpresa, setFiltroEmpresa] = useState(empresaAtiva?.id ?? 'todas')
+  const [filtroTipo, setFiltroTipo] = useState<ChartAccountType | 'todos'>('todos')
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -103,10 +120,25 @@ export default function PlanoDeContas() {
 
   useEffect(() => { carregar() }, [carregar])
 
-  const contasGrupo = contas.filter((c) => !c.is_analytical)
+  useEffect(() => {
+    if (empresaAtiva) setFiltroEmpresa(empresaAtiva.id)
+  }, [empresaAtiva])
+
+  const contasGrupo = useMemo(() => contas.filter((c) =>
+    !c.is_analytical && c.tipo === form.tipo && (c.company_id === null || c.company_id === form.company_id)
+  ), [contas, form.company_id, form.tipo])
 
   const abrirNovo = () => {
-    setForm(FORM_VAZIO)
+    const companyId = filtroEmpresa !== 'todas' && filtroEmpresa !== 'compartilhadas'
+      ? filtroEmpresa
+      : empresaAtiva?.id ?? ''
+    const tipo = filtroTipo === 'todos' ? 'resultado' : filtroTipo
+    setForm({
+      ...FORM_VAZIO,
+      company_id: companyId,
+      tipo,
+      nature: tipo === 'patrimonial' ? 'asset' : 'revenue',
+    })
     setModal(true)
   }
 
@@ -116,7 +148,10 @@ export default function PlanoDeContas() {
       code: c.code,
       name: c.name,
       parent_id: c.parent_id ?? '',
+      company_id: c.company_id ?? '',
+      tipo: c.tipo,
       nature: c.nature,
+      redutora: c.redutora ?? false,
       is_analytical: c.is_analytical,
       rateio_por_produto: c.rateio_por_produto ?? rateioPadrao(c.nature),
       dre_product_id: c.dre_product_id ?? '',
@@ -133,16 +168,23 @@ export default function PlanoDeContas() {
       code: form.code.trim(),
       name: form.name.trim(),
       parent_id: form.parent_id || null,
+      company_id: form.company_id || null,
+      tipo: form.tipo,
       nature: form.nature,
+      redutora: form.tipo === 'patrimonial' && form.redutora,
       is_analytical: form.is_analytical,
       // produto só vale acima da margem; rateio_por_produto reaproveitado = "tem produto?"
-      dre_product_id: rateioPadrao(form.nature) ? (form.dre_product_id || null) : null,
-      rateio_por_produto: rateioPadrao(form.nature) && !!form.dre_product_id,
+      dre_product_id: form.tipo === 'resultado' && rateioPadrao(form.nature) ? (form.dre_product_id || null) : null,
+      rateio_por_produto: form.tipo === 'resultado' && rateioPadrao(form.nature) && !!form.dre_product_id,
       sort_order: Number(form.sort_order) || 0,
       active: form.active,
     }
     if (!payload.code || !payload.name) {
       setErro('Código e nome são obrigatórios.')
+      return
+    }
+    if (form.tipo === 'patrimonial' && !form.company_id) {
+      setErro('Conta patrimonial precisa pertencer a uma empresa.')
       return
     }
     if (form.id) {
@@ -187,6 +229,9 @@ export default function PlanoDeContas() {
   }
 
   const contasFiltradas = contas.filter((c) => {
+    if (filtroTipo !== 'todos' && c.tipo !== filtroTipo) return false
+    if (filtroEmpresa === 'compartilhadas' && c.company_id !== null) return false
+    if (filtroEmpresa !== 'todas' && filtroEmpresa !== 'compartilhadas' && c.company_id !== null && c.company_id !== filtroEmpresa) return false
     if (!busca.trim()) return true
     const q = busca.toLowerCase()
     return c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
@@ -196,7 +241,7 @@ export default function PlanoDeContas() {
     <div>
       <PageHeader
         titulo="Plano de Contas"
-        subtitulo="Estrutura hierárquica de contas para a DRE"
+        subtitulo="Contas de resultado (DRE) e patrimoniais (Balanço), compartilhadas ou por empresa"
         acao={
           isAdmin ? (
             <button onClick={abrirNovo} className={btnPrimario}>
@@ -208,7 +253,7 @@ export default function PlanoDeContas() {
 
       <ErroBanner mensagem={erro} />
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-3">
         <input
           type="search"
           placeholder="Buscar por código ou nome…"
@@ -216,6 +261,16 @@ export default function PlanoDeContas() {
           onChange={(e) => setBusca(e.target.value)}
           className={inputCls + ' max-w-xs'}
         />
+        <select className={inputCls + ' max-w-[15rem]'} value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
+          <option value="todas">Todas as empresas e compartilhadas</option>
+          <option value="compartilhadas">Somente compartilhadas</option>
+          {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name} + compartilhadas</option>)}
+        </select>
+        <select className={inputCls + ' max-w-[12rem]'} value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as ChartAccountType | 'todos')}>
+          <option value="todos">Resultado + Patrimonial</option>
+          <option value="resultado">Somente resultado</option>
+          <option value="patrimonial">Somente patrimonial</option>
+        </select>
       </div>
 
       <Card>
@@ -231,7 +286,9 @@ export default function PlanoDeContas() {
                   <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Código</th>
                   <th className="text-left px-4 py-3 font-medium text-fg-muted">Nome</th>
                   <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Natureza</th>
-                  <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Tipo</th>
+                  <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Tipo contábil</th>
+                  <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Empresa</th>
+                  <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Estrutura</th>
                   <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Produto DRE</th>
                   <th className="text-left px-4 py-3 font-medium text-fg-muted whitespace-nowrap">Ativa</th>
                   {isAdmin && (
@@ -263,12 +320,20 @@ export default function PlanoDeContas() {
                         </Badge>
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        <Badge tom={isGrupo ? 'muted' : 'brand'}>
-                          {isGrupo ? 'Grupo' : 'Analítica'}
+                        <Badge tom={c.tipo === 'patrimonial' ? 'warning' : 'brand'}>
+                          {c.tipo === 'patrimonial' ? 'Patrimonial' : 'Resultado'}
                         </Badge>
                       </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-xs text-fg-muted">
+                        {c.company_id ? empresas.find((empresa) => empresa.id === c.company_id)?.name ?? 'Empresa' : 'Compartilhada'}
+                      </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        {c.dre_product_id
+                        <Badge tom={isGrupo ? 'muted' : 'brand'}>{isGrupo ? 'Grupo' : 'Analítica'}</Badge>
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        {c.tipo === 'patrimonial'
+                          ? <span className="text-xs text-fg-subtle">—</span>
+                          : c.dre_product_id
                           ? <Badge tom="revenue">{produtos.find((p) => p.id === c.dre_product_id)?.name ?? 'produto'}</Badge>
                           : rateioPadrao(c.nature)
                             ? <span className="text-xs text-warning">a classificar</span>
@@ -353,6 +418,45 @@ export default function PlanoDeContas() {
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Tipo contábil *</label>
+              <select
+                required
+                className={inputCls}
+                value={form.tipo}
+                onChange={(e) => {
+                  const tipo = e.target.value as ChartAccountType
+                  setForm({
+                    ...form,
+                    tipo,
+                    nature: tipo === 'patrimonial' ? 'asset' : 'revenue',
+                    company_id: tipo === 'patrimonial' && !form.company_id ? empresaAtiva?.id ?? empresas[0]?.id ?? '' : form.company_id,
+                    parent_id: '',
+                    dre_product_id: '',
+                    redutora: false,
+                  })
+                }}
+              >
+                <option value="resultado">Resultado — entra na DRE</option>
+                <option value="patrimonial">Patrimonial — fora da DRE</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Empresa {form.tipo === 'patrimonial' ? '*' : ''}</label>
+              <select
+                required={form.tipo === 'patrimonial'}
+                className={inputCls}
+                value={form.company_id}
+                onChange={(e) => setForm({ ...form, company_id: e.target.value, parent_id: '' })}
+              >
+                {form.tipo === 'resultado' && <option value="">Compartilhada pelo grupo</option>}
+                {form.tipo === 'patrimonial' && <option value="">Selecione…</option>}
+                {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium mb-1">Conta-pai (grupo)</label>
             <select
@@ -376,8 +480,8 @@ export default function PlanoDeContas() {
               value={form.nature}
               onChange={(e) => { const nv = e.target.value as Nature; setForm({ ...form, nature: nv, rateio_por_produto: rateioPadrao(nv) }) }}
             >
-              {(Object.entries(NATURE_LABELS) as [Nature, string][]).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+              {(form.tipo === 'patrimonial' ? PATRIMONIAL_NATURES : RESULT_NATURES).map((value) => (
+                <option key={value} value={value}>{NATURE_LABELS[value]}</option>
               ))}
             </select>
           </div>
@@ -402,11 +506,23 @@ export default function PlanoDeContas() {
               />
               Ativa
             </label>
+
+            {form.tipo === 'patrimonial' && (
+              <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.redutora}
+                  onChange={(e) => setForm({ ...form, redutora: e.target.checked })}
+                  className="rounded border-border-strong text-brand focus:ring-brand"
+                />
+                Conta redutora
+              </label>
+            )}
           </div>
 
           {/* Produto DRE: só faz sentido acima da margem (receita/dedução/custo variável).
               A receita lançada nesta conta cai neste produto na DRE por Produto. */}
-          {rateioPadrao(form.nature) && (
+          {form.tipo === 'resultado' && rateioPadrao(form.nature) && (
             <div>
               <label className="block text-sm font-medium mb-1">Produto DRE</label>
               <select

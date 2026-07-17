@@ -60,6 +60,32 @@ export async function mockAuthenticatedSupabase(page: Page, role: Role): Promise
     if (path.endsWith('/purchase_items')) {
       return json(route, [], { 'content-range': '0-0/0' })
     }
+    if (path.endsWith('/accounts')) {
+      return json(route, [{
+        id: 'account-1', company_id: 'company-1', name: 'Conta Corrente', type: 'checking',
+        bank: 'Sicoob', initial_balance: 0, counterparty_company_id: null,
+        statement_closing_day: null, due_day: null, active: true, created_at: now,
+      }])
+    }
+    if (path.endsWith('/chart_of_accounts')) {
+      return json(route, [
+        {
+          id: 'coa-result', code: '6.3.01', name: 'Aluguel / Condomínio', parent_id: null,
+          company_id: null, tipo: 'resultado', nature: 'fixed_cost', redutora: false,
+          is_analytical: true, sort_order: 6_003_001, active: true,
+          rateio_por_produto: false, dre_product_id: null, parent: null,
+        },
+        {
+          id: 'coa-consorcio', code: '1.2.01', name: 'Consórcio a Contemplar', parent_id: null,
+          company_id: 'company-1', tipo: 'patrimonial', nature: 'asset', redutora: false,
+          is_analytical: true, sort_order: 1_002_001, active: true,
+          rateio_por_produto: false, dre_product_id: null, parent: null,
+        },
+      ])
+    }
+    if (path.endsWith('/dre_products') || path.endsWith('/closed_periods') || path.endsWith('/user_table_prefs')) {
+      return json(route, [])
+    }
     if (path.endsWith('/entries_atrasados')) return json(route, 0)
     if (path.endsWith('/hotmart_totals')) {
       return json(route, [{ liquido: 125_000, fora_moeda: 0 }])
