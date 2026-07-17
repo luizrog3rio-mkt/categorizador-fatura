@@ -46,3 +46,15 @@ Qualquer migration desse motor deve seguir o rito do projeto: SQL revisado pelo 
 - Revisão dos produtos Hotmart que ainda estiverem em `HOT-1 (a classificar)`.
 - Decisão sobre `2.4.03 REEMBOLSO DE TRÁFEGO`.
 - Saldos de abertura para concluir o Balanço.
+
+## Pacote de auditoria preparado em 17/07/2026
+
+O arquivo read-only [`supabase/audit/20260717_contador_abr_jun.sql`](../../supabase/audit/20260717_contador_abr_jun.sql)
+consolida as consultas para fechar as pendências acima: DRE abr–jun por empresa, baldes
+`HOT-1`/`NC`, lançamentos invisíveis, impostos, candidatos à apropriação, consórcios,
+competências a revisar e saldos de abertura. Ele não contém `INSERT`, `UPDATE`, `DELETE`
+ou DDL e deve ser executado bloco a bloco pelo MCP autenticado.
+
+As decisões da apropriação foram convertidas no formulário objetivo
+[`04-checklist-apropriacao-mentorias.md`](04-checklist-apropriacao-mentorias.md), pronto para
+o contador preencher sem precisar interpretar o schema do sistema.

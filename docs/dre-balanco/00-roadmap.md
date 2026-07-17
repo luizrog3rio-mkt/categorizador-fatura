@@ -33,7 +33,7 @@
 | **2b. Balanço Holding** | 14 contas patrimoniais (investimentos nas participadas) | não | ✅ **APLICADA 2026-07-15** (`20260715220733`) |
 | **2c. Balanço Incorporadora** | 11 contas (enxuto derivado; inclui `Estoque de obras em andamento`) | não | ✅ **APLICADA 2026-07-15** (`20260715220938`) |
 | **3. Saneamento de datas** | backfill + `issue_date`/`competency_date` NOT NULL (problema #3 da reunião) | não | ✅ **APLICADA 2026-07-15** (`20260715192144`) |
-| **3b. Competência nos writers** | import exige competência/conta contábil; recorrência preserva emissão, competência e classificação | não | 🔵 **construída e testada localmente 2026-07-17** |
+| **3b. Competência nos writers** | import exige competência/conta contábil; recorrência preserva emissão, competência e classificação | não | ✅ **PRODUÇÃO 2026-07-17** (PR #5, deploy Vercel validado) |
 | **4a. Obras — estrutura** | tabela `obras` (em_andamento→vendida) + `entries.obra_id` + seed Cristais/Alfenas | não | ✅ **APLICADA 2026-07-15** (`20260715200047`) · marcação dos ~135 lançamentos adiada (a revisar) |
 | **4b-1. Custo por Obra — relatório + vínculo** | RPCs `custo_por_obra`/`obra_candidatos` + tela `/custo-por-obra` (vínculo revisado dos 136 candidatos) | não | ✅ **APLICADA 2026-07-16** (`20260716140052`) · falta o Luiz vincular |
 | **4b-2. Obras — estoque + venda** | custo da obra em andamento vira ESTOQUE (ativo `1.2`, já criado na 2c) + evento de venda (reclassif. → CPV) + DRE Incorporadora por obra | não | ⏳ |
@@ -43,7 +43,7 @@
 | **6c. Partida dobrada — backfill** | 600 lançamentos → 1.200 partidas; **débito = crédito = R$1.812.145,51**, 0 desbalanceados | não | ✅ **APLICADA 2026-07-16** (`20260716143345`) |
 | **🐛 Bugfix — dedução paga** | imposto sobre venda (`payable` em conta `deduction`) evaporava da DRE; +R$165.997,96 passam a abater a receita | não | ✅ **APLICADA 2026-07-16** (`20260716152621`) |
 | **⚠️ Alerta — lançamentos invisíveis** | RPC `dre_lancamentos_invisiveis` + Alert nas telas DRE e DRE por Produto: tem conta mas evapora (nature×type incompatível) | não | ✅ **APLICADA 2026-07-16** (`20260716154007`) |
-| **6e. UI contábil por empresa** | Plano de Contas por empresa/tipo + tratamento patrimonial em lançamentos e cartão + guardas nature×type | não | 🔵 **construída e testada localmente 2026-07-17** |
+| **6e. UI contábil por empresa** | Plano de Contas por empresa/tipo + tratamento patrimonial em lançamentos e cartão + guardas nature×type | não | ✅ **PRODUÇÃO 2026-07-17** (PR #5, deploy Vercel validado) |
 | **6f. Apropriação de mentorias** | grade mensal por venda/produto, auditoria e DRE sem dupla contagem | 🔴 **regra do contador** | ⏳ bloqueado |
 | **6d. Balanço com saldos** | RPC/tela de Balanço + **saldos de abertura** (Capital, imobilizado, caixa inicial) | 🔴 **dado do contador** | ⏳ bloqueado |
 | **7. Consolidada** | intercompany + eliminações (regras 2/3/4 já dá; regra 1 espera equivalência) | **sim** (regra 1) | ⏳ |
