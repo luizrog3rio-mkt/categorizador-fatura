@@ -36,9 +36,9 @@
 | **3b. Competência nos writers** | import exige competência/conta contábil; recorrência preserva emissão, competência e classificação | não | ✅ **PRODUÇÃO 2026-07-17** (PR #5, deploy Vercel validado) |
 | **4a. Obras — estrutura** | tabela `obras` (em_andamento→vendida) + `entries.obra_id` + seed Cristais/Alfenas | não | ✅ **APLICADA 2026-07-15** (`20260715200047`) · marcação dos ~135 lançamentos adiada (a revisar) |
 | **4b-1. Custo por Obra — relatório + vínculo** | RPCs `custo_por_obra`/`obra_candidatos` + tela `/custo-por-obra` (vínculo revisado dos 136 candidatos) | não | ✅ **APLICADA 2026-07-16** (`20260716140052`) · falta o Luiz vincular |
-| **4b-2. Obras — estoque + venda** | custo da obra em andamento vira ESTOQUE (ativo `1.2`, já criado na 2c) + evento de venda (reclassif. → CPV) + DRE Incorporadora por obra | não | ⏳ |
+| **4b-2. Obras — estoque + venda** | custo da obra em andamento vira ESTOQUE (ativo `1.2`, já criado na 2c) + evento de venda (reclassif. → CPV) + DRE Incorporadora por obra | decisão + dado operacional | ⏳ **bloqueado com diagnóstico fechado**: 53 explícitos/R$107.793,06 aguardam aprovação; 48 deles/R$95.388,88 não informam a conta que pagou, portanto ainda não têm contrapartida segura no razão |
 | **5a. Motor de sugestão — banco** | tabela `regras_conta` + RPC `sugerir_contas` (read-only) + seed factual (IOF/Tarifa/Pedágio) | não | ✅ **APLICADA 2026-07-15** (`20260715202831`) · já sugere p/ 64 itens da Digital |
-| **5b. Motor de sugestão — front** | tela `/classificar-despesas` (balde + sugestão + aplicar em massa) + CRUD de regras | não | 🔵 **construída (build+lint OK)** · pendente de teste logado + deploy |
+| **5b. Motor de sugestão — front** | tela `/classificar-despesas` (balde + sugestão + aplicar em massa) + CRUD de regras | não | ✅ **PRODUÇÃO** · rota e chunk verificados no bundle publicado em 18/07/2026; teste funcional logado segue no fechamento visual |
 | **6a/6b. Partida dobrada — estrutura** | `accounts.conta_contabil_id` (6 contas vinculadas) + tabela `partidas` + constraint deferred de balanceamento (testada: barra partida solta) | não | ✅ **APLICADA 2026-07-16** (`20260716143144`) |
 | **6c. Partida dobrada — backfill** | 600 lançamentos → 1.200 partidas; **débito = crédito = R$1.812.145,51**, 0 desbalanceados | não | ✅ **APLICADA 2026-07-16** (`20260716143345`) |
 | **🐛 Bugfix — dedução paga** | imposto sobre venda (`payable` em conta `deduction`) evaporava da DRE; +R$165.997,96 passam a abater a receita | não | ✅ **APLICADA 2026-07-16** (`20260716152621`) |
@@ -57,3 +57,4 @@ Nada de DROP do modelo antigo antes do portão F5 verde.
 - [02-spike-nucleo-contabil.md](02-spike-nucleo-contabil.md) — A × B + resultado do POC (0 diff).
 - Migration aplicada da fase 1: `supabase/migrations/20260715173423_plano_contas_por_empresa.sql`.
 - [03-reuniao-contador-2026-07-15.md](03-reuniao-contador-2026-07-15.md) — execução do alinhamento e decisões ainda necessárias.
+- [06-pendencias-contador-abr-jun-2026.md](06-pendencias-contador-abr-jun-2026.md) — fila fechada pós-saneamento: 53 obras explícitas, 7 ambíguas, 27 pessoais e bloqueios do razão.

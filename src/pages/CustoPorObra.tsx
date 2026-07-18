@@ -11,8 +11,9 @@ import {
 // planilha: quanto custou cada casa, quebrado por item de custo. Consome 2 RPCs read-only:
 // custo_por_obra (o acumulado) e obra_candidatos (lançamentos cuja descrição nomeia a obra).
 // O vínculo é REVISADO pelo humano — o sistema sugere, ele confirma (o backfill cego foi recusado).
-// ⚠️ Enquanto a obra está em_andamento o custo dela é ESTOQUE (não deveria ir à DRE). Isso é a
-// Fase 4b-2 (conta de estoque + evento de venda → CPV); hoje esses lançamentos ainda caem na DRE.
+// ⚠️ Enquanto a obra está em_andamento o custo deverá ser ESTOQUE após aprovação contábil. Isso é a
+// Fase 4b-2 (conta de estoque + evento de venda → CPV); hoje esses lançamentos ainda caem na NC-2.
+// A tela também evidencia a conta de pagamento: sem ela, não há contrapartida segura no razão.
 
 interface CustoLinha {
   obra_id: string
@@ -33,6 +34,13 @@ interface Candidato {
   conta_code: string | null
   obra_id: string
   obra_sugerida: string
+  account_id: string | null
+  account_name: string | null
+}
+interface EntryConta {
+  id: string
+  account_id: string | null
+  account: { name: string } | { name: string }[] | null
 }
 
 const fmtMoeda = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -58,7 +66,29 @@ export default function CustoPorObra() {
     if (cst.error) setErro('Erro ao carregar o custo: ' + cst.error.message)
     else setLinhas(((cst.data as CustoLinha[]) ?? []).map((l) => ({ ...l, valor: Number(l.valor), qtd: Number(l.qtd) })))
     if (cnd.error) setErro('Erro ao carregar candidatos: ' + cnd.error.message)
-    else setCandidatos(((cnd.data as Candidato[]) ?? []).map((c) => ({ ...c, valor: Number(c.valor) })))
+    else {
+      const base = ((cnd.data as Omit<Candidato, 'account_id' | 'account_name'>[]) ?? [])
+        .map((c) => ({ ...c, valor: Number(c.valor) }))
+      let contasPorEntry = new Map<string, { account_id: string | null; account_name: string | null }>()
+      if (base.length > 0) {
+        const { data: dadosConta, error: erroConta } = await supabase
+          .from('entries')
+          .select('id,account_id,account:accounts(name)')
+          .in('id', base.map((c) => c.entry_id))
+        if (erroConta) setErro('Erro ao carregar contas de pagamento: ' + erroConta.message)
+        else {
+          contasPorEntry = new Map(((dadosConta as EntryConta[]) ?? []).map((e) => {
+            const conta = Array.isArray(e.account) ? e.account[0] : e.account
+            return [e.id, { account_id: e.account_id, account_name: conta?.name ?? null }]
+          }))
+        }
+      }
+      setCandidatos(base.map((c) => ({
+        ...c,
+        account_id: contasPorEntry.get(c.entry_id)?.account_id ?? null,
+        account_name: contasPorEntry.get(c.entry_id)?.account_name ?? null,
+      })))
+    }
     setCarregando(false)
   }, [empresaAtiva])
 
@@ -77,6 +107,11 @@ export default function CustoPorObra() {
 
   const custoTotal = useMemo(() => obras.reduce((a, o) => a + o.total, 0), [obras])
   const valorCandidatos = useMemo(() => candidatos.reduce((a, c) => a + c.valor, 0), [candidatos])
+  const semContaPagamento = useMemo(() => candidatos.filter((c) => !c.account_id), [candidatos])
+  const valorSemContaPagamento = useMemo(
+    () => semContaPagamento.reduce((a, c) => a + c.valor, 0),
+    [semContaPagamento],
+  )
 
   const toggle = (id: string) =>
     setSel((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
@@ -112,10 +147,11 @@ export default function CustoPorObra() {
       />
       <ErroBanner mensagem={erro} />
 
-      <KPIStrip cols={3}>
+      <KPIStrip cols={4}>
         <KPICard bare label="Obras" valor={carregando ? '…' : obras.length} caption="da empresa selecionada" />
         <KPICard bare label="Custo acumulado" valor={carregando ? '…' : fmtMoeda(custoTotal)} tom="expense" caption="lançamentos já vinculados" />
         <KPICard bare label="A vincular" valor={carregando ? '…' : fmtMoeda(valorCandidatos)} tom="warning" caption={`${candidatos.length} lançamento${candidatos.length === 1 ? '' : 's'} sugerido${candidatos.length === 1 ? '' : 's'}`} />
+        <KPICard bare label="Sem conta de pagamento" valor={carregando ? '…' : semContaPagamento.length} tom="warning" caption={fmtMoeda(valorSemContaPagamento)} />
       </KPIStrip>
 
       {!carregando && obras.length === 0 && (
@@ -128,6 +164,14 @@ export default function CustoPorObra() {
         <Alert tom="warning" titulo="Só leitura">Seu perfil não pode vincular lançamentos a obras.</Alert>
       )}
 
+      {!carregando && semContaPagamento.length > 0 && (
+        <Alert tom="warning" titulo="Contrapartida do Balanço ainda incompleta">
+          {semContaPagamento.length} lançamentos ({fmtMoeda(valorSemContaPagamento)}) não informam
+          qual conta financeira pagou. O vínculo com a obra pode ser revisado normalmente, mas a
+          capitalização em estoque só fecha no razão depois que a origem do pagamento for definida.
+        </Alert>
+      )}
+
       {/* Custo acumulado por obra */}
       {obras.map((o) => (
         <Card key={o.id}>
@@ -138,7 +182,7 @@ export default function CustoPorObra() {
                 {o.status === 'vendida' ? `vendida ${fmtData(o.data_venda)}` : 'em andamento'}
               </Badge>
               {o.status !== 'vendida' && (
-                <span className="text-xs text-fg-subtle">— custo é estoque (ainda não vai à DRE como CPV)</span>
+                <span className="text-xs text-fg-subtle">— deverá virar estoque após aprovação contábil</span>
               )}
             </div>
             <span className="text-lg font-mono tnum text-expense">{fmtMoeda(o.total)}</span>
@@ -202,6 +246,7 @@ export default function CustoPorObra() {
                   )}
                   <th className="px-2 py-2 font-medium">Descrição</th>
                   <th className="px-2 py-2 font-medium">Empresa</th>
+                  <th className="px-2 py-2 font-medium">Conta de pagamento</th>
                   <th className="px-2 py-2 font-medium">Data</th>
                   <th className="px-2 py-2 font-medium text-right">Valor</th>
                   <th className="px-3 py-2 font-medium">Obra sugerida</th>
@@ -217,6 +262,11 @@ export default function CustoPorObra() {
                     )}
                     <td className="px-2 py-2 text-fg">{c.descricao ?? '—'}</td>
                     <td className="px-2 py-2 text-xs text-fg-muted">{c.empresa}</td>
+                    <td className="px-2 py-2 text-xs">
+                      {c.account_name
+                        ? <span className="text-fg-muted">{c.account_name}</span>
+                        : <Badge tom="warning">sem conta</Badge>}
+                    </td>
                     <td className="px-2 py-2 text-fg-muted tnum">{fmtData(c.data)}</td>
                     <td className="px-2 py-2 text-right tnum text-fg">{fmtMoeda(c.valor)}</td>
                     <td className="px-3 py-2"><Badge tom="brand">{c.obra_sugerida}</Badge></td>

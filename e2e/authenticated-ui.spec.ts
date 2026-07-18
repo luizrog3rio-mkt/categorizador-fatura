@@ -41,3 +41,14 @@ test('admin administra plano por empresa e classifica consórcio como patrimonia
   await expect(tratamento).toHaveValue('coa-consorcio')
   await expect(page.getByText(/taxa administrativa/i)).toBeVisible()
 })
+
+test('custo por obra evidencia quando falta a conta que pagou', async ({ page }) => {
+  await mockAuthenticatedSupabase(page, 'admin')
+  await page.goto('/custo-por-obra')
+
+  await expect(page.getByRole('heading', { name: 'Custo por Obra' })).toBeVisible()
+  await expect(page.getByText('Sem conta de pagamento', { exact: true })).toBeVisible()
+  await expect(page.getByText('Contrapartida do Balanço ainda incompleta')).toBeVisible()
+  await expect(page.getByText('MATERIAL CASAS ALFENAS')).toBeVisible()
+  await expect(page.getByText('sem conta', { exact: true })).toBeVisible()
+})

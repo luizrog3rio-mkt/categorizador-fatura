@@ -87,6 +87,19 @@ export async function mockAuthenticatedSupabase(page: Page, role: Role): Promise
       return json(route, [])
     }
     if (path.endsWith('/entries_atrasados')) return json(route, 0)
+    if (path.endsWith('/custo_por_obra')) {
+      return json(route, [{
+        obra_id: 'obra-1', obra: 'Alfenas', status: 'em_andamento', data_venda: null,
+        conta_code: '(sem conta)', conta_name: '(a classificar)', valor: 0, qtd: 0,
+      }])
+    }
+    if (path.endsWith('/obra_candidatos')) {
+      return json(route, [{
+        entry_id: 'entry-obra', descricao: 'MATERIAL CASAS ALFENAS', valor: 1_500,
+        data: isoDate(), empresa: 'RB7 INCORPORADORA', conta_code: null,
+        obra_id: 'obra-1', obra_sugerida: 'Alfenas',
+      }])
+    }
     if (path.endsWith('/hotmart_totals')) {
       return json(route, [{ liquido: 125_000, fora_moeda: 0 }])
     }
