@@ -181,6 +181,10 @@
 - [`20260716152621_dre_deducao_paga.sql`](migrations/20260716152621_dre_deducao_paga.sql)
 - [`20260716154007_dre_lancamentos_invisiveis.sql`](migrations/20260716154007_dre_lancamentos_invisiveis.sql)
 
+### 2026-07-18 (1)
+
+- [`20260718153823_saneamento_deterministico_abr_jun.sql`](migrations/20260718153823_saneamento_deterministico_abr_jun.sql) — saneamento atômico aprovado: corrige 8 entries e 1 lançamento de cartão invisíveis na DRE e classifica 11 entries de destino factual. Validado pós-apply: 19/19 entries, cartão em `6.3.13`, 19 eventos no `entry_audit_log` e impacto abr–jun conforme snapshot.
+
 > **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz em 2026-06-09).**
 > Histórico vivo: `20260609120000 baseline` (registrado sem execução) → `20260610010051 phase1a_hardening`
 > (executado via MCP `apply_migration`). Advisors pós-apply: **os 13 achados SQL-fixáveis zeraram**
