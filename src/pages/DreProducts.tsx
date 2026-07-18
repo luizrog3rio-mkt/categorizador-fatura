@@ -16,7 +16,7 @@ interface DreProduct {
   chart_of_account_id: string | null
 }
 
-interface ContaReceita { id: string; code: string; name: string }
+interface ContaReceita { id: string; code: string; name: string; company_id: string | null }
 
 interface FormState {
   id?: string
@@ -29,7 +29,7 @@ interface FormState {
 const formVazio = (): FormState => ({ name: '', sort_order: '0', active: true, chart_of_account_id: '' })
 
 export default function DreProducts() {
-  const { isAdmin } = useApp()
+  const { isAdmin, empresas } = useApp()
   const confirmar = useConfirm()
   const toast = useToast()
   const [produtos, setProdutos] = useState<DreProduct[]>([])
@@ -50,11 +50,18 @@ export default function DreProducts() {
     setProdutos((data as DreProduct[]) ?? [])
     // contas de receita (Receita Bruta) pro vínculo Hotmart → conta na DRE por competência
     const { data: accs } = await supabase
-      .from('chart_of_accounts').select('id, code, name')
+      .from('chart_of_accounts').select('id, code, name, company_id')
       .eq('nature', 'revenue').eq('active', true).order('code')
     setContas((accs as ContaReceita[]) ?? [])
     setCarregando(false)
   }, [])
+
+  // Hotmart é 100% RB7 DIGITAL (company_id congelado) — só as contas de receita dela
+  // fazem sentido aqui. Se a empresa não for achada pelo nome, mostra todas (fallback).
+  const digitalId = useMemo(() => empresas.find((e) => e.name === 'RB7 DIGITAL')?.id ?? null, [empresas])
+  const contasDigital = useMemo(() => contas.filter((c) =>
+    c.company_id === null || !digitalId || c.company_id === digitalId
+  ), [contas, digitalId])
 
   const contaNome = useMemo(() => {
     const m = new Map<string, string>()
@@ -230,7 +237,7 @@ export default function DreProducts() {
             <label className="block text-sm font-medium mb-1">Conta de Receita (DRE por competência)</label>
             <select className={inputCls} value={form.chart_of_account_id} onChange={(e) => setForm({ ...form, chart_of_account_id: e.target.value })}>
               <option value="">— Não vincular (fica em "Vendas Hotmart a classificar") —</option>
-              {contas.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+              {contasDigital.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
             </select>
             <p className="text-xs text-fg-subtle mt-1">A receita Hotmart dos produtos ligados a este Produto DRE entra nesta conta da Receita Bruta na <strong>DRE por competência</strong>. Sem vínculo, soma em "Vendas Hotmart (a classificar)".</p>
           </div>

@@ -30,7 +30,8 @@ test('admin administra plano por empresa e classifica consórcio como patrimonia
 
   await expect(page.getByRole('heading', { name: 'Plano de Contas' })).toBeVisible()
   await expect(page.getByText('Patrimonial', { exact: true })).toBeVisible()
-  await expect(page.getByText('RB7 DIGITAL', { exact: true })).toBeVisible()
+  // com o plano por empresa, "RB7 DIGITAL" aparece também como opção do filtro — mira a célula
+  await expect(page.getByRole('cell', { name: 'RB7 DIGITAL' })).toBeVisible()
 
   await page.goto('/pagar')
   await page.getByRole('button', { name: 'Novo lançamento' }).click()

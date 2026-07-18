@@ -129,9 +129,7 @@ export default function PlanoDeContas() {
   ), [contas, form.company_id, form.tipo])
 
   const abrirNovo = () => {
-    const companyId = filtroEmpresa !== 'todas' && filtroEmpresa !== 'compartilhadas'
-      ? filtroEmpresa
-      : empresaAtiva?.id ?? ''
+    const companyId = filtroEmpresa !== 'todas' ? filtroEmpresa : empresaAtiva?.id ?? ''
     const tipo = filtroTipo === 'todos' ? 'resultado' : filtroTipo
     setForm({
       ...FORM_VAZIO,
@@ -183,8 +181,8 @@ export default function PlanoDeContas() {
       setErro('Código e nome são obrigatórios.')
       return
     }
-    if (form.tipo === 'patrimonial' && !form.company_id) {
-      setErro('Conta patrimonial precisa pertencer a uma empresa.')
+    if (!form.company_id) {
+      setErro('Toda conta pertence a uma empresa — o plano é separado por empresa.')
       return
     }
     if (form.id) {
@@ -230,8 +228,8 @@ export default function PlanoDeContas() {
 
   const contasFiltradas = contas.filter((c) => {
     if (filtroTipo !== 'todos' && c.tipo !== filtroTipo) return false
-    if (filtroEmpresa === 'compartilhadas' && c.company_id !== null) return false
-    if (filtroEmpresa !== 'todas' && filtroEmpresa !== 'compartilhadas' && c.company_id !== null && c.company_id !== filtroEmpresa) return false
+    // cada empresa tem o SEU plano (separação de 2026-07-18); conta legada sem empresa ainda aparece
+    if (filtroEmpresa !== 'todas' && c.company_id !== null && c.company_id !== filtroEmpresa) return false
     if (!busca.trim()) return true
     const q = busca.toLowerCase()
     return c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
@@ -241,7 +239,7 @@ export default function PlanoDeContas() {
     <div>
       <PageHeader
         titulo="Plano de Contas"
-        subtitulo="Contas de resultado (DRE) e patrimoniais (Balanço), compartilhadas ou por empresa"
+        subtitulo="Contas de resultado (DRE) e patrimoniais (Balanço) — cada empresa tem o seu plano"
         acao={
           isAdmin ? (
             <button onClick={abrirNovo} className={btnPrimario}>
@@ -262,9 +260,8 @@ export default function PlanoDeContas() {
           className={inputCls + ' max-w-xs'}
         />
         <select className={inputCls + ' max-w-[15rem]'} value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
-          <option value="todas">Todas as empresas e compartilhadas</option>
-          <option value="compartilhadas">Somente compartilhadas</option>
-          {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name} + compartilhadas</option>)}
+          <option value="todas">Todas as empresas</option>
+          {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
         </select>
         <select className={inputCls + ' max-w-[12rem]'} value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as ChartAccountType | 'todos')}>
           <option value="todos">Resultado + Patrimonial</option>
@@ -443,15 +440,14 @@ export default function PlanoDeContas() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Empresa {form.tipo === 'patrimonial' ? '*' : ''}</label>
+              <label className="block text-sm font-medium mb-1">Empresa *</label>
               <select
-                required={form.tipo === 'patrimonial'}
+                required
                 className={inputCls}
                 value={form.company_id}
                 onChange={(e) => setForm({ ...form, company_id: e.target.value, parent_id: '' })}
               >
-                {form.tipo === 'resultado' && <option value="">Compartilhada pelo grupo</option>}
-                {form.tipo === 'patrimonial' && <option value="">Selecione…</option>}
+                <option value="">Selecione…</option>
                 {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
               </select>
             </div>

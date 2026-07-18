@@ -187,6 +187,10 @@
 - [`20260718161547_fechamento_obras_e_conta_pessoal.sql`](migrations/20260718161547_fechamento_obras_e_conta_pessoal.sql) — capitaliza 58 custos/R$134.172,06 nas obras Alfenas e Cristais, classifica 5 parcelas da betoneira/R$5.031,63 no imobilizado e retira 27 movimentos pessoais/R$99.830,71 da DRE operacional. Smoke: NC-2 zerado no período, 10 partidas de obra balanceadas e versão `20260718161547` confirmada no banco.
 - [`20260718163057_devolver_inferencias_para_ui.sql`](migrations/20260718163057_devolver_inferencias_para_ui.sql) — aplica a regra do Luiz de não inferir: Madeireira do Zetinho e G4 Construções voltam para `A classificar` sem obra e sem conta. Smoke: 2 itens/R$16.400,00 visíveis em NC-2, nenhuma partida afetada, Cristais ajustada para 22 itens/R$61.095,75 e zero desbalanceamentos.
 
+### ⏳ PENDENTE DE APROVAÇÃO
+
+- [`20990101000000_separacao_plano_de_contas_por_empresa.sql`](migrations/20990101000000_separacao_plano_de_contas_por_empresa.sql) — **NÃO APLICADA** (version placeholder). Separa o plano de contas por empresa conforme a planilha `RB7_Plano_de_Contas_DRE.xlsx`: Digital herda as 106 ex-compartilhadas (4.6 CPV vai pra Incorporadora), Incorporadora/Participações ganham os planos da planilha, Molho/Conta Pessoal planos mínimos, 79 entries + 32 partidas remapeados com natureza preservada, 15 patrimoniais cruzados consertados (10 pro balanço da Conta Pessoal, 5 de volta pra fila), 6 regras de sugestão clonadas, `finalizar_venda_obra` recriada. **Dry-run em produção com rollback proposital passou em 18/07** (todas as guardas + invariantes). Ver `docs/dre-balanco/07-separacao-plano-por-empresa.md`.
+
 > **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz em 2026-06-09).**
 > Histórico vivo: `20260609120000 baseline` (registrado sem execução) → `20260610010051 phase1a_hardening`
 > (executado via MCP `apply_migration`). Advisors pós-apply: **os 13 achados SQL-fixáveis zeraram**

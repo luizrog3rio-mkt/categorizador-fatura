@@ -10,9 +10,10 @@
    empresas, ano inteiro, **0 divergências**) que partidas reproduzem a DRE atual ao centavo —
    o risco de regressão está afastado. Chegamos ao Balanço fechado por fases, não big-bang.
 2. **Plano de contas: ESTENDER, não recriar.** `chart_of_accounts` ganha `company_id` +
-   `tipo` (resultado/patrimonial) + `redutora`. Modelo **compartilhado + específico**:
-   `company_id NULL` = conta do grupo (as 102 vivas); preenchido = conta de uma empresa. O dado
-   real justifica (uso cruzado é só em despesas genéricas).
+   `tipo` (resultado/patrimonial) + `redutora`. ~~Modelo **compartilhado + específico**:
+   `company_id NULL` = conta do grupo (as 102 vivas); preenchido = conta de uma empresa.~~
+   **REVOGADO em 2026-07-18** (pedido do Luiz + planilha): **cada empresa tem o SEU plano,
+   sem contas compartilhadas** — ver [07-separacao-plano-por-empresa.md](07-separacao-plano-por-empresa.md).
 3. **Avançar no que não depende do Kaique**; travar o resto até as respostas dele.
 
 ## Pendências externas (Kaique / Carteira 360º) — bloqueiam só o marcado
@@ -47,6 +48,7 @@
 | **6f. Apropriação de mentorias** | grade mensal por venda/produto, auditoria e DRE sem dupla contagem | 🔴 **regra do contador** | ⏳ bloqueado |
 | **6d. Balanço com saldos** | RPC/tela de Balanço + **saldos de abertura** (Capital, imobilizado, caixa inicial) | 🔴 **dado do contador** | ⏳ bloqueado |
 | **7. Consolidada** | intercompany + eliminações (regras 2/3/4 já dá; regra 1 espera equivalência) | **sim** (regra 1) | ⏳ |
+| **8. Plano de contas POR EMPRESA** | fim das 106 compartilhadas: Digital herda; Incorporadora/Participações ganham o plano da planilha; Molho/Pessoal mínimos; 79 entries remapeados (natureza preservada) + 15 patrimoniais consertados | não | 🟡 **SQL pronto + dry-run OK** (`20990101000000_separacao_plano_de_contas_por_empresa.sql`) — aguarda aprovação do Luiz |
 
 Cada fase deixa o app **de pé** e entra como migration revisada + (quando houver) ajuste de front.
 Nada de DROP do modelo antigo antes do portão F5 verde.

@@ -26,7 +26,7 @@ interface Sugestao {
   conta_name: string | null
   regra_id: string | null
 }
-interface Conta { id: string; code: string; name: string }
+interface Conta { id: string; code: string; name: string; company_id: string | null }
 interface Regra {
   id: string
   padrao: string
@@ -35,6 +35,7 @@ interface Regra {
   aplica_em: 'entries' | 'cartao' | 'ambos'
   prioridade: number
   ativa: boolean
+  company_id: string | null
   conta?: { code: string; name: string } | null
 }
 type NovaRegra = {
@@ -43,6 +44,7 @@ type NovaRegra = {
   chart_of_account_id: string
   aplica_em: Regra['aplica_em']
   prioridade: number
+  company_id: string
 }
 
 const fmtMoeda = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -51,7 +53,7 @@ const MATCH_ROTULO: Record<Regra['match_type'], string> = { contains: 'contém',
 const APLICA_ROTULO: Record<Regra['aplica_em'], string> = { entries: 'lançamentos', cartao: 'cartão', ambos: 'ambos' }
 
 export default function ClassificarDespesas() {
-  const { empresaAtiva, isAdmin } = useApp()
+  const { empresaAtiva, empresas, isAdmin } = useApp()
   const toast = useToast()
   const confirmar = useConfirm()
 
@@ -70,7 +72,7 @@ export default function ClassificarDespesas() {
     setCarregando(true); setErro(null); setSel(new Set())
     const [bal, cta, reg] = await Promise.all([
       supabase.rpc('sugerir_contas', { p_company: empresaAtiva?.id ?? null }),
-      supabase.from('chart_of_accounts').select('id,code,name').eq('is_analytical', true).eq('active', true).eq('tipo', 'resultado').order('code'),
+      supabase.from('chart_of_accounts').select('id,code,name,company_id').eq('is_analytical', true).eq('active', true).eq('tipo', 'resultado').order('code'),
       supabase.from('regras_conta').select('*, conta:chart_of_accounts(code,name)').order('prioridade'),
     ])
     if (bal.error) setErro('Erro ao carregar o balde: ' + bal.error.message)
@@ -91,6 +93,16 @@ export default function ClassificarDespesas() {
 
   const comSugestao = useMemo(() => itens.filter((s) => s.conta_id).length, [itens])
   const totalBalde = useMemo(() => itens.reduce((acc, s) => acc + s.valor, 0), [itens])
+
+  // Plano por empresa: a conta oferecida precisa ser da empresa do item (ou legada sem empresa)
+  const contaServePraEmpresa = useCallback((c: Conta, companyId: string) =>
+    c.company_id === null || c.company_id === companyId, [])
+  const nomeEmpresa = useCallback((id: string | null) =>
+    empresas.find((e) => e.id === id)?.name ?? 'sem empresa', [empresas])
+  const contasManualDisponiveis = useMemo(() => {
+    if (empresaAtiva) return contas.filter((c) => contaServePraEmpresa(c, empresaAtiva.id))
+    return contas
+  }, [contas, empresaAtiva, contaServePraEmpresa])
 
   const toggleSel = (s: Sugestao) => {
     const k = chave(s)
@@ -129,9 +141,15 @@ export default function ClassificarDespesas() {
   }
   const aplicarContaManual = () => {
     if (!contaManual) return
-    const alvos = itens
-      .filter((s) => sel.has(chave(s)))
+    const conta = contas.find((c) => c.id === contaManual)
+    if (!conta) return
+    const selecionados = itens.filter((s) => sel.has(chave(s)))
+    // no Consolidado a seleção pode misturar empresas — só aplica onde a conta pertence
+    const alvos = selecionados
+      .filter((s) => contaServePraEmpresa(conta, s.company_id))
       .map((s) => ({ fonte: s.fonte, id: s.id, conta_id: contaManual }))
+    const pulados = selecionados.length - alvos.length
+    if (pulados > 0) toast(`${pulados} item${pulados > 1 ? 'ns' : ''} de outra empresa ${pulados > 1 ? 'foram pulados' : 'foi pulado'} — a conta é de ${nomeEmpresa(conta.company_id)}.`, 'info')
     aplicar(alvos)
   }
   const aplicarUm = (s: Sugestao) => {
@@ -146,10 +164,11 @@ export default function ClassificarDespesas() {
       chart_of_account_id: s?.conta_id ?? '',
       aplica_em: 'ambos',
       prioridade: 100,
+      company_id: s?.company_id ?? empresaAtiva?.id ?? '',
     })
   }
   const salvarRegra = async () => {
-    if (!modalRegra || !modalRegra.padrao.trim() || !modalRegra.chart_of_account_id) return
+    if (!modalRegra || !modalRegra.padrao.trim() || !modalRegra.chart_of_account_id || !modalRegra.company_id) return
     setSalvando(true)
     const { error } = await supabase.from('regras_conta').insert({
       padrao: modalRegra.padrao.trim(),
@@ -157,6 +176,7 @@ export default function ClassificarDespesas() {
       chart_of_account_id: modalRegra.chart_of_account_id,
       aplica_em: modalRegra.aplica_em,
       prioridade: modalRegra.prioridade,
+      company_id: modalRegra.company_id,
     })
     setSalvando(false)
     if (error) { setErro('Erro ao salvar regra: ' + error.message); return }
@@ -218,7 +238,13 @@ export default function ClassificarDespesas() {
               </Button>
               <select className="rounded-control border border-border-strong bg-surface px-2 py-1 text-xs text-fg" value={contaManual} onChange={(e) => setContaManual(e.target.value)}>
                 <option value="">conta manual…</option>
-                {contas.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+                {empresaAtiva
+                  ? contasManualDisponiveis.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)
+                  : empresas.map((emp) => (
+                      <optgroup key={emp.id} label={emp.name}>
+                        {contas.filter((c) => c.company_id === emp.id).map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+                      </optgroup>
+                    ))}
               </select>
               <Button tamanho="sm" variante="secondary" loading={salvando} disabled={!contaManual} onClick={aplicarContaManual}>Aplicar conta</Button>
               <button onClick={limparSel} className="text-xs text-fg-subtle hover:text-fg-muted">limpar</button>
@@ -297,6 +323,7 @@ export default function ClassificarDespesas() {
                 <span className="text-fg-subtle">→</span>
                 <span className="text-xs"><span className="font-mono text-fg-muted">{r.conta?.code}</span> <span className="text-fg-subtle">{r.conta?.name}</span></span>
                 <Badge tom="muted">{APLICA_ROTULO[r.aplica_em]}</Badge>
+                <Badge tom="muted">{nomeEmpresa(r.company_id)}</Badge>
                 <span className="ml-auto flex items-center gap-2">
                   {isAdmin && (
                     <>
@@ -317,7 +344,7 @@ export default function ClassificarDespesas() {
           footer={
             <div className="flex justify-end gap-2">
               <Button variante="secondary" onClick={() => setModalRegra(null)}>Cancelar</Button>
-              <Button loading={salvando} disabled={!modalRegra.padrao.trim() || !modalRegra.chart_of_account_id} onClick={salvarRegra}>Salvar regra</Button>
+              <Button loading={salvando} disabled={!modalRegra.padrao.trim() || !modalRegra.chart_of_account_id || !modalRegra.company_id} onClick={salvarRegra}>Salvar regra</Button>
             </div>
           }>
           <div className="space-y-4">
@@ -345,10 +372,18 @@ export default function ClassificarDespesas() {
               </div>
             </div>
             <div>
+              <label className="block text-sm font-medium mb-1">Empresa</label>
+              <select className={inputCls} value={modalRegra.company_id}
+                onChange={(e) => setModalRegra({ ...modalRegra, company_id: e.target.value, chart_of_account_id: '' })}>
+                <option value="">Selecione a empresa…</option>
+                {empresas.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium mb-1">Conta sugerida</label>
-              <select className={inputCls} value={modalRegra.chart_of_account_id} onChange={(e) => setModalRegra({ ...modalRegra, chart_of_account_id: e.target.value })}>
-                <option value="">Selecione a conta…</option>
-                {contas.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
+              <select className={inputCls} value={modalRegra.chart_of_account_id} onChange={(e) => setModalRegra({ ...modalRegra, chart_of_account_id: e.target.value })} disabled={!modalRegra.company_id}>
+                <option value="">{modalRegra.company_id ? 'Selecione a conta…' : 'Escolha a empresa primeiro'}</option>
+                {modalRegra.company_id && contas.filter((c) => contaServePraEmpresa(c, modalRegra.company_id)).map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
               </select>
             </div>
             <div>

@@ -169,6 +169,18 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
 - FKs de dados usam `ON DELETE RESTRICT` (registro financeiro não morre por
   arrasto; deletar usuário/conta com dados falha); vínculos fracos usam
   SET NULL.
+- **Plano de contas é POR EMPRESA — sem contas compartilhadas** (decisão do Luiz 2026-07-18,
+  spec = planilha `RB7_Plano_de_Contas_DRE.xlsx`; revoga o "compartilhado + específico" da
+  Fase 1 do DRE/Balanço): toda conta de `chart_of_accounts` tem `company_id` NOT NULL de fato
+  (UNIQUE é `(company_id, tipo, code)` — códigos repetem ENTRE empresas por design, ex.:
+  "1" é Receita Bruta na Digital e Receita de Participações na Holding). Digital herdou as
+  106 ex-compartilhadas (ids preservados); Incorporadora/Participações têm o plano da
+  planilha; Molho/Conta Pessoal têm planos mínimos próprios. Seletor de conta no front
+  SEMPRE filtra pela empresa do registro (`contaDisponivelParaEmpresa`); o mapa Hotmart
+  (Produtos DRE / Mapear produtos) usa só contas da RB7 DIGITAL. `finalizar_venda_obra`
+  acha o CPV por (empresa da obra, code 4.6). Ver
+  `docs/dre-balanco/07-separacao-plano-por-empresa.md`. Status: migration
+  `separacao_plano_de_contas_por_empresa` PENDENTE de aprovação (dry-run com rollback OK).
 - **Intercompany é LEGÍTIMO por design (decisão do Luiz, 2026-06-30):** um `entries`
   cuja conta pagadora (`account_id`) é de OUTRA empresa que o `company_id` do lançamento
   (empresa A paga a conta de B) **não é bug** — é o modelo real da RB7 (ex.: 3 lançamentos

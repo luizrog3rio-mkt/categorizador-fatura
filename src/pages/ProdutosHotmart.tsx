@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useApp } from '../contexts/AppContext'
 import { fmtBRL } from '../lib/format'
 import type { DreProduct } from '../lib/types'
 import { Card, PageHeader, ErroBanner, KPICard, KPIStrip, inputCls } from '../components/ui'
@@ -24,9 +25,10 @@ interface ResumoSku {
   chart_of_account_id: string | null
 }
 
-interface ContaReceita { id: string; code: string; name: string }
+interface ContaReceita { id: string; code: string; name: string; company_id: string | null }
 
 export default function ProdutosHotmart() {
+  const { empresas } = useApp()
   const toast = useToast()
   const [lista, setLista] = useState<ResumoSku[]>([])
   const [produtos, setProdutos] = useState<DreProduct[]>([])
@@ -41,7 +43,7 @@ export default function ProdutosHotmart() {
     const [r1, r2, r3, r4] = await Promise.all([
       supabase.rpc('hotmart_produtos'),
       supabase.from('dre_products').select('*').eq('active', true).order('sort_order'),
-      supabase.from('chart_of_accounts').select('id, code, name').eq('nature', 'revenue').eq('active', true).order('code'),
+      supabase.from('chart_of_accounts').select('id, code, name, company_id').eq('nature', 'revenue').eq('active', true).order('code'),
       supabase.from('hotmart_product_map').select('product_id, chart_of_account_id'),
     ])
     // a RPC hotmart_produtos não traz a conta direta — vem do mapa (r4), mesclada aqui por product_id
@@ -54,6 +56,13 @@ export default function ProdutosHotmart() {
     setContas((r3.data as ContaReceita[]) ?? [])
     setCarregando(false)
   }, [])
+
+  // Hotmart é 100% RB7 DIGITAL (company_id congelado) — só as contas de receita dela
+  // fazem sentido no vínculo direto. Se a empresa não for achada pelo nome, mostra todas.
+  const digitalId = useMemo(() => empresas.find((e) => e.name === 'RB7 DIGITAL')?.id ?? null, [empresas])
+  const contasDigital = useMemo(() => contas.filter((c) =>
+    c.company_id === null || !digitalId || c.company_id === digitalId
+  ), [contas, digitalId])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -156,7 +165,7 @@ export default function ProdutosHotmart() {
                         onChange={(e) => setConta(r, e.target.value || null)}
                       >
                         <option value="">— (usa o Produto DRE / a classificar) —</option>
-                        {contas.map((c) => (
+                        {contasDigital.map((c) => (
                           <option key={c.id} value={c.id}>{c.code} – {c.name}</option>
                         ))}
                       </select>
