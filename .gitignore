@@ -12,3 +12,4 @@ supabase/.temp/
 playwright/.auth/
 playwright-report/
 test-results/
+.claude/settings.local.json
