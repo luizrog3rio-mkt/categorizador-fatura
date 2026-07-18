@@ -29,7 +29,7 @@ const ABAS: { key: Aba; label: string; Icon: typeof FileText }[] = [
 
 export default function Fatura() {
   const { id } = useParams<{ id: string }>()
-  const { session, isAdmin, recarregarPendentes } = useApp()
+  const { session, isAdmin, recarregarPendentes, empresaAtiva } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -55,8 +55,15 @@ export default function Fatura() {
     if (!id) return
     const { data: inv, error: e0 } = await supabase.from('invoices').select('*, account:accounts!account_id(company_id)').eq('id', id).single()
     if (e0) { setErro('Erro ao carregar fatura: ' + e0.message); setCarregando(false); return }
-    setInvoice(inv as Invoice)
     const invoiceCompanyId = (inv as Invoice & { account?: { company_id: string } | null }).account?.company_id ?? ''
+    // escopo por empresa: com uma empresa selecionada, fatura de OUTRA empresa (ou sem
+    // cartão vinculado) não abre — volta pra lista, que já é filtrada. Deep-link/bookmark
+    // e troca de empresa na sidebar caem aqui.
+    if (empresaAtiva && invoiceCompanyId !== empresaAtiva.id) {
+      navigate('/faturas', { replace: true })
+      return
+    }
+    setInvoice(inv as Invoice)
 
     const { data: txs, error: e1 } = await supabase
       .from('transactions')
@@ -96,7 +103,7 @@ export default function Fatura() {
     if (e2) { setErro('Erro ao carregar compras: ' + e2.message); setCarregando(false); return }
     setPurchaseItems(items ?? [])
     setCarregando(false)
-  }, [id])
+  }, [id, empresaAtiva, navigate])
 
   useEffect(() => { carregar() }, [carregar])
 

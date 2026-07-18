@@ -15,7 +15,7 @@ import type { Account, Invoice } from '../lib/types'
 // account_id (cartão selecionável quando houver mais de um), erros em banner,
 // exclusão com confirmação de texto exato (contrato #8; agora no Modal do DS).
 export default function Faturas() {
-  const { session, isAdmin } = useApp()
+  const { session, isAdmin, empresaAtiva } = useApp()
   const navigate = useNavigate()
   const confirmar = useConfirm()
   const toast = useToast()
@@ -30,21 +30,27 @@ export default function Faturas() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
+    // escopo por empresa: fatura pertence à empresa do CARTÃO (invoice → account → company).
+    // Mesmo padrão do Dashboard: embed do company_id + filtro client-side. Em "Consolidado"
+    // mostra tudo (inclusive faturas legadas sem cartão vinculado).
     const { data, error } = await supabase
       .from('invoices')
-      .select('*')
+      .select('*, account:accounts!account_id(company_id)')
       .order('imported_at', { ascending: false })
     if (error) setErro('Erro ao carregar faturas: ' + error.message)
-    setInvoices(data ?? [])
-    const { data: accts } = await supabase
+    const todas = ((data as (Invoice & { account?: { company_id: string } | null })[]) ?? [])
+    setInvoices(empresaAtiva ? todas.filter((i) => i.account?.company_id === empresaAtiva.id) : todas)
+    let qa = supabase
       .from('accounts')
       .select('*')
       .eq('type', 'credit_card')
       .eq('active', true)
       .order('name')
+    if (empresaAtiva) qa = qa.eq('company_id', empresaAtiva.id)
+    const { data: accts } = await qa
     setCartoes(accts ?? [])
     setLoading(false)
-  }, [])
+  }, [empresaAtiva])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -73,6 +79,13 @@ export default function Faturas() {
 
   const onNovoArquivo = (file: File | undefined | null) => {
     if (!file) return
+    // com empresa ativa sem cartão, importar criaria fatura com account_id null — invisível
+    // na lista filtrada e fora do escopo do detalhe (redirect). Bloqueia com orientação.
+    if (empresaAtiva && cartoes.length === 0) {
+      setErro(`A empresa ${empresaAtiva.name} não tem cartão de crédito cadastrado. Cadastre em Contas & Cartões, ou selecione a empresa dona do cartão no seletor do topo.`)
+      if (fileInput.current) fileInput.current.value = ''
+      return
+    }
     if (cartoes.length > 1) {
       setArquivoPendente(file)
       setCartaoEscolhido(cartoes[0]?.id ?? '')

@@ -92,6 +92,7 @@ export default function CustoPorObra() {
   const [datasVenda, setDatasVenda] = useState<Record<string, string>>({})
   const [salvandoConta, setSalvandoConta] = useState<string | null>(null)
   const [vendendo, setVendendo] = useState<string | null>(null)
+  const [candidatosForaEmpresa, setCandidatosForaEmpresa] = useState(0)
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null); setSel(new Set())
@@ -108,10 +109,15 @@ export default function CustoPorObra() {
     ])
     if (cst.error) setErro('Erro ao carregar o custo: ' + cst.error.message)
     else setLinhas(((cst.data as CustoLinha[]) ?? []).map((l) => ({ ...l, valor: Number(l.valor), qtd: Number(l.qtd) })))
-    if (cnd.error) setErro('Erro ao carregar candidatos: ' + cnd.error.message)
+    if (cnd.error) { setErro('Erro ao carregar candidatos: ' + cnd.error.message); setCandidatosForaEmpresa(0) }
     else {
-      const base = ((cnd.data as Omit<Candidato, 'account_id' | 'account_name'>[]) ?? [])
+      const cru = ((cnd.data as Omit<Candidato, 'account_id' | 'account_name'>[]) ?? [])
         .map((c) => ({ ...c, valor: Number(c.valor) }))
+      // a RPC casa pela DESCRIÇÃO e pode trazer lançamento de OUTRA empresa que cita o nome
+      // da obra — vincular esse contaminaria o custo/DRE. Filtra pro escopo da empresa ativa
+      // e AVISA quantos ficaram de fora (podem ser lançamentos na empresa errada).
+      const base = empresaAtiva ? cru.filter((c) => c.empresa === empresaAtiva.name) : cru
+      setCandidatosForaEmpresa(cru.length - base.length)
       let contasPorEntry = new Map<string, { account_id: string | null; account_name: string | null }>()
       if (base.length > 0) {
         const { data: dadosConta, error: erroConta } = await supabase
@@ -411,6 +417,16 @@ export default function CustoPorObra() {
           )}
         </Card>
       ))}
+
+      {!carregando && candidatosForaEmpresa > 0 && (
+        <Alert tom="warning" titulo="Lançamentos de outra empresa citam nome de obra">
+          {candidatosForaEmpresa} lançamento{candidatosForaEmpresa === 1 ? '' : 's'} de outra empresa
+          {candidatosForaEmpresa === 1 ? ' menciona' : ' mencionam'} Alfenas/Cristais na descrição e
+          {candidatosForaEmpresa === 1 ? ' foi ocultado' : ' foram ocultados'} desta lista (vincular
+          contaminaria o custo da obra). Se for custo de obra lançado na empresa errada, corrija a
+          empresa do lançamento em Contas a Pagar.
+        </Alert>
+      )}
 
       {/* Candidatos a vincular */}
       {candidatos.length > 0 && (

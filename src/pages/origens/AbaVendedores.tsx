@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useApp } from '../../contexts/AppContext'
 import { fmtBRL } from '../../lib/format'
 import { exportTabelaCSV, exportTabelaXLSX } from '../../lib/exportTabela'
 import type { Seller } from '../../lib/types'
@@ -17,6 +18,7 @@ interface SellerReport {
 }
 
 export default function AbaVendedores() {
+  const { empresaAtiva } = useApp()
   const [sellers, setSellers] = useState<Seller[]>([])
   const [relatorio, setRelatorio] = useState<SellerReport[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -29,7 +31,7 @@ export default function AbaVendedores() {
     setErro(null)
     const [r1, r2] = await Promise.all([
       supabase.from('sellers').select('*').order('name'),
-      supabase.rpc('hotmart_seller_report', { p_company: null, p_start: null, p_end: null }),
+      supabase.rpc('hotmart_seller_report', { p_company: empresaAtiva?.id ?? null, p_start: null, p_end: null }),
     ])
     if (r1.error) setErro('Erro ao carregar vendedores: ' + r1.error.message)
     else setSellers((r1.data as Seller[]) ?? [])
@@ -39,7 +41,7 @@ export default function AbaVendedores() {
       total: Number(v.total), liquido: Number(v.liquido), comissao_afiliado: Number(v.comissao_afiliado),
     })))
     setCarregando(false)
-  }, [])
+  }, [empresaAtiva])
 
   useEffect(() => { carregar() }, [carregar])
 

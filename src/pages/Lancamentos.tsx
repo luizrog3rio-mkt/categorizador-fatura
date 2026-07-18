@@ -116,7 +116,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [chartAccounts, setChartAccounts] = useState<ChartOfAccount[]>([])
   const [dreProducts, setDreProducts] = useState<DreProduct[]>([])
-  const [closedPeriods, setClosedPeriods] = useState<string[]>([])
+  // fechado É por empresa — guardar o par evita bloquear a empresa A por período fechado só na B
+  const [closedPeriods, setClosedPeriods] = useState<{ company_id: string; period: string }[]>([])
 
   // import
   const [importAberto, setImportAberto] = useState(false)
@@ -164,7 +165,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     supabase.from('accounts').select('*').eq('active', true).order('name').then(({ data }) => setContas(data ?? []))
     supabase.from('chart_of_accounts').select('*').eq('active', true).eq('is_analytical', true).order('tipo').order('sort_order').then(({ data }) => setChartAccounts(data ?? []))
     supabase.from('dre_products').select('*').eq('active', true).order('sort_order').then(({ data }) => setDreProducts(data ?? []))
-    supabase.from('closed_periods').select('period').then(({ data }) => setClosedPeriods((data ?? []).map(d => d.period)))
+    supabase.from('closed_periods').select('company_id, period').then(({ data }) => setClosedPeriods(data ?? []))
   }, [])
 
   const contasContabeisDisponiveis = useMemo(() => chartAccounts.filter((conta) =>
@@ -265,7 +266,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     setSalvando(true)
     setErro(null)
     const competencyMonth = (form.competency_date || form.issue_date || form.due_date).substring(0, 7)
-    if (closedPeriods.includes(competencyMonth)) {
+    if (closedPeriods.some((p) => p.company_id === form.company_id && p.period === competencyMonth)) {
       setErro('Período ' + competencyMonth + ' está fechado. Reabra o período antes de lançar.')
       setSalvando(false)
       return
@@ -421,6 +422,13 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
     const destino = contas.find((c) => c.id === transferForm.destino)
     const valor = parseFloat(transferForm.amount.replace(',', '.'))
     if (!origem || !destino) { setErro('Escolha as contas de origem e destino.'); return }
+    // a origem pode ter ficado "fantasma": escolhida no Consolidado, modal fechado sem salvar,
+    // empresa trocada — o select não a mostra mais, mas o form ainda guarda o id
+    if (empresaAtiva && origem.company_id !== empresaAtiva.id) {
+      setErro('A conta de origem não é da empresa selecionada. Escolha a origem de novo.')
+      setTransferForm((f) => ({ ...f, origem: '' }))
+      return
+    }
     if (origem.id === destino.id) { setErro('Origem e destino devem ser contas diferentes.'); return }
     if (!valor || valor <= 0) { setErro('Informe um valor maior que zero.'); return }
     if (!transferForm.date) { setErro('Informe a data da transferência.'); return }
@@ -483,7 +491,6 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       setImportando(false)
       return
     }
-    const contaByName = (name: string) => contas.find(c => normalizarTexto(c.name) === normalizarTexto(name))?.id ?? null
     // em "Consolidado" (sem empresa ativa) o import iria pra empresas[0] arbitrariamente — bloqueia
     // e exige escolher a empresa no seletor global (mesmo padrao do Hotmart).
     const cid = empresaAtiva?.id ?? ''
@@ -491,6 +498,13 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
       setImportErro('Selecione uma empresa no seletor do topo antes de importar (não dá pra importar em "Consolidado").')
       setImportando(false)
       return
+    }
+    // conta casada por nome: prioriza a da empresa do import (há homônimas entre empresas —
+    // ex. a conta espelho "CONTA SICOOB - RB7 DIGITAL"); só cai no universo todo se não houver
+    // na empresa (preserva intercompany intencional por nome exato)
+    const contaByName = (name: string) => {
+      const casa = (c: Account) => normalizarTexto(c.name) === normalizarTexto(name)
+      return (contas.filter((c) => c.company_id === cid).find(casa) ?? contas.find(casa))?.id ?? null
     }
     const contasDoEscopo = chartAccounts
       .filter((conta) => contaDisponivelParaEmpresa(conta, cid) && contaCompativelComLancamento(conta, tipo))
@@ -1189,7 +1203,8 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <label className="block text-sm font-medium mb-1">Produto / Centro de Custo</label>
               <select disabled={contaContabilSelecionada?.tipo === 'patrimonial'} className={inputCls} value={form.dre_product_id} onChange={(e) => setForm({ ...form, dre_product_id: e.target.value })}>
                 <option value="">— Herdar da conta do Plano —</option>
-                {dreProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {/* hoje todo produto é global (company_id null); o filtro é defensivo caso um dia ganhem empresa */}
+                {dreProducts.filter((p) => p.company_id === null || p.company_id === form.company_id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <p className="text-xs text-fg-subtle mt-1">{contaContabilSelecionada?.tipo === 'patrimonial' ? 'Não se aplica a contas patrimoniais.' : 'Vazio = usa o produto vinculado à conta acima (na DRE por Produto). Escolha aqui só pra sobrepor.'}</p>
             </div>
@@ -1265,9 +1280,11 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1">Conta de origem *</label>
+              {/* origem respeita a empresa ativa; o DESTINO fica com todas (transferência
+                  intercompany é suportada por design — cada perna nasce na empresa da conta) */}
               <select className={inputCls} value={transferForm.origem} onChange={(e) => setTransferForm({ ...transferForm, origem: e.target.value })}>
                 <option value="">Selecione…</option>
-                {contas.map((c) => (
+                {contas.filter((c) => !empresaAtiva || c.company_id === empresaAtiva.id).map((c) => (
                   <option key={c.id} value={c.id}>{c.name}{empresas.length > 1 ? ` — ${empresas.find((e) => e.id === c.company_id)?.name ?? ''}` : ''}</option>
                 ))}
               </select>

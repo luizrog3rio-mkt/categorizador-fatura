@@ -73,7 +73,12 @@ export default function ClassificarDespesas() {
     const [bal, cta, reg] = await Promise.all([
       supabase.rpc('sugerir_contas', { p_company: empresaAtiva?.id ?? null }),
       supabase.from('chart_of_accounts').select('id,code,name,company_id').eq('is_analytical', true).eq('active', true).eq('tipo', 'resultado').order('code'),
-      supabase.from('regras_conta').select('*, conta:chart_of_accounts(code,name)').order('prioridade'),
+      (() => {
+        // escopo por empresa: regras da empresa ativa + legadas sem empresa (valem pra todas)
+        let q = supabase.from('regras_conta').select('*, conta:chart_of_accounts(code,name)')
+        if (empresaAtiva) q = q.or(`company_id.eq.${empresaAtiva.id},company_id.is.null`)
+        return q.order('prioridade')
+      })(),
     ])
     if (bal.error) setErro('Erro ao carregar o balde: ' + bal.error.message)
     else setItens(((bal.data as Sugestao[]) ?? []).map((s) => ({ ...s, valor: Number(s.valor) })))
@@ -373,7 +378,8 @@ export default function ClassificarDespesas() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Empresa</label>
-              <select className={inputCls} value={modalRegra.company_id}
+              {/* com empresa ativa o campo trava nela — trocar de empresa é papel do seletor global */}
+              <select className={inputCls} value={modalRegra.company_id} disabled={!!empresaAtiva}
                 onChange={(e) => setModalRegra({ ...modalRegra, company_id: e.target.value, chart_of_account_id: '' })}>
                 <option value="">Selecione a empresa…</option>
                 {empresas.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}

@@ -451,6 +451,18 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
 
 ## Convenções
 
+- **Escopo por empresa no front é REGRA (pedido do Luiz, 2026-07-18):** com uma empresa
+  selecionada no seletor global da sidebar (`empresaAtiva` do `useApp()`; `null` =
+  "Consolidado (todas)"), TODA tela mostra só dados daquela empresa — listas, KPIs, totais,
+  exports e seletores de modal. Caminhos: `company_id` direto; fatura/cartão via
+  invoice→account→company; RPCs recebem `p_company`. Tela nova SEMPRE nasce com o filtro
+  (auditoria multi-agente das 25 páginas em 2026-07-18 fechou as lacunas). **Exceções
+  deliberadas:** telas globais (Usuários, Empresas, Log de Deleções, Produtos DRE); o
+  DESTINO da transferência e a "Conta que pagou" de obras listam contas de todas as
+  empresas (intercompany por design); o modal de lançamento permite escolher outra empresa
+  (default = ativa). A RPC `obra_candidatos` devolve candidatos de outras empresas DE
+  PROPÓSITO — o front filtra e mostra Alert com a contagem (sinal de custo lançado na
+  empresa errada); não "corrigir" a RPC sem decisão nova.
 - **Design system "Razão Calma"** (redesign 2026-06-24): tokens semânticos em
   `src/index.css` via `@theme` do Tailwind 4 — **cor só com função**: `bg-brand`/
   `text-brand` (ação, azul cobalto), `text-revenue`/`bg-revenue-bg` (entrada,
