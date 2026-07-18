@@ -116,12 +116,43 @@ tributos, CONCAMP e demais despesas pessoais.
 
 ## Ordem segura para continuar
 
-1. Contador responde o vínculo/tratamento das obras e da conta pessoal.
-2. Luiz revisa o SQL gerado a partir dessas respostas e aprova explicitamente.
-3. A migration é aplicada atomicamente, com snapshot pré/pós.
-4. As contas de pagamento que faltam são informadas antes de gerar as partidas do Balanço.
-5. Só depois entram estoque → CPV, apropriação de mentorias, Balanço com saldos e Consolidada.
+1. Informar as contas de pagamento que faltam antes de completar as partidas do Balanço.
+2. Implementar o evento de venda para baixar estoque e reconhecer CPV por obra.
+3. Fechar apropriação de mentorias, saldos de abertura e Consolidada.
 
 A fila visual já existe nas telas `/custo-por-obra` e `/classificar-despesas`.
 A tela de custo por obra também passou a evidenciar lançamentos sem conta de pagamento,
 evitando que a capitalização pareça completa quando a contrapartida do razão ainda falta.
+
+## Decisão do Luiz aplicada em 18/07/2026
+
+O Luiz assumiu as decisões que antes seriam respondidas pelo contador. A migration
+`20260718161547_fechamento_obras_e_conta_pessoal.sql` foi revisada, aprovada e aplicada via MCP.
+
+Tratamento proposto:
+
+- Capitalizar os 53 custos com obra explícita e mais 5 itens inferidos, totalizando 58
+  lançamentos e R$ 134.172,06 em `1.2 Estoque de obras em andamento`.
+- Destino final: Alfenas 34 itens/R$ 56.676,31; Cristais 24 itens/R$ 77.495,75.
+- Evidência direta: SANECAMP e Paraíba Ferragens têm histórico com `Casas Cristais`; Leal
+  Gesso tem histórico com `Casas Alfenas`.
+- Inferência operacional a revisar: Madeireira do Zetinho e G4 Construções foram direcionadas
+  a Cristais por serem materiais estruturais no período em que Cristais estava nessa fase e
+  Alfenas aparecia nos lançamentos de acabamento.
+- Classificar as cinco parcelas da betoneira, R$ 5.031,63, em `1.4.01 Máquinas e equipamentos`.
+- Na conta pessoal, classificar os 3 consórcios/R$ 5.230,00 como ativo e os outros 24
+  itens/R$ 94.600,71 como `Movimentações pessoais do titular`, redutora do patrimônio líquido.
+- Não inventar conta pagadora: apenas os cinco custos de obra que já têm `account_id` recebem
+  partidas completas. Os demais continuam com a contrapartida pendente e visível.
+
+Impacto previsto em abril-junho: NC-2 cai de 87 itens/R$ 236.011,81 para zero e o resultado
+consolidado sobe no mesmo valor, pois estoque, imobilizado e gastos pessoais deixam a DRE.
+
+### Smoke pós-aplicação
+
+- NC-2 abril-junho: zero itens e R$ 0 nas duas empresas.
+- Alfenas: 34 lançamentos/R$ 56.676,31; Cristais: 24/R$ 77.495,75.
+- Betoneira: 5 parcelas/R$ 5.031,63 em `1.4.01 Máquinas e equipamentos`.
+- Conta pessoal: 3 consórcios/R$ 5.230,00 em ativo; 24 movimentos/R$ 94.600,71 em redutora do PL.
+- Partidas de obra: 5 pares, débito = crédito = R$ 12.404,18; zero lançamentos desbalanceados.
+- Versão registrada no banco: `20260718161547`.

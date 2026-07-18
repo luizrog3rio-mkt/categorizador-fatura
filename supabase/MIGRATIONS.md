@@ -184,6 +184,7 @@
 ### 2026-07-18 (1)
 
 - [`20260718153823_saneamento_deterministico_abr_jun.sql`](migrations/20260718153823_saneamento_deterministico_abr_jun.sql) — saneamento atômico aprovado: corrige 8 entries e 1 lançamento de cartão invisíveis na DRE e classifica 11 entries de destino factual. Validado pós-apply: 19/19 entries, cartão em `6.3.13`, 19 eventos no `entry_audit_log` e impacto abr–jun conforme snapshot.
+- [`20260718161547_fechamento_obras_e_conta_pessoal.sql`](migrations/20260718161547_fechamento_obras_e_conta_pessoal.sql) — capitaliza 58 custos/R$134.172,06 nas obras Alfenas e Cristais, classifica 5 parcelas da betoneira/R$5.031,63 no imobilizado e retira 27 movimentos pessoais/R$99.830,71 da DRE operacional. Smoke: NC-2 zerado no período, 10 partidas de obra balanceadas e versão `20260718161547` confirmada no banco.
 
 > **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz em 2026-06-09).**
 > Histórico vivo: `20260609120000 baseline` (registrado sem execução) → `20260610010051 phase1a_hardening`
