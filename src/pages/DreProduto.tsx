@@ -58,7 +58,8 @@ export default function DreProduto() {
     setCarregando(false)
     if (r1.error) { setErro('Erro ao carregar a DRE por produto: ' + r1.error.message); setDados([]); return }
     setDados((r1.data as Linha[]) ?? [])
-    setProdutos((r2.data as DreProduct[]) ?? [])
+    // produtos são por empresa (2026-07-19); company_id null = legado, ainda aparece em todas
+    setProdutos(((r2.data as DreProduct[]) ?? []).filter((p) => p.company_id === null || p.company_id === empresaAtiva.id))
     const r = (nc.data as { qtd_entries: number; valor_entries: number; qtd_tx: number; valor_tx: number }[] | null)?.[0]
     const qtdTx = Number(r?.qtd_tx ?? 0), valorTx = Number(r?.valor_tx ?? 0)
     const qtd = Number(r?.qtd_entries ?? 0) + qtdTx, valor = Number(r?.valor_entries ?? 0) + valorTx

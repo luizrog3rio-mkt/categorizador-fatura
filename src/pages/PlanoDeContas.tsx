@@ -527,7 +527,7 @@ export default function PlanoDeContas() {
                 onChange={(e) => setForm({ ...form, dre_product_id: e.target.value })}
               >
                 <option value="">— Nenhum (cai em "A classificar") —</option>
-                {produtos.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {produtos.filter((p) => p.company_id === null || p.company_id === form.company_id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <p className="text-xs text-fg-subtle mt-1">
                 A receita/custo lançado nesta conta aparece neste produto na DRE por Produto (o lançamento ainda pode sobrepor manualmente). Contas de estrutura (despesas fixas/financeiro/impostos) não têm produto — vão pra coluna Total.

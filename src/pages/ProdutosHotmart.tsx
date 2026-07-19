@@ -57,12 +57,15 @@ export default function ProdutosHotmart() {
     setCarregando(false)
   }, [])
 
-  // Hotmart é 100% RB7 DIGITAL (company_id congelado) — só as contas de receita dela
-  // fazem sentido no vínculo direto. Se a empresa não for achada pelo nome, mostra todas.
+  // Hotmart é 100% RB7 DIGITAL (company_id congelado) — só as contas de receita e os
+  // produtos DRE dela fazem sentido aqui. Se a empresa não for achada pelo nome, mostra todos.
   const digitalId = useMemo(() => empresas.find((e) => e.name === 'RB7 DIGITAL')?.id ?? null, [empresas])
   const contasDigital = useMemo(() => contas.filter((c) =>
     c.company_id === null || !digitalId || c.company_id === digitalId
   ), [contas, digitalId])
+  const produtosDigital = useMemo(() => produtos.filter((p) =>
+    p.company_id === null || !digitalId || p.company_id === digitalId
+  ), [produtos, digitalId])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -153,7 +156,7 @@ export default function ProdutosHotmart() {
                         onChange={(e) => setProduto(r, e.target.value || null)}
                       >
                         <option value="">— A classificar —</option>
-                        {produtos.map((p) => (
+                        {produtosDigital.map((p) => (
                           <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
                       </select>

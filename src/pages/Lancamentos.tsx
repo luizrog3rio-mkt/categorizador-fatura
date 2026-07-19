@@ -1203,7 +1203,7 @@ export default function Lancamentos({ tipo }: { tipo: EntryType }) {
               <label className="block text-sm font-medium mb-1">Produto / Centro de Custo</label>
               <select disabled={contaContabilSelecionada?.tipo === 'patrimonial'} className={inputCls} value={form.dre_product_id} onChange={(e) => setForm({ ...form, dre_product_id: e.target.value })}>
                 <option value="">— Herdar da conta do Plano —</option>
-                {/* hoje todo produto é global (company_id null); o filtro é defensivo caso um dia ganhem empresa */}
+                {/* produtos são por empresa (2026-07-19); company_id null = legado, ainda vale em todas */}
                 {dreProducts.filter((p) => p.company_id === null || p.company_id === form.company_id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <p className="text-xs text-fg-subtle mt-1">{contaContabilSelecionada?.tipo === 'patrimonial' ? 'Não se aplica a contas patrimoniais.' : 'Vazio = usa o produto vinculado à conta acima (na DRE por Produto). Escolha aqui só pra sobrepor.'}</p>

@@ -21,15 +21,16 @@ interface ContaReceita { id: string; code: string; name: string; company_id: str
 interface FormState {
   id?: string
   name: string
+  company_id: string
   sort_order: string
   active: boolean
   chart_of_account_id: string
 }
 
-const formVazio = (): FormState => ({ name: '', sort_order: '0', active: true, chart_of_account_id: '' })
+const formVazio = (companyId: string): FormState => ({ name: '', company_id: companyId, sort_order: '0', active: true, chart_of_account_id: '' })
 
 export default function DreProducts() {
-  const { isAdmin, empresas } = useApp()
+  const { isAdmin, empresas, empresaAtiva } = useApp()
   const confirmar = useConfirm()
   const toast = useToast()
   const [produtos, setProdutos] = useState<DreProduct[]>([])
@@ -38,11 +39,12 @@ export default function DreProducts() {
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState<FormState>(formVazio())
+  const [form, setForm] = useState<FormState>(formVazio(''))
+  const [filtroEmpresa, setFiltroEmpresa] = useState(empresaAtiva?.id ?? 'todas')
 
-  // Produtos da DRE são uma taxonomia GLOBAL (compartilhada entre empresas) —
-  // usados como colunas na DRE por produto e no de-para do Hotmart. Não filtra
-  // por empresa (senão some ao selecionar uma específica, já que o seed é global).
+  // Produtos da DRE são POR EMPRESA (2026-07-19 — deixaram de ser taxonomia global; os
+  // 12 originais eram 100% da RB7 DIGITAL, uso real confirmado em entries/chart_of_accounts/
+  // hotmart_product_map). company_id null = legado/todas (transitório até o backfill).
   const carregar = useCallback(async () => {
     setErro(null)
     const { data, error } = await supabase.from('dre_products').select('*').order('sort_order')
@@ -55,6 +57,17 @@ export default function DreProducts() {
     setContas((accs as ContaReceita[]) ?? [])
     setCarregando(false)
   }, [])
+
+  useEffect(() => {
+    if (empresaAtiva) setFiltroEmpresa(empresaAtiva.id)
+  }, [empresaAtiva])
+
+  const produtosFiltrados = useMemo(() =>
+    filtroEmpresa === 'todas' ? produtos : produtos.filter((p) => p.company_id === null || p.company_id === filtroEmpresa)
+  , [produtos, filtroEmpresa])
+
+  const nomeEmpresa = useCallback((id: string | null) =>
+    id === null ? 'Todas (legado)' : empresas.find((e) => e.id === id)?.name ?? '—', [empresas])
 
   // Hotmart é 100% RB7 DIGITAL (company_id congelado) — só as contas de receita dela
   // fazem sentido aqui. Se a empresa não for achada pelo nome, mostra todas (fallback).
@@ -73,12 +86,13 @@ export default function DreProducts() {
 
   const abrirNovo = () => {
     const proximaOrdem = produtos.length > 0 ? Math.max(...produtos.map((p) => p.sort_order)) + 1 : 1
-    setForm({ name: '', sort_order: String(proximaOrdem), active: true, chart_of_account_id: '' })
+    const companyId = filtroEmpresa !== 'todas' ? filtroEmpresa : empresaAtiva?.id ?? ''
+    setForm({ ...formVazio(companyId), sort_order: String(proximaOrdem) })
     setModal(true)
   }
 
   const abrirEdicao = (p: DreProduct) => {
-    setForm({ id: p.id, name: p.name, sort_order: String(p.sort_order), active: p.active, chart_of_account_id: p.chart_of_account_id ?? '' })
+    setForm({ id: p.id, name: p.name, company_id: p.company_id ?? '', sort_order: String(p.sort_order), active: p.active, chart_of_account_id: p.chart_of_account_id ?? '' })
     setModal(true)
   }
 
@@ -86,6 +100,7 @@ export default function DreProducts() {
     e.preventDefault()
     const nome = form.name.trim()
     if (!nome) return
+    if (!form.company_id) { setErro('Escolha a empresa do produto.'); return }
     setSalvando(true)
     setErro(null)
     const sortOrder = parseInt(form.sort_order, 10) || 0
@@ -93,12 +108,11 @@ export default function DreProducts() {
     if (form.id) {
       const { error } = await supabase
         .from('dre_products')
-        .update({ name: nome, sort_order: sortOrder, active: form.active, chart_of_account_id: conta })
+        .update({ name: nome, company_id: form.company_id, sort_order: sortOrder, active: form.active, chart_of_account_id: conta })
         .eq('id', form.id)
       if (error) { setErro('Erro ao salvar: ' + error.message); setSalvando(false); return }
     } else {
-      // cria GLOBAL (company_id null) — taxonomia compartilhada
-      const { error } = await supabase.from('dre_products').insert({ name: nome, sort_order: sortOrder, active: form.active, chart_of_account_id: conta })
+      const { error } = await supabase.from('dre_products').insert({ name: nome, company_id: form.company_id, sort_order: sortOrder, active: form.active, chart_of_account_id: conta })
       if (error) { setErro('Erro ao criar: ' + error.message); setSalvando(false); return }
     }
     setSalvando(false)
@@ -117,9 +131,9 @@ export default function DreProducts() {
 
   const mover = async (index: number, direcao: -1 | 1) => {
     const outro = index + direcao
-    if (outro < 0 || outro >= produtos.length) return
-    const a = produtos[index]
-    const b = produtos[outro]
+    if (outro < 0 || outro >= produtosFiltrados.length) return
+    const a = produtosFiltrados[index]
+    const b = produtosFiltrados[outro]
     const { error: e1 } = await supabase.from('dre_products').update({ sort_order: b.sort_order }).eq('id', a.id)
     const { error: e2 } = await supabase.from('dre_products').update({ sort_order: a.sort_order }).eq('id', b.id)
     if (e1 || e2) { setErro('Erro ao reordenar: ' + (e1?.message ?? e2?.message)); return }
@@ -142,12 +156,19 @@ export default function DreProducts() {
 
       <ErroBanner mensagem={erro} />
 
+      <div className="mb-4">
+        <select className={inputCls + ' max-w-[15rem]'} value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
+          <option value="todas">Todas as empresas</option>
+          {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+        </select>
+      </div>
+
       <Card className="p-5">
-        {produtos.length === 0 ? (
-          <Vazio mensagem={carregando ? 'Carregando…' : 'Nenhum produto DRE cadastrado. Crie o primeiro no botão acima.'} />
+        {produtosFiltrados.length === 0 ? (
+          <Vazio mensagem={carregando ? 'Carregando…' : 'Nenhum produto DRE cadastrado para este filtro. Crie o primeiro no botão acima.'} />
         ) : (
           <div className="divide-y divide-border">
-            {produtos.map((p, i) => (
+            {produtosFiltrados.map((p, i) => (
               <div key={p.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                 <div className="flex items-center gap-3 min-w-0">
                   {isAdmin && (
@@ -162,7 +183,7 @@ export default function DreProducts() {
                       </button>
                       <button
                         onClick={() => mover(i, 1)}
-                        disabled={i === produtos.length - 1}
+                        disabled={i === produtosFiltrados.length - 1}
                         title="Mover para baixo"
                         className="text-fg-subtle hover:text-fg-muted disabled:opacity-20 disabled:cursor-not-allowed"
                       >
@@ -172,6 +193,9 @@ export default function DreProducts() {
                   )}
                   <span className="text-xs text-fg-subtle w-6 text-right shrink-0 font-mono tnum">{p.sort_order}</span>
                   <span className="text-sm font-medium text-fg truncate">{p.name}</span>
+                  {filtroEmpresa === 'todas' && (
+                    <Badge tom="muted">{nomeEmpresa(p.company_id)}</Badge>
+                  )}
                   {p.chart_of_account_id && contaNome.has(p.chart_of_account_id) && (
                     <span className="text-xs text-fg-subtle truncate hidden sm:inline" title="Conta de receita na DRE por competência">
                       → {contaNome.get(p.chart_of_account_id)}
@@ -221,6 +245,21 @@ export default function DreProducts() {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Ex.: Consultoria, Produto A"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Empresa *</label>
+            {/* trava na edição: entries/chart_of_accounts/hotmart_product_map apontam pro
+                produto por id — trocar a empresa faz a receita/custo sumir da DRE por Produto
+                em silêncio (dre_by_product casa pela empresa do LANÇAMENTO, não do produto) */}
+            <select required disabled={!!form.id} className={inputCls} value={form.company_id} onChange={(e) => setForm({ ...form, company_id: e.target.value })}>
+              <option value="">Selecione…</option>
+              {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+            </select>
+            <p className="text-xs text-fg-subtle mt-1">
+              {form.id
+                ? 'Não pode ser trocada depois de criado (produto pode já estar vinculado a lançamentos ou vendas Hotmart).'
+                : 'O produto só aparece nos lançamentos e na DRE por Produto desta empresa.'}
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Ordem</label>
