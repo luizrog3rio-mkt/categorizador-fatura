@@ -1,5 +1,6 @@
 -- Migration: dre_products_por_empresa
--- STATUS: NAO APLICADA — aguardando revisão e aprovação do Luiz (regra-mãe do projeto).
+-- STATUS: APLICADA em 2026-07-19, version 20260719005434 (SQL revisado e aprovado pelo Luiz;
+-- dry-run com rollback passou antes; smoke pós-apply: 12/12 produtos em RB7 DIGITAL, 0 nulos).
 --
 -- Decisão do Luiz (2026-07-19): Produtos DRE ficava igual em toda empresa ao trocar o
 -- seletor global — a taxonomia `dre_products` nunca teve `company_id` (sempre null,

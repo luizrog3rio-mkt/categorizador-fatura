@@ -189,6 +189,10 @@
 
 - [`20260718195836_separacao_plano_de_contas_por_empresa.sql`](migrations/20260718195836_separacao_plano_de_contas_por_empresa.sql) — **APLICADA** (SQL revisado e aprovado pelo Luiz; dry-run com rollback proposital passou antes, contagens idênticas no apply). Separa o plano de contas por empresa conforme a planilha `RB7_Plano_de_Contas_DRE.xlsx`: Digital herda as 106 ex-compartilhadas (4.6 CPV vai pra Incorporadora), Incorporadora/Participações ganham os planos da planilha, Molho/Conta Pessoal planos mínimos, 79 entries + 32 partidas remapeados com natureza preservada, 15 patrimoniais cruzados consertados (10 pro balanço da Conta Pessoal, 5 de volta pra fila), 6 regras de sugestão clonadas, `finalizar_venda_obra` recriada (CPV por empresa da obra). Smoke pós-apply: 0 contas sem empresa, 0 referências cruzadas, planos = Digital 105 / Incorporadora 20 / Participações 22 / Molho 7 / Pessoal 18 (resultado), 10 regras todas com empresa. Ver `docs/dre-balanco/07-separacao-plano-por-empresa.md`.
 
+### 2026-07-19 (1)
+
+- [`20260719005434_dre_products_por_empresa.sql`](migrations/20260719005434_dre_products_por_empresa.sql) — **APLICADA** (SQL revisado e aprovado pelo Luiz; dry-run com rollback passou antes). Motivo: a tela `/produtos-dre` mostrava os mesmos 12 produtos trocando de empresa — `dre_products` nunca tinha `company_id` (sempre null, tratado como taxonomia global). Auditoria confirmou 100% de uso real (entries, chart_of_accounts, hotmart_product_map) só pela RB7 DIGITAL. Backfill dos 12 produtos pra `company_id = RB7 DIGITAL`; nenhuma outra tabela tocada. Smoke pós-apply: 12/12 produtos em RB7 DIGITAL, 0 com company_id null.
+
 > **Status: APLICADO em 2026-06-10 (SQL revisado e aprovado pelo Luiz em 2026-06-09).**
 > Histórico vivo: `20260609120000 baseline` (registrado sem execução) → `20260610010051 phase1a_hardening`
 > (executado via MCP `apply_migration`). Advisors pós-apply: **os 13 achados SQL-fixáveis zeraram**

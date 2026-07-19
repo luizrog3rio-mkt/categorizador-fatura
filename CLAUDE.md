@@ -457,12 +457,22 @@ runbook `supabase/MIGRATIONS.md`). Mapas históricos da portagem em
   exports e seletores de modal. Caminhos: `company_id` direto; fatura/cartão via
   invoice→account→company; RPCs recebem `p_company`. Tela nova SEMPRE nasce com o filtro
   (auditoria multi-agente das 25 páginas em 2026-07-18 fechou as lacunas). **Exceções
-  deliberadas:** telas globais (Usuários, Empresas, Log de Deleções, Produtos DRE); o
-  DESTINO da transferência e a "Conta que pagou" de obras listam contas de todas as
-  empresas (intercompany por design); o modal de lançamento permite escolher outra empresa
+  deliberadas:** telas globais (Usuários, Empresas, Log de Deleções); o DESTINO da
+  transferência e a "Conta que pagou" de obras listam contas de todas as empresas
+  (intercompany por design); o modal de lançamento permite escolher outra empresa
   (default = ativa). A RPC `obra_candidatos` devolve candidatos de outras empresas DE
   PROPÓSITO — o front filtra e mostra Alert com a contagem (sinal de custo lançado na
   empresa errada); não "corrigir" a RPC sem decisão nova.
+- **`dre_products` (Produtos DRE) é POR EMPRESA, não mais taxonomia global** (migration
+  `dre_products_por_empresa` `20260719005434`, 2026-07-19): os 12 produtos vivos (Mentoria
+  Individual, Apruma, Cursos, Ebooks...) são 100% RB7 DIGITAL — auditoria confirmou toda
+  referência real (`entries.dre_product_id`, `chart_of_accounts.dre_product_id`,
+  `hotmart_product_map.dre_product_id`) só aponta pra ela. Tela `/produtos-dre` filtra por
+  empresa, exige empresa pra criar, e **trava o campo Empresa na edição** (trocar a empresa
+  de um produto já vinculado faz receita/custo sumirem em silêncio da DRE por Produto — a
+  RPC `dre_by_product` casa pela empresa do LANÇAMENTO, não do produto; achado por revisão
+  adversarial, corrigido antes do deploy). Plano de Contas ("Produto DRE" da conta), DRE por
+  Produto e mapeamento Hotmart filtram pela empresa do registro.
 - **Design system "Razão Calma"** (redesign 2026-06-24): tokens semânticos em
   `src/index.css` via `@theme` do Tailwind 4 — **cor só com função**: `bg-brand`/
   `text-brand` (ação, azul cobalto), `text-revenue`/`bg-revenue-bg` (entrada,
